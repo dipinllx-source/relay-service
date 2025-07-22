@@ -14,9 +14,9 @@ const {
 } = require('../utils/tokenRefreshLogger');
 const tokenRefreshService = require('./tokenRefreshService');
 
-// Gemini CLI OAuth 配置
-const OAUTH_CLIENT_ID = config.gemini.oauthClientId;
-const OAUTH_CLIENT_SECRET = config.gemini.oauthClientSecret;
+// Gemini CLI OAuth 配置 - 这些是公开的 Gemini CLI 凭据
+const OAUTH_CLIENT_ID = 'GEMINI_OAUTH_CLIENT_ID_PLACEHOLDER';
+const OAUTH_CLIENT_SECRET = 'GEMINI_OAUTH_CLIENT_SECRET_PLACEHOLDER';
 const OAUTH_SCOPES = ['https://www.googleapis.com/auth/cloud-platform'];
 
 // 加密相关常量

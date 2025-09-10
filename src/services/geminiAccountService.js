@@ -16,9 +16,9 @@ const {
 const tokenRefreshService = require('./tokenRefreshService')
 const LRUCache = require('../utils/lruCache')
 
-// Gemini CLI OAuth 配置 - 从环境变量或配置文件读取
-const OAUTH_CLIENT_ID = process.env.GEMINI_OAUTH_CLIENT_ID || config.gemini?.oauthClientId || 'your-oauth-client-id'
-const OAUTH_CLIENT_SECRET = process.env.GEMINI_OAUTH_CLIENT_SECRET || config.gemini?.oauthClientSecret || 'your-oauth-client-secret'
+// Gemini CLI OAuth 配置 - 这些是公开的 Gemini CLI 凭据
+const OAUTH_CLIENT_ID = 'GEMINI_OAUTH_CLIENT_ID_PLACEHOLDER'
+const OAUTH_CLIENT_SECRET = 'GEMINI_OAUTH_CLIENT_SECRET_PLACEHOLDER'
 const OAUTH_SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 
 // 加密相关常量

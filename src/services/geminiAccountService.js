@@ -1,6 +1,7 @@
 const redisClient = require('../models/redis')
 const { v4: uuidv4 } = require('uuid')
 const crypto = require('crypto')
+const https = require('https')
 const config = require('../../config/config')
 const logger = require('../utils/logger')
 const { OAuth2Client } = require('google-auth-library')
@@ -20,6 +21,18 @@ const LRUCache = require('../utils/lruCache')
 const OAUTH_CLIENT_ID = 'GEMINI_OAUTH_CLIENT_ID_PLACEHOLDER'
 const OAUTH_CLIENT_SECRET = 'GEMINI_OAUTH_CLIENT_SECRET_PLACEHOLDER'
 const OAUTH_SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
+
+// 🌐 TCP Keep-Alive Agent 配置
+// 解决长时间流式请求中 NAT/防火墙空闲超时导致的连接中断问题
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000, // 每30秒发送一次 keep-alive 探测
+  timeout: 120000, // 120秒连接超时
+  maxSockets: 100, // 最大并发连接数
+  maxFreeSockets: 10 // 保持的空闲连接数
+})
+
+logger.info('🌐 Gemini HTTPS Agent initialized with TCP Keep-Alive support')
 
 // 加密相关常量
 const ALGORITHM = 'aes-256-cbc'
@@ -1472,7 +1485,7 @@ async function generateContent(
       'Content-Type': 'application/json'
     },
     data: request,
-    timeout: 60000 // 生成内容可能需要更长时间
+    timeout: 600000 // 生成内容可能需要更长时间
   }
 
   // 添加代理配置
@@ -1485,7 +1498,10 @@ async function generateContent(
       `🌐 Using proxy for Gemini generateContent: ${ProxyHelper.getProxyDescription(proxyConfig)}`
     )
   } else {
-    logger.debug('🌐 No proxy configured for Gemini generateContent')
+    // 没有代理时，使用 keepAlive agent 防止长时间请求被中断
+    axiosConfig.httpsAgent = keepAliveAgent
+    axiosConfig.httpAgent = keepAliveAgent
+    logger.debug('🌐 Using keepAlive agent for Gemini generateContent')
   }
 
   const response = await axios(axiosConfig)
@@ -1548,7 +1564,7 @@ async function generateContentStream(
     },
     data: request,
     responseType: 'stream',
-    timeout: 60000
+    timeout: 0 // 流式请求不设置超时限制，由 keepAlive 和 AbortSignal 控制
   }
 
   // 添加代理配置
@@ -1561,7 +1577,10 @@ async function generateContentStream(
       `🌐 Using proxy for Gemini streamGenerateContent: ${ProxyHelper.getProxyDescription(proxyConfig)}`
     )
   } else {
-    logger.debug('🌐 No proxy configured for Gemini streamGenerateContent')
+    // 没有代理时，使用 keepAlive agent 防止长时间流式请求被中断
+    axiosConfig.httpsAgent = keepAliveAgent
+    axiosConfig.httpAgent = keepAliveAgent
+    logger.debug('🌐 Using keepAlive agent for Gemini streamGenerateContent')
   }
 
   // 如果提供了中止信号，添加到配置中

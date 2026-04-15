@@ -123,6 +123,20 @@ export const updateClaudeAccountApi = (id, data) =>
   request({ url: `/admin/claude-accounts/${id}`, method: 'PUT', data })
 export const refreshClaudeAccountApi = (id) =>
   request({ url: `/admin/claude-accounts/${id}/refresh`, method: 'POST' })
+
+// 读取 .credentials.json 获取 Access Token 和 expiresAt
+export const readClaudeCredentialsApi = (data) =>
+  request({ url: '/admin/claude-accounts/read-credentials', method: 'POST', data })
+// 获取 credentials.json 文件路径
+export const getCredentialsPathApi = () =>
+  request({ url: '/admin/claude-accounts/credentials-path', method: 'GET' })
+// 设置 credentials.json 文件路径
+export const setCredentialsPathApi = (data) =>
+  request({ url: '/admin/claude-accounts/credentials-path', method: 'POST', data })
+// 通过 credentials 文件刷新 token
+export const refreshClaudeViaCredentialsApi = (id) =>
+  request({ url: `/admin/claude-accounts/${id}/refresh-via-credentials`, method: 'POST' })
+
 export const generateClaudeAuthUrlApi = (data) =>
   request({ url: '/admin/claude-accounts/generate-auth-url', method: 'POST', data })
 export const exchangeClaudeCodeApi = (data) =>

@@ -705,6 +705,55 @@ class ClaudeRelayService {
         if (response.statusCode === 401) {
           logger.warn(`🔐 Unauthorized error (401) detected for account ${accountId}`)
 
+          // 🔄 尝试通过 credentials 文件刷新 token
+          let refreshSuccess = false
+          try {
+            logger.info(`🔄 Attempting credentials-based token refresh for account ${accountId} due to 401...`)
+            const refreshResult = await claudeAccountService.refreshTokenViaCredentials(accountId)
+            if (refreshResult && refreshResult.success) {
+              logger.success(`✅ Token refreshed successfully via credentials for account ${accountId}`)
+              refreshSuccess = true
+            }
+          } catch (refreshError) {
+            logger.warn(`⚠️ Credentials-based refresh failed for account ${accountId}: ${refreshError.message}`)
+          }
+
+          // 🔄 如果刷新成功，重试请求
+          if (refreshSuccess) {
+            logger.info(`🔄 Retrying request after token refresh for account ${accountId}...`)
+            try {
+              // 获取新的 access token
+              const newAccessToken = await claudeAccountService.getValidAccessToken(accountId)
+              // 从 bodyStore 获取请求体
+              const retryRequestBody = JSON.parse(this.bodyStore.get(bodyStoreIdNonStream))
+              // 重试请求
+              response = await this._makeClaudeRequest(
+                retryRequestBody,
+                newAccessToken,
+                proxyAgent,
+                clientHeaders,
+                accountId,
+                (req) => { upstreamRequest = req },
+                { ...requestOptions, isRealClaudeCodeRequest }
+              )
+              response.accountId = accountId
+              response.accountType = accountType
+              logger.success(`✅ Request retry successful after token refresh for account ${accountId}, status: ${response.statusCode}`)
+              
+              // 如果重试成功（200/201），跳过错误处理
+              if (response.statusCode === 200 || response.statusCode === 201) {
+                // 移除监听器
+                if (clientRequest) clientRequest.removeListener('close', handleClientDisconnect)
+                if (clientResponse) clientResponse.removeListener('close', handleClientDisconnect)
+                // 清理 bodyStore
+                this.bodyStore.delete(bodyStoreIdNonStream)
+                return response
+              }
+            } catch (retryError) {
+              logger.error(`❌ Request retry failed after token refresh for account ${accountId}: ${retryError.message}`)
+            }
+          }
+
           // 记录401错误
           await this.recordUnauthorizedError(accountId)
 
@@ -2315,6 +2364,60 @@ class ClaudeRelayService {
           const handleErrorResponse = async () => {
             if (res.statusCode === 401) {
               logger.warn(`🔐 [Stream] Unauthorized error (401) detected for account ${accountId}`)
+
+              // 🔄 尝试通过 credentials 文件刷新 token
+              let refreshSuccess = false
+              try {
+                logger.info(`🔄 [Stream] Attempting credentials-based token refresh for account ${accountId} due to 401...`)
+                const refreshResult = await claudeAccountService.refreshTokenViaCredentials(accountId)
+                if (refreshResult && refreshResult.success) {
+                  logger.success(`✅ [Stream] Token refreshed successfully via credentials for account ${accountId}`)
+                  refreshSuccess = true
+                }
+              } catch (refreshError) {
+                logger.warn(`⚠️ [Stream] Credentials-based refresh failed for account ${accountId}: ${refreshError.message}`)
+              }
+
+              // 🔄 如果刷新成功，重试请求
+              if (refreshSuccess) {
+                logger.info(`🔄 [Stream] Retrying request after token refresh for account ${accountId}...`)
+                try {
+                  // 获取新的 access token
+                  const newAccessToken = await claudeAccountService.getValidAccessToken(accountId)
+                  // 从 bodyStore 获取请求体
+                  if (!requestOptions.bodyStoreId || !this.bodyStore.has(requestOptions.bodyStoreId)) {
+                    throw new Error('401 retry requires valid bodyStoreId')
+                  }
+                  let retryBody
+                  try {
+                    retryBody = JSON.parse(this.bodyStore.get(requestOptions.bodyStoreId))
+                  } catch (parseError) {
+                    logger.error(`❌ [Stream] Failed to parse body for 401 retry: ${parseError.message}`)
+                    throw new Error(`401 retry body parse failed: ${parseError.message}`)
+                  }
+                  // 递归调用重试
+                  const retryResult = await this._makeClaudeStreamRequestWithUsageCapture(
+                    retryBody,
+                    newAccessToken,
+                    proxyAgent,
+                    clientHeaders,
+                    responseStream,
+                    usageCallback,
+                    accountId,
+                    accountType,
+                    sessionHash,
+                    streamTransformer,
+                    requestOptions,
+                    isDedicatedOfficialAccount,
+                    onResponseStart,
+                    retryCount + 1
+                  )
+                  resolve(retryResult)
+                  return // 重要：提前返回，不执行后续错误处理
+                } catch (retryError) {
+                  logger.error(`❌ [Stream] Request retry failed after token refresh for account ${accountId}: ${retryError.message}`)
+                }
+              }
 
               await this.recordUnauthorizedError(accountId)
 

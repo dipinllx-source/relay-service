@@ -253,6 +253,37 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   const exchangeDroidCode = (data) => httpApis.exchangeDroidCodeApi(data)
 
+  // 读取 .credentials.json
+  const readClaudeCredentials = async (data) => {
+    const res = await httpApis.readClaudeCredentialsApi(data || {})
+    if (!res.success) error.value = res.message
+    return res
+  }
+
+  // 获取 credentials 路径
+  const getCredentialsPath = async () => {
+    const res = await httpApis.getCredentialsPathApi()
+    if (!res.success) error.value = res.message
+    return res.success ? res.data : null
+  }
+
+  // 设置 credentials 路径
+  const setCredentialsPath = async (data) => {
+    const res = await httpApis.setCredentialsPathApi(data)
+    if (!res.success) error.value = res.message
+    return res
+  }
+
+  // 通过 credentials 刷新 token
+  const refreshClaudeViaCredentials = async (id) => {
+    loading.value = true
+    const res = await httpApis.refreshClaudeViaCredentialsApi(id)
+    if (res.success) await fetchClaudeAccounts()
+    else error.value = res.message
+    loading.value = false
+    return res
+  }
+
   const sortAccounts = (field) => {
     if (sortBy.value === field) {
       sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc'
@@ -332,6 +363,10 @@ export const useAccountsStore = defineStore('accounts', () => {
     exchangeOpenAICode,
     generateDroidAuthUrl,
     exchangeDroidCode,
+    readClaudeCredentials,
+    getCredentialsPath,
+    setCredentialsPath,
+    refreshClaudeViaCredentials,
     sortAccounts,
     reset
   }

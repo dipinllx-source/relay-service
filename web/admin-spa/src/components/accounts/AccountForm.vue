@@ -593,6 +593,17 @@
                     v-model="form.addType"
                     class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
                     type="radio"
+                    value="manual"
+                  />
+                  <span class="text-sm text-gray-700 dark:text-gray-300"
+                    >手动输入 Access Token</span
+                  >
+                </label>
+                <label class="flex cursor-pointer items-center">
+                  <input
+                    v-model="form.addType"
+                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="radio"
                     value="oauth"
                   />
                   <span class="text-sm text-gray-700 dark:text-gray-300">
@@ -609,17 +620,6 @@
                     value="setup-token"
                   />
                   <span class="text-sm text-gray-700 dark:text-gray-300">Setup Token (效期长)</span>
-                </label>
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.addType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="manual"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300"
-                    >手动输入 Access Token</span
-                  >
                 </label>
                 <label v-if="form.platform === 'droid'" class="flex cursor-pointer items-center">
                   <input
@@ -1999,195 +1999,160 @@
               </p>
             </div>
 
-            <!-- 手动输入 Token 字段 -->
+            <!-- Claude 平台：从 .credentials.json 读取 -->
             <div
-              v-if="
-                form.addType === 'manual' &&
-                form.platform !== 'claude-console' &&
-                form.platform !== 'ccr' &&
-                form.platform !== 'bedrock' &&
-                form.platform !== 'azure_openai' &&
-                form.platform !== 'openai-responses'
-              "
-              class="space-y-4 rounded-lg border border-blue-200 bg-blue-50 p-4"
+              v-if="form.addType === 'manual' && form.platform === 'claude'"
+              class="space-y-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-700 dark:bg-green-900/30"
             >
               <div class="mb-4 flex items-start gap-3">
                 <div
-                  class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500"
+                  class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500"
                 >
-                  <i class="fas fa-info text-sm text-white" />
+                  <i class="fas fa-file-code text-sm text-white" />
                 </div>
                 <div>
-                  <h5 class="mb-2 font-semibold text-blue-900 dark:text-blue-300">
-                    手动输入 Token
+                  <h5 class="mb-2 font-semibold text-green-900 dark:text-green-300">
+                    从 .credentials.json 读取凭据
                   </h5>
-                  <p
-                    v-if="form.platform === 'claude'"
-                    class="mb-2 text-sm text-blue-800 dark:text-blue-300"
-                  >
-                    请输入有效的 Claude Access Token。如果您有 Refresh
-                    Token，建议也一并填写以支持自动刷新。
-                  </p>
-                  <p
-                    v-else-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'"
-                    class="mb-2 text-sm text-blue-800 dark:text-blue-300"
-                  >
-                    请输入有效的 Gemini Access Token。如果您有 Refresh
-                    Token，建议也一并填写以支持自动刷新。
-                  </p>
-                  <p
-                    v-else-if="form.platform === 'openai'"
-                    class="mb-2 text-sm text-blue-800 dark:text-blue-300"
-                  >
-                    请输入有效的 OpenAI Access Token。如果您有 Refresh
-                    Token，建议也一并填写以支持自动刷新。
-                  </p>
-                  <p
-                    v-else-if="form.platform === 'droid'"
-                    class="mb-2 text-sm text-blue-800 dark:text-blue-300"
-                  >
-                    请输入有效的 Droid Access Token，并同时提供 Refresh Token 以支持自动刷新。
-                  </p>
-                  <div
-                    class="mb-2 mt-2 rounded-lg border border-blue-300 bg-white/80 p-3 dark:border-blue-600 dark:bg-gray-800/80"
-                  >
-                    <p class="mb-1 text-sm font-medium text-blue-900 dark:text-blue-300">
-                      <i class="fas fa-folder-open mr-1" />
-                      获取 Access Token 的方法：
-                    </p>
-                    <p
-                      v-if="form.platform === 'claude'"
-                      class="text-xs text-blue-800 dark:text-blue-300"
+                  <p class="mb-2 text-sm text-green-800 dark:text-green-300">
+                    系统将自动读取服务器上的
+                    <code class="rounded bg-green-100 px-1 py-0.5 font-mono dark:bg-green-900/50"
+                      >~/.claude/.credentials.json</code
                     >
-                      请从已登录 Claude Code 的机器上获取
-                      <code class="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-900/50"
-                        >~/.claude/.credentials.json</code
-                      >
-                      文件中的凭证， 请勿使用 Claude 官网 API Keys 页面的密钥。
-                    </p>
-                    <p
-                      v-else-if="
-                        form.platform === 'gemini' || form.platform === 'gemini-antigravity'
-                      "
-                      class="text-xs text-blue-800 dark:text-blue-300"
-                    >
-                      请从已登录 Gemini CLI 的机器上获取
-                      <code class="rounded bg-blue-100 px-1 py-0.5 font-mono dark:bg-blue-900/50"
-                        >~/.config/.gemini/oauth_creds.json</code
-                      >
-                      文件中的凭证。
-                    </p>
-                    <p
-                      v-else-if="form.platform === 'openai'"
-                      class="text-xs text-blue-800 dark:text-blue-300"
-                    >
-                      请从已登录 OpenAI 账户的机器上获取认证凭证， 或通过 OAuth 授权流程获取 Access
-                      Token。
-                    </p>
-                    <p
-                      v-else-if="form.platform === 'droid'"
-                      class="text-xs text-blue-800 dark:text-blue-300"
-                    >
-                      请从已完成授权的 Droid CLI 或 Factory.ai 导出的凭证中获取 Access Token 与
-                      Refresh Token。
-                    </p>
-                  </div>
-                  <p
-                    v-if="form.platform !== 'droid'"
-                    class="text-xs text-blue-600 dark:text-blue-400"
-                  >
-                    💡 如果未填写 Refresh Token，Token 过期后需要手动更新。
+                    文件获取 Access Token 和过期时间。
                   </p>
-                  <p v-else class="text-xs text-red-600 dark:text-red-400">
-                    ⚠️ Droid 账户必须填写 Refresh Token，缺失将导致无法自动刷新 Access Token。
+                  <p class="text-xs text-green-600 dark:text-green-400">
+                    💡 Token 过期时，系统会自动执行
+                    <code class="font-mono">claude -p "hello world"</code> 刷新凭据。
                   </p>
                 </div>
               </div>
 
-              <div v-if="form.platform === 'openai'">
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Access Token (可选)</label
-                >
-                <textarea
-                  v-model="form.accessToken"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="可选：如果不填写，系统会自动通过 Refresh Token 获取..."
-                  rows="4"
-                />
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  <i class="fas fa-info-circle mr-1" />
-                  Access Token 可选填。如果不提供，系统会通过 Refresh Token 自动获取。
-                </p>
-              </div>
-
-              <div v-else>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Access Token *</label
-                >
-                <textarea
-                  v-model="form.accessToken"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.accessToken }"
-                  placeholder="请输入 Access Token..."
-                  required
-                  rows="4"
-                />
-                <p v-if="errors.accessToken" class="mt-1 text-xs text-red-500">
-                  {{ errors.accessToken }}
-                </p>
-              </div>
-
-              <div v-if="form.platform === 'openai' || form.platform === 'droid'">
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Refresh Token *</label
-                >
-                <textarea
-                  v-model="form.refreshToken"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.refreshToken }"
-                  placeholder="请输入 Refresh Token（必填）..."
-                  required
-                  rows="4"
-                />
-                <p v-if="errors.refreshToken" class="mt-1 text-xs text-red-500">
-                  {{ errors.refreshToken }}
-                </p>
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  <i class="fas fa-info-circle mr-1" />
-                  <template v-if="form.platform === 'openai'">
-                    系统将使用 Refresh Token 自动获取 Access Token 和用户信息
-                  </template>
-                  <template v-else>
-                    系统将使用 Refresh Token 自动刷新 Factory.ai 访问令牌，确保账户保持可用。
-                  </template>
-                </p>
-              </div>
-
-              <div v-else>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Refresh Token (可选)</label
-                >
-                <textarea
-                  v-model="form.refreshToken"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="请输入 Refresh Token..."
-                  rows="4"
-                />
-              </div>
-
-              <!-- Droid User-Agent 配置 (OAuth/Manual 模式) -->
-              <div v-if="form.platform === 'droid'">
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >自定义 User-Agent (可选)</label
-                >
-                <input
-                  v-model="form.userAgent"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="factory-cli/0.32.1"
-                  type="text"
-                />
+              <!-- 自定义路径输入 -->
+              <div v-if="showCredentialsPathInput">
+                <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <i class="fas fa-folder-open mr-1" />
+                  .credentials.json 文件路径
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="credentialsPath"
+                    class="form-input flex-1 border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="请输入 .credentials.json 文件的完整路径..."
+                    type="text"
+                  />
+                  <button
+                    class="rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600"
+                    :disabled="credentialsLoading"
+                    type="button"
+                    @click="handleReadCredentials"
+                  >
+                    <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-1" />
+                    <i v-else class="fas fa-check mr-1" />
+                    确认
+                  </button>
+                </div>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  留空使用默认值 factory-cli/0.32.1，可根据需要自定义
+                  默认文件不存在，请输入 .credentials.json 的完整路径
+                </p>
+              </div>
+
+              <!-- 读取按钮 -->
+              <div
+                v-if="!credentialsLoaded && !showCredentialsPathInput"
+                class="flex justify-center"
+              >
+                <button
+                  class="rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-emerald-700 hover:shadow-xl"
+                  :disabled="credentialsLoading"
+                  type="button"
+                  @click="handleReadCredentials"
+                >
+                  <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-2" />
+                  <i v-else class="fas fa-file-import mr-2" />
+                  {{ credentialsLoading ? '读取中...' : '从 .credentials.json 读取凭据' }}
+                </button>
+              </div>
+
+              <!-- 读取结果展示 -->
+              <div v-if="credentialsLoaded" class="space-y-3">
+                <div
+                  class="rounded-lg border border-green-300 bg-white/80 p-4 dark:border-green-600 dark:bg-gray-800/80"
+                >
+                  <div class="mb-3 flex items-center justify-between">
+                    <h6 class="text-sm font-semibold text-green-800 dark:text-green-300">
+                      <i class="fas fa-check-circle mr-1 text-green-500" />
+                      凭据读取成功
+                    </h6>
+                    <button
+                      class="rounded-lg bg-green-100 px-3 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300"
+                      :disabled="credentialsLoading"
+                      type="button"
+                      @click="handleReadCredentials"
+                    >
+                      <i class="fas fa-sync-alt mr-1" />
+                      重新读取
+                    </button>
+                  </div>
+                  <div class="space-y-2 text-sm">
+                    <div class="flex items-start gap-2">
+                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                        >Access Token:</span
+                      >
+                      <code
+                        class="break-all rounded bg-gray-100 px-2 py-0.5 font-mono text-xs dark:bg-gray-700"
+                        >{{ credentialsMaskedToken }}</code
+                      >
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                        >过期时间:</span
+                      >
+                      <span
+                        :class="
+                          credentialsExpired
+                            ? 'font-semibold text-red-600'
+                            : 'text-green-700 dark:text-green-300'
+                        "
+                      >
+                        {{ credentialsExpiresAtFormatted }}
+                        <span v-if="credentialsExpired" class="ml-1 text-xs">(已过期)</span>
+                      </span>
+                    </div>
+                    <div v-if="credentialsScopes.length > 0" class="flex items-start gap-2">
+                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                        >权限范围:</span
+                      >
+                      <div class="flex flex-wrap gap-1">
+                        <span
+                          v-for="scope in credentialsScopes"
+                          :key="scope"
+                          class="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                          >{{ scope }}</span
+                        >
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                        >文件路径:</span
+                      >
+                      <code
+                        class="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs dark:bg-gray-700"
+                        >{{ credentialsFilePath }}</code
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 错误提示 -->
+              <div
+                v-if="credentialsError"
+                class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+              >
+                <p class="text-sm text-red-700 dark:text-red-300">
+                  <i class="fas fa-exclamation-triangle mr-1" />
+                  {{ credentialsError }}
                 </p>
               </div>
             </div>
@@ -3938,7 +3903,12 @@
               <div>
                 <h5 class="mb-2 font-semibold text-amber-900 dark:text-amber-300">更新 Token</h5>
                 <p class="mb-2 text-sm text-amber-800 dark:text-amber-300">
-                  可以更新 Access Token 和 Refresh Token。为了安全起见，不会显示当前的 Token 值。
+                  <template v-if="form.platform === 'claude'">
+                    可以更新 Access Token。Claude 账户支持从 .credentials.json 自动读取凭据。
+                  </template>
+                  <template v-else>
+                    可以更新 Access Token 和 Refresh Token。为了安全起见，不会显示当前的 Token 值。
+                  </template>
                 </p>
                 <p class="text-xs text-amber-600 dark:text-amber-400">💡 留空表示不更新该字段。</p>
               </div>
@@ -3957,7 +3927,49 @@
                 />
               </div>
 
-              <div>
+              <!-- Claude: 从 credentials 重新读取 -->
+              <div v-if="form.platform === 'claude'">
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  过期时间 (expiresAt)
+                </label>
+                <div
+                  class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
+                >
+                  <div v-if="credentialsLoaded" class="text-sm">
+                    <span class="font-medium text-gray-700 dark:text-gray-300">当前过期时间：</span>
+                    <span
+                      :class="credentialsExpired ? 'font-semibold text-red-600' : 'text-green-600'"
+                    >
+                      {{ credentialsExpiresAtFormatted }}
+                      <span v-if="credentialsExpired" class="text-xs">(已过期)</span>
+                    </span>
+                  </div>
+                  <button
+                    class="mt-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600"
+                    :disabled="credentialsLoading"
+                    type="button"
+                    @click="handleReadCredentials"
+                  >
+                    <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-1" />
+                    <i v-else class="fas fa-sync-alt mr-1" />
+                    {{ credentialsLoading ? '读取中...' : '从 .credentials.json 重新读取' }}
+                  </button>
+                  <div v-if="credentialsError" class="mt-2 text-xs text-red-600">
+                    {{ credentialsError }}
+                  </div>
+                  <!-- Custom path input for edit mode -->
+                  <div v-if="showCredentialsPathInput" class="mt-2">
+                    <input
+                      v-model="credentialsPath"
+                      class="form-input w-full border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      placeholder="请输入 .credentials.json 文件路径..."
+                      type="text"
+                    />
+                  </div>
+                </div>
+              </div>
+              <!-- Other platforms: keep Refresh Token -->
+              <div v-else>
                 <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
                   >新的 Refresh Token</label
                 >
@@ -4126,6 +4138,35 @@ const authMethod = ref('manual') // 'manual' | 'cookie'
 const sessionKey = ref('')
 const cookieAuthLoading = ref(false)
 const cookieAuthError = ref('')
+// Credentials file reading state
+const credentialsLoading = ref(false)
+const credentialsLoaded = ref(false)
+const credentialsError = ref('')
+const credentialsMaskedToken = ref('')
+const credentialsExpiresAt = ref(null)
+const credentialsScopes = ref([])
+const credentialsFilePath = ref('')
+const credentialsPath = ref('')
+const showCredentialsPathInput = ref(false)
+const credentialsFullToken = ref('')
+
+const credentialsExpired = computed(() => {
+  if (!credentialsExpiresAt.value) return false
+  return Date.now() >= credentialsExpiresAt.value
+})
+
+const credentialsExpiresAtFormatted = computed(() => {
+  if (!credentialsExpiresAt.value) return 'N/A'
+  return new Date(credentialsExpiresAt.value).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+})
+
 const showSessionKeyHelp = ref(false)
 const batchProgress = ref({ current: 0, total: 0 }) // 批量进度
 
@@ -4311,9 +4352,14 @@ const form = ref({
   platform: props.account?.platform || 'claude',
   addType: (() => {
     const platform = props.account?.platform || 'claude'
-    if (platform === 'gemini' || platform === 'gemini-antigravity' || platform === 'openai')
-      return 'oauth'
-    if (platform === 'claude') return 'oauth'
+    if (platform === 'gemini-api' || platform === 'azure_openai') return 'apikey'
+    if (
+      platform === 'claude-console' ||
+      platform === 'ccr' ||
+      platform === 'bedrock' ||
+      platform === 'openai-responses'
+    )
+      return 'manual'
     return 'manual'
   })(),
   name: props.account?.name || '',
@@ -4902,6 +4948,59 @@ const handleCookieAuth = async () => {
   }
 }
 
+// Read credentials from .credentials.json
+const handleReadCredentials = async () => {
+  credentialsLoading.value = true
+  credentialsError.value = ''
+
+  try {
+    const payload = {}
+    if (credentialsPath.value && credentialsPath.value.trim()) {
+      payload.credentialsPath = credentialsPath.value.trim()
+    }
+
+    const res = await accountsStore.readClaudeCredentials(payload)
+
+    if (res.success) {
+      const data = res.data
+      credentialsFullToken.value = data.accessToken
+      credentialsMaskedToken.value = data.maskedToken
+      credentialsExpiresAt.value = data.expiresAt
+      credentialsScopes.value = data.scopes || []
+      credentialsFilePath.value = data.credentialsPath || ''
+      credentialsLoaded.value = true
+      showCredentialsPathInput.value = false
+
+      // Sync to form
+      form.value.accessToken = data.accessToken
+      form.value.refreshToken = ''
+
+      // Save custom path if provided
+      if (credentialsPath.value && credentialsPath.value.trim()) {
+        await accountsStore.setCredentialsPath({ credentialsPath: credentialsPath.value.trim() })
+      }
+
+      showToast('凭据读取成功', 'success')
+    } else {
+      if (res.needsPath) {
+        showCredentialsPathInput.value = true
+        credentialsError.value = '默认路径下未找到 .credentials.json 文件，请输入文件路径'
+        const pathRes = await accountsStore.getCredentialsPath()
+        if (pathRes && pathRes.credentialsPath) {
+          credentialsPath.value = pathRes.credentialsPath
+        }
+      } else {
+        credentialsError.value = res.message || '读取凭据失败'
+      }
+    }
+  } catch (error) {
+    credentialsError.value = error.message || '读取凭据失败'
+    showCredentialsPathInput.value = true
+  } finally {
+    credentialsLoading.value = false
+  }
+}
+
 // 重置Cookie授权状态
 const resetCookieAuth = () => {
   sessionKey.value = ''
@@ -5334,9 +5433,12 @@ const createAccount = async () => {
         hasError = true
       }
     } else if (form.value.platform === 'claude') {
-      // Claude 平台需要 Access Token
-      if (!form.value.accessToken || form.value.accessToken.trim() === '') {
-        errors.value.accessToken = '请填写 Access Token'
+      // Claude: need credentials loaded or manual Access Token
+      if (
+        !credentialsLoaded.value &&
+        (!form.value.accessToken || form.value.accessToken.trim() === '')
+      ) {
+        errors.value.accessToken = '请先从 .credentials.json 读取凭据'
         hasError = true
       }
     }
@@ -5400,9 +5502,12 @@ const createAccount = async () => {
 
     if (form.value.platform === 'claude') {
       // Claude手动模式需要构建claudeAiOauth对象
-      const expiresInMs = form.value.refreshToken
-        ? 10 * 60 * 1000 // 10分钟
-        : 365 * 24 * 60 * 60 * 1000 // 1年
+      // Use expiresAt from credentials if available, otherwise calculate default
+      const expiresInMs = credentialsExpiresAt.value
+        ? credentialsExpiresAt.value - Date.now()
+        : form.value.refreshToken
+          ? 10 * 60 * 1000 // 10分钟
+          : 365 * 24 * 60 * 60 * 1000 // 1年
 
       // 手动模式也需要确保生成客户端ID
       if (form.value.useUnifiedClientId && !form.value.unifiedClientId) {
@@ -5412,8 +5517,8 @@ const createAccount = async () => {
       data.claudeAiOauth = {
         accessToken: form.value.accessToken,
         refreshToken: form.value.refreshToken || '',
-        expiresAt: Date.now() + expiresInMs,
-        scopes: [] // 手动添加没有 scopes
+        expiresAt: credentialsExpiresAt.value || Date.now() + expiresInMs,
+        scopes: credentialsScopes.value.length > 0 ? credentialsScopes.value : [] // from credentials or empty
       }
       data.priority = form.value.priority || 50
       data.autoStopOnWarning = form.value.autoStopOnWarning || false
@@ -6164,15 +6269,9 @@ watch(
       newPlatform === 'openai-responses'
     ) {
       form.value.addType = 'manual' // Claude Console、CCR、Bedrock 和 OpenAI-Responses 只支持手动模式
-    } else if (newPlatform === 'claude') {
-      // 切换到 Claude 时，使用 oauth 作为默认方式
-      form.value.addType = 'oauth'
-    } else if (newPlatform === 'gemini') {
-      // 切换到 Gemini 时，使用 OAuth 作为默认方式
-      form.value.addType = 'oauth'
-    } else if (newPlatform === 'openai') {
-      // 切换到 OpenAI 时，使用 OAuth 作为默认方式
-      form.value.addType = 'oauth'
+    } else if (newPlatform === 'claude' || newPlatform === 'gemini' || newPlatform === 'openai') {
+      // 切换到 Claude/Gemini/OpenAI 时，使用手动输入作为默认方式
+      form.value.addType = 'manual'
     } else if (newPlatform === 'gemini-api' || newPlatform === 'azure_openai') {
       // 切换到 Gemini API 或 Azure OpenAI 时，使用 apikey 模式（直接创建，不需要 OAuth 流程）
       form.value.addType = 'apikey'

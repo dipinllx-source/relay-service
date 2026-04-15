@@ -881,6 +881,77 @@ router.post('/claude-accounts/update-all-profiles', authenticateAdmin, async (re
   }
 })
 
+
+// 读取 .credentials.json 文件获取 Access Token 和 expiresAt
+router.post('/claude-accounts/read-credentials', authenticateAdmin, async (req, res) => {
+  try {
+    const { credentialsPath } = req.body
+    const credentials = await claudeAccountService.readCredentialsFile(credentialsPath || null)
+    const maskedToken = credentials.accessToken
+      ? credentials.accessToken.substring(0, 20) + '...' + credentials.accessToken.substring(credentials.accessToken.length - 10)
+      : ''
+    logger.success('Admin read credentials file successfully')
+    return res.json({
+      success: true,
+      data: {
+        accessToken: credentials.accessToken,
+        maskedToken,
+        expiresAt: credentials.expiresAt,
+        scopes: credentials.scopes,
+        subscriptionType: credentials.subscriptionType,
+        rateLimitTier: credentials.rateLimitTier,
+        credentialsPath: credentials.credentialsPath
+      }
+    })
+  } catch (error) {
+    logger.error('Failed to read credentials file:', error)
+    const isNotFound = error.message.includes('not found') || error.code === 'ENOENT'
+    return res.status(isNotFound ? 404 : 500).json({
+      error: 'Failed to read credentials file',
+      message: error.message,
+      needsPath: isNotFound
+    })
+  }
+})
+
+// 获取 credentials.json 文件路径
+router.get('/claude-accounts/credentials-path', authenticateAdmin, async (req, res) => {
+  try {
+    const credentialsPath = await claudeAccountService.getCredentialsPath()
+    return res.json({ success: true, data: { credentialsPath } })
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to get credentials path', message: error.message })
+  }
+})
+
+// 设置 credentials.json 文件路径
+router.post('/claude-accounts/credentials-path', authenticateAdmin, async (req, res) => {
+  try {
+    const { credentialsPath } = req.body
+    if (!credentialsPath || typeof credentialsPath !== 'string' || credentialsPath.trim().length === 0) {
+      return res.status(400).json({ error: 'credentialsPath is required' })
+    }
+    await claudeAccountService.setCredentialsPath(credentialsPath.trim())
+    return res.json({ success: true, message: 'Credentials path updated successfully' })
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to set credentials path', message: error.message })
+  }
+})
+
+// 通过 credentials 文件刷新账户 token
+router.post('/claude-accounts/:accountId/refresh-via-credentials', authenticateAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.params
+    const result = await claudeAccountService.refreshTokenViaCredentials(accountId)
+    logger.success(`Admin refreshed token via credentials for account: ${accountId}`)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    logger.error('Failed to refresh token via credentials:', error)
+    return res.status(500).json({ error: 'Failed to refresh token via credentials', message: error.message })
+  }
+})
+
+
 // 刷新Claude账户token
 router.post('/claude-accounts/:accountId/refresh', authenticateAdmin, async (req, res) => {
   try {

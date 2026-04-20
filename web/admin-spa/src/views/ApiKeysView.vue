@@ -4,51 +4,13 @@
       <div class="mb-4 flex flex-col gap-4 sm:mb-6">
         <div>
           <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:mb-2 sm:text-xl">
-            API Keys 管理
+            {{ activeTab === 'deleted' ? '已删除 API Keys' : '活跃 API Keys' }}
           </h3>
           <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
-            管理和监控您的 API 密钥
+            {{
+              activeTab === 'deleted' ? '查看和清理已删除的 API 密钥' : '管理和监控您的 API 密钥'
+            }}
           </p>
-        </div>
-
-        <!-- Tab Navigation -->
-        <div class="border-b border-gray-200 dark:border-gray-700">
-          <nav aria-label="Tabs" class="-mb-px flex space-x-8">
-            <button
-              :class="[
-                'whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium',
-                activeTab === 'active'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300'
-              ]"
-              @click="activeTab = 'active'"
-            >
-              活跃 API Keys
-              <span
-                v-if="apiKeys.length > 0"
-                class="ml-2 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-              >
-                {{ apiKeys.length }}
-              </span>
-            </button>
-            <button
-              :class="[
-                'whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium',
-                activeTab === 'deleted'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300'
-              ]"
-              @click="loadDeletedApiKeys"
-            >
-              已删除 API Keys
-              <span
-                v-if="deletedApiKeys.length > 0"
-                class="ml-2 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-              >
-                {{ deletedApiKeys.length }}
-              </span>
-            </button>
-          </nav>
         </div>
 
         <!-- Tab Content -->
@@ -2167,7 +2129,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { showToast, copyText, formatNumber, formatDate } from '@/utils/tools'
 
 import * as httpApis from '@/utils/http_apis'
@@ -2189,6 +2151,7 @@ import ConfirmModal from '@/components/common/ConfirmModal.vue'
 
 // 响应式数据
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const apiKeys = ref([])
 
@@ -2237,8 +2200,8 @@ const timeRangeDropdownOptions = computed(() => [
   { value: 'custom', label: '自定义范围', icon: 'fa-calendar-check' }
 ])
 
-// Tab management
-const activeTab = ref('active')
+// Tab management (驱动自路由: /api-keys=active, /api-keys/deleted=deleted)
+const activeTab = ref(route.path.endsWith('/deleted') ? 'deleted' : 'active')
 const deletedApiKeys = ref([])
 const deletedApiKeysLoading = ref(false)
 const apiKeysSortBy = ref('createdAt') // 默认排序为创建时间
@@ -2845,9 +2808,8 @@ const isLastUsageLoading = (keyId) => {
   return lastUsageLoading.value.has(keyId)
 }
 
-// 加载已删除的API Keys
+// 加载已删除的API Keys（仅刷新数据，不改变 activeTab — 当前视图由路由驱动）
 const loadDeletedApiKeys = async () => {
-  activeTab.value = 'deleted'
   deletedApiKeysLoading.value = true
   try {
     const data = await httpApis.getDeletedApiKeysApi()
@@ -4833,7 +4795,25 @@ onMounted(async () => {
 
   // 异步加载账号数据（不阻塞页面显示）
   loadAccounts()
+
+  // 如果当前路由是 /api-keys/deleted，加载已删除列表
+  if (activeTab.value === 'deleted') {
+    loadDeletedApiKeys()
+  }
 })
+
+// 监听路由变化，切换 active/deleted 视图
+watch(
+  () => route.path,
+  (path) => {
+    const target = path.endsWith('/deleted') ? 'deleted' : 'active'
+    if (target === activeTab.value) return
+    activeTab.value = target
+    if (target === 'deleted') {
+      loadDeletedApiKeys()
+    }
+  }
+)
 
 // 组件卸载时清理定时器
 onUnmounted(() => {

@@ -187,24 +187,231 @@
           统一调度 Claude、Gemini、OpenAI、Bedrock、Azure 与更多平台。<br />
           为个人打造的全方面、可观测的 AI API 中转。
         </p>
-        <div class="hero__cta">
-          <router-link class="btn btn--primary" to="/login">进入控制台</router-link>
-          <a class="btn btn--ghost" href="#features">了解更多 ›</a>
-        </div>
         <div class="hero__visual">
           <div class="orb orb--a"></div>
           <div class="orb orb--b"></div>
           <div class="orb orb--c"></div>
-          <div class="hero__card">
-            <div class="hero__card-bar"><span></span><span></span><span></span></div>
-            <div class="hero__card-body">
-              <div class="line line--w70"></div>
-              <div class="line line--w50"></div>
-              <div class="line line--w90"></div>
-              <div class="line line--w40"></div>
-              <div class="line line--w65"></div>
-            </div>
-          </div>
+
+          <!-- Cloud → Relay → MacBook illustration -->
+          <svg class="hero__illust" viewBox="0 0 640 520" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="cloudGrad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#e3e9f2" />
+                <stop offset="1" stop-color="#d1d9e7" />
+              </linearGradient>
+              <linearGradient id="relayGrad" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0" stop-color="#0a84ff" />
+                <stop offset="1" stop-color="#0071e3" />
+              </linearGradient>
+              <linearGradient id="macScreenGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#1d1d1f" />
+                <stop offset="1" stop-color="#2d2d33" />
+              </linearGradient>
+              <linearGradient id="macBodyGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#d8d8dd" />
+                <stop offset="1" stop-color="#a8a8af" />
+              </linearGradient>
+              <filter id="softShadow" height="140%" width="140%" x="-20%" y="-20%">
+                <feGaussianBlur stdDeviation="8" />
+              </filter>
+            </defs>
+
+            <!-- 1) Cloud area with 4 provider chips -->
+            <g class="hero__cloud">
+              <!-- Cloud backdrop shape -->
+              <path
+                d="M155 80 Q125 80 115 110 Q80 120 80 150 Q80 185 118 185 L500 185 Q530 185 530 160 Q530 135 510 128 Q510 95 475 90 Q465 65 430 65 Q400 65 390 88 Q375 70 355 75 Q340 50 305 50 Q270 50 258 78 Q240 65 215 72 Q185 60 155 80 Z"
+                fill="url(#cloudGrad)"
+                opacity="0.9"
+              />
+              <!-- Provider chips floating on cloud -->
+              <g transform="translate(165 105)">
+                <rect fill="#d97757" height="54" rx="13" width="54" />
+                <text
+                  fill="#fff"
+                  font-family="'SF Pro Display',-apple-system,sans-serif"
+                  font-size="22"
+                  font-weight="700"
+                  text-anchor="middle"
+                  x="27"
+                  y="36"
+                >
+                  C
+                </text>
+              </g>
+              <g transform="translate(240 90)">
+                <rect fill="#10a37f" height="54" rx="13" width="54" />
+                <text
+                  fill="#fff"
+                  font-family="'SF Pro Display',-apple-system,sans-serif"
+                  font-size="22"
+                  font-weight="700"
+                  text-anchor="middle"
+                  x="27"
+                  y="36"
+                >
+                  O
+                </text>
+              </g>
+              <g transform="translate(320 98)">
+                <rect fill="#4285f4" height="54" rx="13" width="54" />
+                <text
+                  fill="#fff"
+                  font-family="'SF Pro Display',-apple-system,sans-serif"
+                  font-size="22"
+                  font-weight="700"
+                  text-anchor="middle"
+                  x="27"
+                  y="36"
+                >
+                  G
+                </text>
+              </g>
+              <g transform="translate(398 108)">
+                <rect fill="#ff9900" height="54" rx="13" width="54" />
+                <text
+                  fill="#fff"
+                  font-family="'SF Pro Display',-apple-system,sans-serif"
+                  font-size="22"
+                  font-weight="700"
+                  text-anchor="middle"
+                  x="27"
+                  y="36"
+                >
+                  B
+                </text>
+              </g>
+            </g>
+
+            <!-- 2) Connection lines cloud → relay (animated flow) -->
+            <g class="hero__flow" fill="none" opacity="0.35" stroke="#0071e3" stroke-width="2">
+              <path d="M195 155 Q200 200 260 240" stroke-dasharray="5 5" />
+              <path d="M270 155 Q275 195 305 235" stroke-dasharray="5 5" />
+              <path d="M350 155 Q340 195 325 235" stroke-dasharray="5 5" />
+              <path d="M425 155 Q420 200 365 240" stroke-dasharray="5 5" />
+            </g>
+
+            <!-- 3) Relay service (central gateway) -->
+            <g class="hero__relay" transform="translate(210 230)">
+              <rect fill="url(#relayGrad)" height="80" rx="18" width="220" />
+              <rect
+                fill="none"
+                height="72"
+                rx="14"
+                stroke="#ffffff"
+                stroke-opacity="0.2"
+                stroke-width="1"
+                width="212"
+                x="4"
+                y="4"
+              />
+              <!-- Relay icon (transit) -->
+              <g fill="#fff" transform="translate(20 20)">
+                <circle cx="20" cy="20" fill="rgba(255,255,255,0.18)" r="18" />
+                <path
+                  d="M10 20h12l-3-3m0 6l3-3M30 15v10"
+                  fill="none"
+                  stroke="#fff"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                />
+              </g>
+              <text
+                fill="#fff"
+                font-family="'SF Pro Display',-apple-system,sans-serif"
+                font-size="16"
+                font-weight="600"
+                x="80"
+                y="38"
+              >
+                Relay Service
+              </text>
+              <text
+                fill="#ffffff"
+                font-family="'SF Pro Text',-apple-system,sans-serif"
+                font-size="11"
+                opacity="0.75"
+                x="80"
+                y="58"
+              >
+                调度 · 加密 · 观测
+              </text>
+            </g>
+
+            <!-- 4) Connection lines relay → MacBook -->
+            <g fill="none" opacity="0.35" stroke="#0071e3" stroke-width="2">
+              <path d="M320 320 L320 360" stroke-dasharray="5 5" />
+            </g>
+
+            <!-- 5) MacBook -->
+            <g class="hero__mac" transform="translate(170 360)">
+              <!-- Screen -->
+              <rect fill="#1d1d1f" height="180" rx="10" width="300" x="0" y="0" />
+              <rect fill="url(#macScreenGrad)" height="165" rx="6" width="288" x="6" y="6" />
+              <!-- Camera notch dot -->
+              <circle cx="150" cy="4" fill="#6e6e73" r="1.5" />
+              <!-- Dashboard UI mockup -->
+              <g transform="translate(20 22)">
+                <!-- Top bar (traffic lights + title) -->
+                <circle cx="8" cy="8" fill="#ff5f56" r="4" />
+                <circle cx="22" cy="8" fill="#ffbd2e" r="4" />
+                <circle cx="36" cy="8" fill="#27c93f" r="4" />
+                <rect fill="rgba(255,255,255,0.15)" height="8" rx="4" width="80" x="90" y="4" />
+                <!-- Content lines -->
+                <rect fill="rgba(255,255,255,0.25)" height="10" rx="3" width="260" x="0" y="30" />
+                <rect fill="rgba(255,255,255,0.15)" height="8" rx="3" width="190" x="0" y="48" />
+                <rect fill="rgba(255,255,255,0.15)" height="8" rx="3" width="220" x="0" y="64" />
+                <!-- Bar chart -->
+                <g transform="translate(0 88)">
+                  <rect fill="#0a84ff" height="22" rx="2" width="22" x="0" y="30" />
+                  <rect fill="#0a84ff" height="34" opacity="0.85" rx="2" width="22" x="30" y="18" />
+                  <rect fill="#0a84ff" height="30" opacity="0.75" rx="2" width="22" x="60" y="22" />
+                  <rect fill="#0a84ff" height="42" rx="2" width="22" x="90" y="10" />
+                  <rect fill="#0a84ff" height="38" opacity="0.9" rx="2" width="22" x="120" y="14" />
+                  <rect fill="#0a84ff" height="46" rx="2" width="22" x="150" y="6" />
+                  <rect fill="#0a84ff" height="32" opacity="0.8" rx="2" width="22" x="180" y="20" />
+                  <rect fill="#0a84ff" height="40" rx="2" width="22" x="210" y="12" />
+                </g>
+              </g>
+              <!-- Base / hinge -->
+              <rect fill="url(#macBodyGrad)" height="6" rx="2" width="336" x="-18" y="180" />
+              <rect fill="#8e8e93" height="3" rx="1" width="20" x="140" y="186" />
+            </g>
+
+            <!-- 6) Feature icons floating around -->
+            <g class="hero__chip hero__chip--a" transform="translate(500 260)">
+              <circle cx="0" cy="0" fill="#fff" r="24" stroke="rgba(0,0,0,0.05)" />
+              <path
+                d="M-8 -2 L-8 -6 A8 8 0 0 1 8 -6 L8 -2 M-10 -2 L10 -2 L10 8 L-10 8 Z"
+                fill="none"
+                stroke="#0071e3"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+              />
+            </g>
+            <g class="hero__chip hero__chip--b" transform="translate(105 410)">
+              <circle cx="0" cy="0" fill="#fff" r="24" stroke="rgba(0,0,0,0.05)" />
+              <path
+                d="M-8 6 L-3 6 L-3 -4 M1 6 L1 2 L6 2 L6 6 M-3 -4 L6 -4"
+                fill="none"
+                stroke="#10a37f"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+              />
+            </g>
+            <g class="hero__chip hero__chip--c" transform="translate(520 410)">
+              <circle cx="0" cy="0" fill="#fff" r="24" stroke="rgba(0,0,0,0.05)" />
+              <path
+                d="M0 -8 L7 -4 L7 2 C7 5 4 8 0 9 C-4 8 -7 5 -7 2 L-7 -4 Z"
+                fill="none"
+                stroke="#ff9500"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+              />
+            </g>
+          </svg>
         </div>
       </div>
     </section>
@@ -663,12 +870,12 @@ onBeforeUnmount(() => {
   color: transparent;
 }
 .hero__sub {
-  font-size: clamp(19px, 2.4vw, 28px);
+  font-size: clamp(14px, 1.5vw, 17px);
   font-weight: 400;
   color: #6e6e73;
-  line-height: 1.4;
-  margin: 0 auto 36px;
-  max-width: 720px;
+  line-height: 1.5;
+  margin: 0 auto 0;
+  max-width: 640px;
 }
 .hero__cta {
   display: flex;
@@ -711,12 +918,70 @@ onBeforeUnmount(() => {
 
 /* Hero visual */
 .hero__visual {
-  margin-top: 80px;
+  margin-top: 60px;
   position: relative;
-  height: 320px;
+  height: 520px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.hero__illust {
+  position: relative;
+  z-index: 2;
+  width: min(640px, 95%);
+  height: auto;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.12));
+}
+.hero__cloud > path {
+  animation: cloudPulse 6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes cloudPulse {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.hero__flow path {
+  animation: flowDash 2s linear infinite;
+}
+@keyframes flowDash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+.hero__chip--a circle,
+.hero__chip--b circle,
+.hero__chip--c circle {
+  animation: chipPulse 4s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.hero__chip--b circle {
+  animation-delay: -1.3s;
+}
+.hero__chip--c circle {
+  animation-delay: -2.6s;
+}
+@keyframes chipPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+@media (max-width: 720px) {
+  .hero__visual {
+    height: auto;
+    min-height: 420px;
+    margin-top: 40px;
+  }
 }
 .orb {
   position: absolute;

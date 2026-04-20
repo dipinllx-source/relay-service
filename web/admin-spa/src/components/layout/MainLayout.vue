@@ -5,36 +5,71 @@
       <div class="admin-nav__inner">
         <router-link class="admin-nav__brand" to="/">
           <img
-            v-if="oemSettings.siteIconData || oemSettings.siteIcon"
             alt="Logo"
             class="admin-nav__logo"
-            :src="oemSettings.siteIconData || oemSettings.siteIcon"
+            :src="oemSettings.siteIconData || oemSettings.siteIcon || faviconUrl"
           />
-          <i v-else class="fas fa-cloud admin-nav__logo-icon" />
           <span>{{ oemSettings.siteName || 'Relay' }}</span>
         </router-link>
 
-        <!-- Nav links with dropdown -->
+        <!-- Nav links (flat, 管理 expanded) -->
         <div class="admin-nav__links">
+          <router-link class="admin-nav__link" to="/"> 首页 </router-link>
           <button
             class="admin-nav__link"
             :class="{ 'admin-nav__link--active': activeTab === 'dashboard' }"
             @click="handleTabChange('dashboard')"
           >
-            仪表板
+            看板
           </button>
+          <template v-for="tab in manageTabs" :key="tab.key">
+            <!-- API Keys with Apple-style full-width dropdown -->
+            <a
+              v-if="tab.key === 'apiKeys'"
+              class="admin-nav__link admin-nav__dropdown-trigger"
+              :class="{ 'admin-nav__link--active': activeTab === 'apiKeys' }"
+              href="#"
+              @click.prevent="toggleDropdown('apiKeys')"
+              @mouseenter="openDropdown('apiKeys')"
+            >
+              API Keys
+              <svg
+                aria-hidden="true"
+                class="admin-nav__caret"
+                :class="{ 'admin-nav__caret--open': activeDropdown === 'apiKeys' }"
+                viewBox="0 0 10 6"
+              >
+                <path
+                  d="M1 1l4 4 4-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.4"
+                />
+              </svg>
+            </a>
+            <button
+              v-else
+              class="admin-nav__link"
+              :class="{ 'admin-nav__link--active': activeTab === tab.key }"
+              @click="handleTabChange(tab.key)"
+            >
+              {{ tab.name }}
+            </button>
+          </template>
           <a
             class="admin-nav__link admin-nav__dropdown-trigger"
-            :class="{ 'admin-nav__link--active': isManageTabActive }"
+            :class="{ 'admin-nav__link--active': activeTab === 'settings' }"
             href="#"
-            @click.prevent="toggleDropdown('manage')"
-            @mouseenter="openDropdown('manage')"
+            @click.prevent="toggleDropdown('settings')"
+            @mouseenter="openDropdown('settings')"
           >
-            管理
+            设置
             <svg
               aria-hidden="true"
               class="admin-nav__caret"
-              :class="{ 'admin-nav__caret--open': activeDropdown === 'manage' }"
+              :class="{ 'admin-nav__caret--open': activeDropdown === 'settings' }"
               viewBox="0 0 10 6"
             >
               <path
@@ -47,13 +82,6 @@
               />
             </svg>
           </a>
-          <button
-            class="admin-nav__link"
-            :class="{ 'admin-nav__link--active': activeTab === 'settings' }"
-            @click="handleTabChange('settings')"
-          >
-            设置
-          </button>
         </div>
 
         <div class="admin-nav__right">
@@ -81,25 +109,64 @@
       </div>
     </nav>
 
-    <!-- Manage dropdown panel (Apple full-width) -->
+    <!-- API Keys dropdown panel (Apple-style full-width) -->
     <div
       class="admin-dropdown"
-      :class="{ 'admin-dropdown--open': activeDropdown === 'manage' }"
+      :class="{ 'admin-dropdown--open': activeDropdown === 'apiKeys' }"
       @mouseleave="closeDropdown"
     >
       <div class="admin-dropdown__inner">
         <div class="admin-dropdown__section">
-          <div class="admin-dropdown__label">管理</div>
-          <button
-            v-for="tab in manageTabs"
-            :key="tab.key"
+          <div class="admin-dropdown__label">API Keys</div>
+          <router-link class="admin-dropdown__link" to="/api-keys" @click="closeDropdown">
+            <i class="fas fa-key" />
+            <span>活跃 API Keys</span>
+          </router-link>
+          <router-link class="admin-dropdown__link" to="/api-keys/deleted" @click="closeDropdown">
+            <i class="fas fa-trash-alt" />
+            <span>已删除 API Keys</span>
+          </router-link>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings dropdown panel (Apple-style full-width) -->
+    <div
+      class="admin-dropdown"
+      :class="{ 'admin-dropdown--open': activeDropdown === 'settings' }"
+      @mouseleave="closeDropdown"
+    >
+      <div class="admin-dropdown__inner">
+        <div class="admin-dropdown__section">
+          <div class="admin-dropdown__label">系统设置</div>
+          <router-link class="admin-dropdown__link" to="/settings" @click="closeDropdown">
+            <i class="fas fa-palette" />
+            <span>品牌设置</span>
+          </router-link>
+          <router-link class="admin-dropdown__link" to="/settings/webhook" @click="closeDropdown">
+            <i class="fas fa-bell" />
+            <span>通知设置</span>
+          </router-link>
+          <router-link class="admin-dropdown__link" to="/settings/claude" @click="closeDropdown">
+            <i class="fas fa-robot" />
+            <span>Claude 转发</span>
+          </router-link>
+          <router-link
             class="admin-dropdown__link"
-            :class="{ 'admin-dropdown__link--active': activeTab === tab.key }"
-            @click="selectTab(tab.key)"
+            to="/settings/service-rates"
+            @click="closeDropdown"
           >
-            <i :class="tab.icon" />
-            <span>{{ tab.name }}</span>
-          </button>
+            <i class="fas fa-balance-scale" />
+            <span>服务倍率</span>
+          </router-link>
+          <router-link
+            class="admin-dropdown__link"
+            to="/settings/model-pricing"
+            @click="closeDropdown"
+          >
+            <i class="fas fa-coins" />
+            <span>模型价格</span>
+          </router-link>
         </div>
       </div>
     </div>
@@ -249,6 +316,7 @@ const authStore = useAuthStore()
 
 const scrolled = ref(false)
 const activeDropdown = ref(null)
+const faviconUrl = `${import.meta.env.BASE_URL}favicon.svg`
 const openDropdown = (name) => {
   activeDropdown.value = name
 }
@@ -257,10 +325,6 @@ const toggleDropdown = (name) => {
 }
 const closeDropdown = () => {
   activeDropdown.value = null
-}
-const selectTab = (key) => {
-  handleTabChange(key)
-  closeDropdown()
 }
 const doAndClose = (fn) => {
   fn()
@@ -274,7 +338,7 @@ const oemSettings = computed(() => authStore.oemSettings || {})
 // Tabs
 const tabs = computed(() => {
   const baseTabs = [
-    { key: 'dashboard', name: '仪表板', shortName: '仪表板', icon: 'fas fa-tachometer-alt' },
+    { key: 'dashboard', name: '看板', shortName: '看板', icon: 'fas fa-tachometer-alt' },
     { key: 'apiKeys', name: 'API Keys', shortName: 'API', icon: 'fas fa-key' },
     { key: 'accounts', name: '账户管理', shortName: '账户', icon: 'fas fa-user-circle' },
     { key: 'requestDetails', name: '请求明细', shortName: '明细', icon: 'fas fa-table' }
@@ -294,9 +358,6 @@ const tabs = computed(() => {
 const manageTabs = computed(() => {
   return tabs.value.filter((t) => t.key !== 'dashboard' && t.key !== 'settings')
 })
-const isManageTabActive = computed(() => {
-  return manageTabs.value.some((t) => t.key === activeTab.value)
-})
 
 // Active tab from route
 const activeTab = ref('dashboard')
@@ -315,7 +376,13 @@ const tabRouteMap = computed(() => {
 
 const initActiveTab = () => {
   const p = route.path
-  const k = Object.keys(tabRouteMap.value).find((key) => tabRouteMap.value[key] === p)
+  // 优先精确匹配；否则按前缀匹配子路径（如 /api-keys/deleted → apiKeys）
+  let k = Object.keys(tabRouteMap.value).find((key) => tabRouteMap.value[key] === p)
+  if (!k) {
+    k = Object.keys(tabRouteMap.value).find(
+      (key) => p === tabRouteMap.value[key] || p.startsWith(tabRouteMap.value[key] + '/')
+    )
+  }
   if (k) activeTab.value = k
 }
 initActiveTab()

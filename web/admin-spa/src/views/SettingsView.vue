@@ -1,78 +1,14 @@
 <template>
   <div class="settings-container">
     <div class="card p-4 sm:p-6">
-      <!-- 页面标题 -->
+      <!-- 页面标题 (activeSection 由 top nav 下拉驱动) -->
       <div class="mb-4 sm:mb-6">
         <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:mb-2 sm:text-xl">
-          系统设置
+          {{ sectionTitle }}
         </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">网站定制和通知配置</p>
-      </div>
-
-      <!-- 设置分类导航 -->
-      <div class="mb-6">
-        <nav class="flex space-x-8">
-          <button
-            :class="[
-              'border-b-2 pb-2 text-sm font-medium transition-colors',
-              activeSection === 'branding'
-                ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="activeSection = 'branding'"
-          >
-            <i class="fas fa-palette mr-2"></i>
-            品牌设置
-          </button>
-          <button
-            :class="[
-              'border-b-2 pb-2 text-sm font-medium transition-colors',
-              activeSection === 'webhook'
-                ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="activeSection = 'webhook'"
-          >
-            <i class="fas fa-bell mr-2"></i>
-            通知设置
-          </button>
-          <button
-            :class="[
-              'border-b-2 pb-2 text-sm font-medium transition-colors',
-              activeSection === 'claude'
-                ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="activeSection = 'claude'"
-          >
-            <i class="fas fa-robot mr-2"></i>
-            Claude 转发
-          </button>
-          <button
-            :class="[
-              'border-b-2 pb-2 text-sm font-medium transition-colors',
-              activeSection === 'serviceRates'
-                ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="activeSection = 'serviceRates'"
-          >
-            <i class="fas fa-balance-scale mr-2"></i>
-            服务倍率
-          </button>
-          <button
-            :class="[
-              'border-b-2 pb-2 text-sm font-medium transition-colors',
-              activeSection === 'modelPricing'
-                ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-            @click="activeSection = 'modelPricing'"
-          >
-            <i class="fas fa-coins mr-2"></i>
-            模型价格
-          </button>
-        </nav>
+        <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
+          {{ sectionSubtitle }}
+        </p>
       </div>
 
       <!-- 加载状态 -->
@@ -1975,6 +1911,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { showToast } from '@/utils/tools'
 import { useSettingsStore } from '@/stores/settings'
@@ -1995,8 +1932,40 @@ const { loading, saving, oemSettings } = storeToRefs(settingsStore)
 // 组件refs
 const iconFileInput = ref()
 
-// 当前激活的设置部分
-const activeSection = ref('branding')
+// 当前激活的设置部分 - 由路由驱动
+const route = useRoute()
+const router = useRouter()
+const pathToSection = {
+  '/settings': 'branding',
+  '/settings/webhook': 'webhook',
+  '/settings/claude': 'claude',
+  '/settings/service-rates': 'serviceRates',
+  '/settings/model-pricing': 'modelPricing'
+}
+const sectionMeta = {
+  branding: { title: '品牌设置', subtitle: '网站定制与展示' },
+  webhook: { title: '通知设置', subtitle: 'Webhook 推送配置' },
+  claude: { title: 'Claude 转发', subtitle: 'Claude 账户与请求转发配置' },
+  serviceRates: { title: '服务倍率', subtitle: '计费倍率配置' },
+  modelPricing: { title: '模型价格', subtitle: '各模型单价管理' }
+}
+const activeSection = ref(pathToSection[route.path] || 'branding')
+const sectionTitle = computed(() => sectionMeta[activeSection.value]?.title || '系统设置')
+const sectionSubtitle = computed(
+  () => sectionMeta[activeSection.value]?.subtitle || '网站定制和通知配置'
+)
+watch(
+  () => route.path,
+  (path) => {
+    const next = pathToSection[path]
+    if (next && next !== activeSection.value) activeSection.value = next
+  }
+)
+// 保留: 如果内部代码修改 activeSection，同步路由
+watch(activeSection, (section) => {
+  const targetPath = Object.keys(pathToSection).find((p) => pathToSection[p] === section)
+  if (targetPath && route.path !== targetPath) router.push(targetPath)
+})
 
 // 组件挂载状态
 const isMounted = ref(true)

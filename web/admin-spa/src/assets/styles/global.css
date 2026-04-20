@@ -820,3 +820,281 @@ body::before {
     transform: translateY(0);
   }
 }
+
+/* ========== Terminal / console block (aubergine theme) ========== */
+.term-console {
+  overflow-x: auto;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-family: 'SF Mono', SFMono-Regular, Menlo, Consolas, 'PingFang SC', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #f5f5f7;
+  background: #3d1330;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 10px 30px -10px rgba(0, 0, 0, 0.35);
+}
+.term-console > * {
+  color: inherit;
+  white-space: nowrap;
+}
+.term-console code,
+.term-console pre {
+  color: inherit;
+  background: transparent !important;
+  font-family: inherit;
+}
+.term-console--lg {
+  padding: 18px 20px;
+  font-size: 13px;
+}
+.term-console--sm {
+  padding: 12px 14px;
+  font-size: 11px;
+}
+:root.dark .term-console {
+  background: #3d1330;
+}
+
+/* ========== Tutorial: OpenAI Developer Docs style ========== */
+
+/* Container — clean white page */
+.tutorial-section,
+.tutorial-content {
+  background: #ffffff !important;
+  color: #0d0d0d !important;
+  padding: 0;
+  max-width: 860px;
+  margin: 0 auto;
+  font-family:
+    'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}
+.tutorial-section *,
+.tutorial-content * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Body text — standard 15px, relaxed line-height */
+.tutorial-section p,
+.tutorial-section li,
+.tutorial-section span:not([class*='bg-']),
+.tutorial-section div:not([class*='bg-gray-900']):not([class*='bg-yellow']):not(
+    [class*='bg-orange']
+  ):not([class*='bg-blue']):not([class*='bg-green']):not([class*='bg-red']):not(
+    [class*='bg-indigo']
+  ):not([class*='bg-purple']):not([class*='bg-']),
+.tutorial-content p,
+.tutorial-content li,
+.tutorial-content span:not([class*='bg-']),
+.tutorial-content div:not([class*='bg-gray-900']):not([class*='bg-yellow']):not(
+    [class*='bg-orange']
+  ):not([class*='bg-blue']):not([class*='bg-green']):not([class*='bg-red']):not(
+    [class*='bg-indigo']
+  ):not([class*='bg-purple']):not([class*='bg-']) {
+  color: #0d0d0d !important;
+}
+.tutorial-section p,
+.tutorial-content p {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  letter-spacing: -0.003em;
+  color: #2d2d2d !important;
+}
+
+/* Headings — OpenAI uses bold sans */
+.tutorial-section h1,
+.tutorial-section h2,
+.tutorial-section h3,
+.tutorial-content h1,
+.tutorial-content h2,
+.tutorial-content h3 {
+  color: #0d0d0d !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.015em;
+  line-height: 1.25 !important;
+}
+.tutorial-section h4,
+.tutorial-content h4 {
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  color: #0d0d0d !important;
+  letter-spacing: -0.01em;
+  line-height: 1.3 !important;
+  margin-top: 32px !important;
+}
+.tutorial-section h5,
+.tutorial-section h6,
+.tutorial-content h5,
+.tutorial-content h6 {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #0d0d0d !important;
+}
+
+/* Tailwind font size normalization */
+.tutorial-section .text-xs,
+.tutorial-content .text-xs {
+  font-size: 13px !important;
+}
+.tutorial-section .text-sm,
+.tutorial-content .text-sm {
+  font-size: 14px !important;
+}
+.tutorial-section .text-base,
+.tutorial-content .text-base {
+  font-size: 15px !important;
+}
+.tutorial-section .text-lg,
+.tutorial-content .text-lg {
+  font-size: 17px !important;
+}
+.tutorial-section .text-xl,
+.tutorial-content .text-xl {
+  font-size: 20px !important;
+}
+
+/* Step circles → OpenAI Quickstart outlined style (thin border, light bg, dark number) */
+.tutorial-section [class*='bg-blue-500'],
+.tutorial-section [class*='bg-indigo-500'],
+.tutorial-section [class*='bg-green-500'],
+.tutorial-section [class*='bg-purple-500'],
+.tutorial-content [class*='bg-blue-500'],
+.tutorial-content [class*='bg-indigo-500'],
+.tutorial-content [class*='bg-green-500'],
+.tutorial-content [class*='bg-purple-500'] {
+  background: #ffffff !important;
+  border: 1px solid #d0d7de !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  border-radius: 50% !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace !important;
+  font-variant-numeric: tabular-nums;
+}
+.tutorial-section [class*='bg-blue-500'] *,
+.tutorial-section [class*='bg-indigo-500'] *,
+.tutorial-section [class*='bg-green-500'] *,
+.tutorial-section [class*='bg-purple-500'] *,
+.tutorial-content [class*='bg-blue-500'] *,
+.tutorial-content [class*='bg-indigo-500'] *,
+.tutorial-content [class*='bg-green-500'] *,
+.tutorial-content [class*='bg-purple-500'] * {
+  color: #0d0d0d !important;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace !important;
+  font-weight: 600 !important;
+}
+
+/* Info / note / warning cards — OpenAI docs uses minimal card with left border accent */
+.tutorial-section [class*='bg-yellow-50'],
+.tutorial-section [class*='bg-orange-50'],
+.tutorial-section [class*='bg-blue-50'],
+.tutorial-section [class*='bg-green-50'],
+.tutorial-section [class*='bg-red-50'],
+.tutorial-section [class*='bg-indigo-50'],
+.tutorial-section [class*='bg-purple-50'],
+.tutorial-content [class*='bg-yellow-50'],
+.tutorial-content [class*='bg-orange-50'],
+.tutorial-content [class*='bg-blue-50'],
+.tutorial-content [class*='bg-green-50'],
+.tutorial-content [class*='bg-red-50'],
+.tutorial-content [class*='bg-indigo-50'],
+.tutorial-content [class*='bg-purple-50'] {
+  background: #fafafa !important;
+  border: 1px solid #e8e8e8 !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  padding: 16px 18px !important;
+}
+.tutorial-section [class*='bg-yellow-50'] *,
+.tutorial-section [class*='bg-orange-50'] *,
+.tutorial-section [class*='bg-blue-50'] *,
+.tutorial-section [class*='bg-green-50'] *,
+.tutorial-section [class*='bg-red-50'] *,
+.tutorial-section [class*='bg-indigo-50'] *,
+.tutorial-section [class*='bg-purple-50'] *,
+.tutorial-content [class*='bg-yellow-50'] *,
+.tutorial-content [class*='bg-orange-50'] *,
+.tutorial-content [class*='bg-blue-50'] *,
+.tutorial-content [class*='bg-green-50'] *,
+.tutorial-content [class*='bg-red-50'] *,
+.tutorial-content [class*='bg-indigo-50'] *,
+.tutorial-content [class*='bg-purple-50'] * {
+  color: #0d0d0d !important;
+}
+
+/* Code block container — OpenAI-style dark gray */
+.tutorial-section .bg-gray-900,
+.tutorial-content .bg-gray-900 {
+  background: #1f2328 !important;
+  border: 1px solid #2d333b !important;
+  border-radius: 8px !important;
+  padding: 14px 16px !important;
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+  box-shadow: none !important;
+}
+.tutorial-section .bg-gray-900,
+.tutorial-section .bg-gray-900 *,
+.tutorial-content .bg-gray-900,
+.tutorial-content .bg-gray-900 * {
+  color: #e6edf3 !important;
+  background: transparent !important;
+}
+.tutorial-section .bg-gray-900,
+.tutorial-content .bg-gray-900 {
+  background: #1f2328 !important;
+}
+
+/* Inline code chip — subtle GitHub-style */
+.tutorial-section code:not(.bg-gray-900 code):not(.bg-gray-900 *),
+.tutorial-content code:not(.bg-gray-900 code):not(.bg-gray-900 *) {
+  background: #f3f4f6 !important;
+  color: #1f2328 !important;
+  border: 1px solid #e8e8e8 !important;
+  border-radius: 6px !important;
+  padding: 1px 6px !important;
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace !important;
+  font-size: 0.88em !important;
+  font-weight: 500 !important;
+}
+
+/* Rounded corners consistency — OpenAI uses 8px */
+.tutorial-section .rounded,
+.tutorial-section .rounded-lg,
+.tutorial-section .rounded-xl,
+.tutorial-content .rounded,
+.tutorial-content .rounded-lg,
+.tutorial-content .rounded-xl {
+  border-radius: 8px !important;
+}
+
+/* List styling — OpenAI uses proper bullet indentation */
+.tutorial-section ul,
+.tutorial-content ul {
+  padding-left: 18px;
+}
+.tutorial-section ul li,
+.tutorial-content ul li {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+  margin-bottom: 4px;
+  color: #2d2d2d !important;
+}
+
+/* Tutorial section spacing */
+.tutorial-section > div,
+.tutorial-content > div {
+  margin-bottom: 28px;
+}
+

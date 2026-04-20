@@ -90,6 +90,11 @@ const routes = [
         path: '',
         name: 'ApiKeys',
         component: ApiKeysView
+      },
+      {
+        path: 'deleted',
+        name: 'ApiKeysDeleted',
+        component: ApiKeysView
       }
     ]
   },
@@ -137,6 +142,26 @@ const routes = [
       {
         path: '',
         name: 'Settings',
+        component: SettingsView
+      },
+      {
+        path: 'webhook',
+        name: 'SettingsWebhook',
+        component: SettingsView
+      },
+      {
+        path: 'claude',
+        name: 'SettingsClaude',
+        component: SettingsView
+      },
+      {
+        path: 'service-rates',
+        name: 'SettingsServiceRates',
+        component: SettingsView
+      },
+      {
+        path: 'model-pricing',
+        name: 'SettingsModelPricing',
         component: SettingsView
       }
     ]

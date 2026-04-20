@@ -54,7 +54,7 @@ const authStore = useAuthStore()
 // 根据 LDAP 配置动态生成 tabs
 const tabs = computed(() => {
   const baseTabs = [
-    { key: 'dashboard', name: '仪表板', shortName: '仪表板', icon: 'fas fa-tachometer-alt' },
+    { key: 'dashboard', name: '看板', shortName: '看板', icon: 'fas fa-tachometer-alt' },
     { key: 'apiKeys', name: 'API Keys', shortName: 'API', icon: 'fas fa-key' },
     { key: 'accounts', name: '账户管理', shortName: '账户', icon: 'fas fa-user-circle' },
     { key: 'requestDetails', name: '请求明细', shortName: '明细', icon: 'fas fa-table' }

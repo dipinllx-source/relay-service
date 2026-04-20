@@ -369,7 +369,7 @@ class Application {
 
       // 🏠 根路径重定向到新版管理界面
       this.app.get('/', (req, res) => {
-        res.redirect('/admin-next/api-stats')
+        res.redirect('/admin-next')
       })
 
       // 🏥 增强的健康检查端点
@@ -606,7 +606,7 @@ class Application {
       this.server = this.app.listen(config.server.port, config.server.host, () => {
         logger.start(`Relay Service started on ${config.server.host}:${config.server.port}`)
         logger.info(
-          `🌐 Web interface: http://${config.server.host}:${config.server.port}/admin-next/api-stats`
+          `🌐 Web interface: http://${config.server.host}:${config.server.port}/admin-next`
         )
         logger.info(
           `🔗 API endpoint: http://${config.server.host}:${config.server.port}/api/v1/messages`

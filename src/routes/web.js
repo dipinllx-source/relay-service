@@ -14,7 +14,7 @@ router.use('/assets', express.static(path.join(__dirname, '../../web/assets')))
 
 // 🌐 页面路由重定向到新版 admin-spa
 router.get('/', (req, res) => {
-  res.redirect(301, '/admin-next/api-stats')
+  res.redirect(301, '/admin-next')
 })
 
 // 🔐 管理员登录

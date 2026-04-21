@@ -1,8 +1,15 @@
 'use strict'
 
 // SQLite DDL 与 schema 版本管理。
+//
+// 采取 Hybrid 存储策略：
+// - 核心字段以列存在（id / hashed_key / name / owner_user_id / status / timestamps）
+//   → 可建索引、可 JOIN、可用 SQL 查询
+// - 其余业务字段（20+ 个细粒度配置、限制、绑定关系等）存 `data` TEXT 列，内容为
+//   JSON 字符串，与当前 Redis hash 的字段结构 1:1 对应，camelCase 保持不变
+//   → Repository 层零字段转换；新字段无 schema 变更
+//
 // 所有 CREATE 语句均幂等（IF NOT EXISTS），启动时重复执行无副作用。
-// 未来 schema 升级：新增迁移步骤并递增 CURRENT_SCHEMA_VERSION。
 
 const CURRENT_SCHEMA_VERSION = 1
 
@@ -13,42 +20,28 @@ const DDL = [
    )`,
 
   `CREATE TABLE IF NOT EXISTS api_keys (
-     id                 TEXT PRIMARY KEY,
-     hashed_key         TEXT NOT NULL UNIQUE,
-     name               TEXT NOT NULL,
-     description        TEXT,
-     permissions        TEXT,
-     allowed_models     TEXT,
-     blocked_models     TEXT,
-     client_limits      TEXT,
-     daily_cost_limit   REAL    NOT NULL DEFAULT 0,
-     monthly_cost_limit REAL    NOT NULL DEFAULT 0,
-     total_cost_limit   REAL    NOT NULL DEFAULT 0,
-     concurrency_limit  INTEGER NOT NULL DEFAULT 0,
-     expires_at         INTEGER,
-     owner_user_id      TEXT,
-     last_used_at       INTEGER,
-     request_count      INTEGER NOT NULL DEFAULT 0,
-     total_cost         REAL    NOT NULL DEFAULT 0,
-     status             TEXT    NOT NULL DEFAULT 'active',
-     metadata           TEXT,
-     created_at         INTEGER NOT NULL,
-     updated_at         INTEGER NOT NULL
+     id            TEXT PRIMARY KEY,
+     hashed_key    TEXT NOT NULL UNIQUE,
+     name          TEXT NOT NULL,
+     owner_user_id TEXT,
+     status        TEXT NOT NULL DEFAULT 'active',
+     data          TEXT NOT NULL DEFAULT '{}',
+     created_at    INTEGER NOT NULL,
+     updated_at    INTEGER NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_owner  ON api_keys(owner_user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_status ON api_keys(status)`,
 
+  // accounts: 10 platforms (claude, claude-console, gemini, gemini-api, openai,
+  // openai-responses, bedrock, azure-openai, ccr, droid) distinguished by `platform`.
   `CREATE TABLE IF NOT EXISTS accounts (
-     id          TEXT PRIMARY KEY,
-     platform    TEXT NOT NULL,
-     name        TEXT NOT NULL,
-     description TEXT,
-     status      TEXT NOT NULL DEFAULT 'active',
-     proxy       TEXT,
-     credentials TEXT,
-     config      TEXT,
-     created_at  INTEGER NOT NULL,
-     updated_at  INTEGER NOT NULL
+     id         TEXT PRIMARY KEY,
+     platform   TEXT NOT NULL,
+     name       TEXT NOT NULL,
+     status     TEXT NOT NULL DEFAULT 'active',
+     data       TEXT NOT NULL DEFAULT '{}',
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS idx_accounts_platform ON accounts(platform)`,
   `CREATE INDEX IF NOT EXISTS idx_accounts_status   ON accounts(status)`,

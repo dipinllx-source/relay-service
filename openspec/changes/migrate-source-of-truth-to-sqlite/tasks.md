@@ -24,16 +24,16 @@
 
 ## 阶段 2：SQLite 实现 - API Key
 
-- [ ] 2.1 DDL：`api_keys` 表 + 索引（见 design.md 草图）
-- [ ] 2.2 DDL：`tags`、`api_key_tags` 表 + 外键 ON DELETE CASCADE
-- [ ] 2.3 `SqliteApiKeyRepository.findByHash(hash)`（prepared statement + UNIQUE index）
-- [ ] 2.4 `SqliteApiKeyRepository.findById(id)` / `findByOwner(userId)`
-- [ ] 2.5 `SqliteApiKeyRepository.create(apiKey)`（事务：key + tag 关联）
-- [ ] 2.6 `SqliteApiKeyRepository.update(id, patch)`（字段级 diff 更新）
-- [ ] 2.7 `SqliteApiKeyRepository.delete(id)`（事务；依赖 ON DELETE CASCADE）
-- [ ] 2.8 `SqliteApiKeyRepository.list({ ownerUserId, tag, status, limit, offset, keyword })`
-- [ ] 2.9 `SqliteTagRepository.{add,remove,list}`
-- [ ] 2.10 单元测试：`tests/storage/sqliteApiKeyRepository.test.js` 用 `:memory:` 覆盖所有方法
+- [x] 2.1 DDL：`api_keys` 表 + 索引（Hybrid schema：核心列 + data JSON）
+- [x] 2.2 DDL：`tags`、`api_key_tags` 表 + 外键 ON DELETE CASCADE
+- [x] 2.3 `SqliteApiKeyRepository.findByHash(hash)`（prepared statement + UNIQUE index）
+- [x] 2.4 `SqliteApiKeyRepository.findById(id)`（保持 Redis hgetall 返回 `{}` 语义）
+- [x] 2.5 `SqliteApiKeyRepository.save`（首次 INSERT 要求 hashedKey；update 可省）
+- [x] 2.6 save 字段级合并：data JSON merge，保留未传字段（与 Redis hset 语义一致）
+- [x] 2.7 `SqliteApiKeyRepository.delete(id)`（外键 ON DELETE CASCADE 自动清理 api_key_tags）
+- [x] 2.8 `SqliteApiKeyRepository.getAll()` / `scanIds()`
+- [x] 2.9 `SqliteTagRepository.{addTag, removeTag, listTags}`
+- [x] 2.10 单元测试 `tests/storage/sqliteApiKeyRepository.test.js`（13 test cases，全绿）
 
 ## 阶段 3：SQLite 实现 - Account
 

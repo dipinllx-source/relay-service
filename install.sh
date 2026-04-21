@@ -120,13 +120,17 @@ if tty_ok; then
   read -r ADMIN_USERNAME_USER </dev/tty || ADMIN_USERNAME_USER=""
 
   # 管理员密码 + 二次确认
+  # 要求: ≥8 字符, 含数字 / 字母 / 特殊字符. 空=自动生成.
   while :; do
-    printf '管理员密码 (>=8 字符, 回车自动生成): ' >/dev/tty
+    printf '管理员密码 (>=8 字符, 须含数字/字母/特殊字符, 回车自动生成): ' >/dev/tty
     read -rs _pw1 </dev/tty || _pw1=""
     echo >/dev/tty
     if [[ -z $_pw1 ]]; then ADMIN_PASSWORD_USER=""; break; fi
     if (( ${#_pw1} < 8 )); then echo "  × 密码至少 8 字符" >/dev/tty; continue; fi
-    printf '再次输入确认密码:                    ' >/dev/tty
+    if [[ ! $_pw1 =~ [0-9] ]];         then echo "  × 密码必须包含数字"     >/dev/tty; continue; fi
+    if [[ ! $_pw1 =~ [A-Za-z] ]];      then echo "  × 密码必须包含字母"     >/dev/tty; continue; fi
+    if [[ ! $_pw1 =~ [^A-Za-z0-9] ]];  then echo "  × 密码必须包含特殊字符" >/dev/tty; continue; fi
+    printf '再次输入确认密码:                                            ' >/dev/tty
     read -rs _pw2 </dev/tty || _pw2=""
     echo >/dev/tty
     if [[ $_pw1 == "$_pw2" ]]; then ADMIN_PASSWORD_USER=$_pw1; break; fi

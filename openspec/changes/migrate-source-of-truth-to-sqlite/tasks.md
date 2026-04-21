@@ -81,12 +81,12 @@
 
 ## 阶段 7：usage 日终归档
 
-- [ ] 7.1 DDL：`usage_daily` 表 + 索引
-- [ ] 7.2 实现 `src/services/usageArchiveService.js`：扫描 `usage:{scope}:{id}:{date}` → 聚合 → 批量 INSERT OR REPLACE
-- [ ] 7.3 注册 cron：UTC 00:10 每日执行（`node-cron`，现有调度器）
-- [ ] 7.4 失败重试：次日补跑前一天未归档数据
-- [ ] 7.5 报表查询（`apiStats.js` / `dashboard.js`）历史走 `usage_daily`，当日实时叠加 Redis
-- [ ] 7.6 单元测试：归档脚本幂等性、空数据、分片大量数据
+- [x] 7.1 DDL：`usage_daily` 表 + 索引（阶段 0 schema.js 已提供）
+- [x] 7.2 `src/services/usageArchiveService.js`：SCAN index set → pipeline HGETALL → INSERT OR REPLACE 单事务批量写入
+- [ ] 7.3 **[延至阶段 6]** 注册 cron（UTC 00:10）— 需接入 app.js 的 startCleanupTasks()
+- [x] 7.4 `archivePastDays(n)` 支持补跑；单天失败记录为 `{ archived: 0, error }` 不影响其他天
+- [ ] 7.5 **[延至阶段 6]** 报表查询走 usage_daily + Redis 实时叠加（需改 apiStats.js / dashboard.js）
+- [x] 7.6 单元测试 `tests/services/usageArchiveService.test.js` 8 cases（单日 / 零数据 / 多行 / 冒号模型名 / 幂等 / 补跑 / rated 回退 / 日期校验）
 
 ## 阶段 8：迁移工具
 

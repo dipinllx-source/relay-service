@@ -319,7 +319,11 @@ log "安装后端依赖 (可能需要几分钟)"
 sudo -u "$SERVICE_USER" bash -lc "cd '$INSTALL_DIR' && npm install --omit=dev --no-audit --no-fund"
 log "安装并构建前端 SPA"
 sudo -u "$SERVICE_USER" bash -lc "cd '$INSTALL_DIR' && npm run install:web --silent && npm run build:web --silent" \
-  || warn "前端构建失败, 稍后可手动: npm run build:web"
+  || die "前端构建失败 — /admin-next/ 需要 dist 才能工作。修复后重跑 npm run build:web 再继续。"
+
+# build 必须产出 dist/index.html, 否则服务启动时会 skip /admin-next 路由
+[[ -f "${INSTALL_DIR}/web/admin-spa/dist/index.html" ]] \
+  || die "web/admin-spa/dist/index.html 缺失, 前端构建不完整, 中止安装"
 log "运行 setup 初始化管理员凭据"
 sudo -u "$SERVICE_USER" bash -lc "cd '$INSTALL_DIR' && npm run setup" || warn "setup 异常, 首次启动时会重试"
 

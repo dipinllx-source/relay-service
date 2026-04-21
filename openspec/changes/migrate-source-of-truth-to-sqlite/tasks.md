@@ -47,12 +47,12 @@
 
 ## 阶段 4：Cache 装饰器
 
-- [ ] 4.1 实现 `CachingApiKeyRepository`：装饰 `SqliteApiKeyRepository`，read-through 回写 Redis
-- [ ] 4.2 CachingApiKeyRepository：`findByHash` 先查 Redis（`apikey:hash:{hash}`，TTL 60s），miss 回落 SQLite + 回写
-- [ ] 4.3 CachingApiKeyRepository：`update` / `delete` 后主动失效对应 Redis key
-- [ ] 4.4 实现 `CachingAccountRepository`（同样模式）
-- [ ] 4.5 装配：`METADATA_BACKEND=sqlite` 时，repositories/index.js 返回 `new Caching(new Sqlite(db), redis)`
-- [ ] 4.6 契约测试：对同一组方法调用，`RedisApiKeyRepository` 与 `CachingApiKeyRepository` 结果一致
+- [x] 4.1 `CachingApiKeyRepository`：装饰 inner 实现，read-through 回写 Redis
+- [x] 4.2 `findByHash` / `findById` 走双缓存键（`apikey:cache:hash:{hash}` + `apikey:cache:id:{id}`）TTL 60s
+- [x] 4.3 `save` / `delete` 失效 id 与 hash 两个 cache；hash 变更时失效旧 hash
+- [x] 4.4 `CachingAccountRepository`（key `account:cache:{platform}:{id}`，同样模式）
+- [x] 4.5 `repositories/index.js` sqlite 分支：`Caching(Sqlite(db), redis)`；失败回退 Redis 并告警
+- [x] 4.6 契约测试：`tests/storage/cachingRepositories.test.js` 覆盖缓存命中 / 失效 / 腐败 payload 穿透（10 cases 全绿）
 
 ## 阶段 5：API Key Runtime 统计（Redis + flush）
 

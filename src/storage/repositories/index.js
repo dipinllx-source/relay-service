@@ -12,25 +12,64 @@ const RedisTagRepository = require('./RedisTagRepository')
 
 let cache = null
 
-function assemble() {
-  const { backend } = config.metadata
-
-  if (backend === 'sqlite') {
-    // 阶段 2/3/4 补上 SQLite 实现后，在此分支装配
-    // 目前回退到 Redis，并发出告警提醒：sqlite 实现尚未就绪
-    logger.warn(
-      '⚠️  METADATA_BACKEND=sqlite 但 SQLite Repository 尚未实现；回退到 Redis。请等待阶段 2+ 完成后重启。'
-    )
-  } else if (backend !== 'redis') {
-    throw new Error(`Invalid METADATA_BACKEND="${backend}"; expected "redis" or "sqlite"`)
-  }
-
+function assembleRedis() {
   return {
     backend: 'redis',
     apiKeyRepository: new RedisApiKeyRepository(),
     accountRepository: new RedisAccountRepository(),
     tagRepository: new RedisTagRepository()
   }
+}
+
+function assembleSqlite() {
+  // SQLite backend 装配：延迟 require 避免 Redis-only 部署误触 native binding 路径
+  // eslint-disable-next-line global-require
+  const { getDb } = require('../sqlite')
+  // eslint-disable-next-line global-require
+  const redis = require('../../models/redis')
+  // eslint-disable-next-line global-require
+  const SqliteApiKeyRepository = require('./SqliteApiKeyRepository')
+  // eslint-disable-next-line global-require
+  const SqliteAccountRepository = require('./SqliteAccountRepository')
+  // eslint-disable-next-line global-require
+  const SqliteTagRepository = require('./SqliteTagRepository')
+  // eslint-disable-next-line global-require
+  const CachingApiKeyRepository = require('./CachingApiKeyRepository')
+  // eslint-disable-next-line global-require
+  const CachingAccountRepository = require('./CachingAccountRepository')
+
+  const db = getDb()
+  const redisClient = redis.getClientSafe()
+
+  return {
+    backend: 'sqlite',
+    apiKeyRepository: new CachingApiKeyRepository(new SqliteApiKeyRepository(db), redisClient),
+    accountRepository: new CachingAccountRepository(new SqliteAccountRepository(db), redisClient),
+    // tags 全局集合变动极少、查询主要在管理后台，不加缓存
+    tagRepository: new SqliteTagRepository(db)
+  }
+}
+
+function assemble() {
+  const { backend } = config.metadata
+
+  if (backend === 'sqlite') {
+    try {
+      const repos = assembleSqlite()
+      logger.info('🗄️  repositories wired with SQLite backend (Redis used as read-through cache)')
+      return repos
+    } catch (err) {
+      logger.error(`❌ Failed to assemble SQLite repositories: ${err.message}`)
+      logger.warn('⚠️  Falling back to Redis backend — check METADATA_BACKEND / SQLITE_PATH')
+      return assembleRedis()
+    }
+  }
+
+  if (backend !== 'redis') {
+    throw new Error(`Invalid METADATA_BACKEND="${backend}"; expected "redis" or "sqlite"`)
+  }
+
+  return assembleRedis()
 }
 
 function getRepositories() {
@@ -40,7 +79,6 @@ function getRepositories() {
   return cache
 }
 
-// 便于测试：允许显式重置装配缓存
 function resetRepositories() {
   cache = null
 }

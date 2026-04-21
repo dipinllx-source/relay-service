@@ -177,8 +177,15 @@ cd web/admin-spa && npm run dev # 前端开发模式（Vite HMR）
 | LDAP 认证失败 | 检查 LDAP_URL/BIND_DN/BIND_PASSWORD，自签名证书设 `LDAP_TLS_REJECT_UNAUTHORIZED=false` |
 | Webhook 通知失败 | 确认 WEBHOOK_ENABLED=true，检查 WEBHOOK_URLS 格式，查看 `logs/webhook-*.log` |
 | 成本统计不准确 | 运行 `npm run init:costs`，检查 pricingService 模型价格 |
+| HTTPS 启动失败 (SAN 为空) | `.env` 检查 `HTTPS_SAN`，示例 `HTTPS_SAN=IP:203.0.113.10,DNS:localhost,IP:127.0.0.1`；修改后重启服务 |
+| HTTPS 启动失败 (端口占用) | 排查 `HTTPS_PORT` 冲突；容器中 <1024 端口需 `CAP_NET_BIND_SERVICE` 或使用宿主端口映射（默认 3443 + 宿主 `443:3443`） |
+| HTTPS 启动失败 (证书损坏) | 日志定位具体文件（`data/certs/*.crt/.key`）；修复后重启；删除损坏文件让进程自动再签 |
+| 客户端 SDK 报 SSL 错误 | 系统已信任但 Node/Python 默认不读系统信任：设置 `NODE_EXTRA_CA_CERTS` / `REQUESTS_CA_BUNDLE` 指向 `data/certs/ca.crt` |
+| 新客户端 IP 接入 | 改 `HTTPS_SAN` 追加 `IP:<addr>` → 删 `data/certs/server.{crt,key}` → 重启；CA 保持不变，已分发 `ca.crt` 继续有效 |
+| HTTPS 与 TRUST_PROXY 同开警告 | 应用层 HTTPS 与反向代理做 TLS 终结通常互斥；按部署形态二选一 |
 
 日志：`logs/` 目录。Web 界面 `/admin-next/` 可实时查看。
+HTTPS 状态：管理后台 → 系统设置 → HTTPS 状态（只读，含证书到期、SAN、CA 下载）。
 
 # important-instruction-reminders
 

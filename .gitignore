@@ -20,6 +20,8 @@ pnpm-debug.log*
 # Data directory (contains sensitive information)
 data/
 !data/.gitkeep
+# HTTPS 私钥/证书目录（防止私钥误提交）
+data/certs/
 
 # Redis data directory
 redis_data/

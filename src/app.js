@@ -4,6 +4,7 @@ const helmet = require('helmet')
 const compression = require('compression')
 const path = require('path')
 const fs = require('fs')
+const https = require('https')
 const bcrypt = require('bcryptjs')
 
 const config = require('../config/config')
@@ -12,6 +13,7 @@ const redis = require('./models/redis')
 const pricingService = require('./services/pricingService')
 const cacheMonitor = require('./utils/cacheMonitor')
 const { getSafeMessage } = require('./utils/errorSanitizer')
+const certificateManager = require('./utils/certificateManager')
 
 // Import routes
 const apiRoutes = require('./routes/api')
@@ -176,10 +178,13 @@ class Application {
       })
 
       // 🛡️ 安全中间件
+      // HSTS 默认关闭——私有 CA 场景下误开可能把客户端永久锁在错误状态；
+      // 仅当 HTTPS_HSTS_ENABLED=true 时交由 helmet 默认策略注入 Strict-Transport-Security
       this.app.use(
         helmet({
           contentSecurityPolicy: false, // 允许内联样式和脚本
-          crossOriginEmbedderPolicy: false
+          crossOriginEmbedderPolicy: false,
+          hsts: config.https.enabled && config.https.hstsEnabled ? undefined : false
         })
       )
 
@@ -601,19 +606,26 @@ class Application {
 
   async start() {
     try {
+      // 🔐 HTTPS 预检：一把开关 + 必填项校验（fail-fast，不降级 HTTP）
+      this.validateHttpsPreconditions()
+
       await this.initialize()
 
-      this.server = this.app.listen(config.server.port, config.server.host, () => {
-        logger.start(`Relay Service started on ${config.server.host}:${config.server.port}`)
-        logger.info(
-          `🌐 Web interface: http://${config.server.host}:${config.server.port}/admin-next`
-        )
-        logger.info(
-          `🔗 API endpoint: http://${config.server.host}:${config.server.port}/api/v1/messages`
-        )
-        logger.info(`⚙️  Admin API: http://${config.server.host}:${config.server.port}/admin`)
-        logger.info(`🏥 Health check: http://${config.server.host}:${config.server.port}/health`)
-        logger.info(`📊 Metrics: http://${config.server.host}:${config.server.port}/metrics`)
+      const listener = this.resolveListener()
+
+      this.server = listener.server.listen(listener.port, config.server.host, () => {
+        const base = `${listener.scheme}://${config.server.host}:${listener.port}`
+        logger.start(`Relay Service started on ${config.server.host}:${listener.port}`)
+        logger.info(`🌐 Web interface: ${base}/admin-next`)
+        logger.info(`🔗 API endpoint: ${base}/api/v1/messages`)
+        logger.info(`⚙️  Admin API: ${base}/admin`)
+        logger.info(`🏥 Health check: ${base}/health`)
+        logger.info(`📊 Metrics: ${base}/metrics`)
+        if (listener.scheme === 'https') {
+          logger.info(
+            `🔒 HTTPS enabled (minVersion: ${config.https.minTlsVersion}); download CA: ${base}/admin/https/ca (admin login required)`
+          )
+        }
       })
 
       const serverTimeout = 600000 // 默认10分钟
@@ -629,6 +641,132 @@ class Application {
     } catch (error) {
       logger.error('💥 Failed to start server:', error)
       process.exit(1)
+    }
+  }
+
+  // 🔐 HTTPS 启动前置校验：缺 SAN 即 fail-fast；TRUST_PROXY 同时启用时打印 warning
+  validateHttpsPreconditions() {
+    if (!config.https.enabled) {
+      return
+    }
+    if (!config.https.san || config.https.san.trim().length === 0) {
+      logger.error(
+        '❌ HTTPS_ENABLED=true but HTTPS_SAN is empty. Provide at least one SAN, e.g. HTTPS_SAN=IP:203.0.113.10,DNS:localhost,IP:127.0.0.1'
+      )
+      process.exit(1)
+    }
+    let parsedAltNames
+    try {
+      parsedAltNames = certificateManager.parseSan(config.https.san)
+    } catch (err) {
+      logger.error(
+        `❌ HTTPS_SAN parse failed: ${err.message}. Example: HTTPS_SAN=IP:203.0.113.10,DNS:localhost,IP:127.0.0.1`
+      )
+      process.exit(1)
+    }
+    // IP SAN 必填：私有 CA 部署场景客户端通过 IP 直连，若 SAN 缺失 IP 条目会触发 ERR_CERT_COMMON_NAME_INVALID
+    const hasIpSan = parsedAltNames.some((alt) => alt.type === 7)
+    if (!hasIpSan) {
+      logger.error(
+        '❌ HTTPS_SAN must include at least one IP entry (e.g. "IP:203.0.113.10"). Clients connecting by IP require an IP SAN to validate the certificate.'
+      )
+      process.exit(1)
+    }
+    if (config.server.trustProxy) {
+      logger.warn(
+        '⚠️  Both HTTPS_ENABLED and TRUST_PROXY are true. This usually indicates a misconfiguration — application-layer HTTPS is typically incompatible with a TLS-terminating reverse proxy.'
+      )
+    }
+  }
+
+  // 🎧 根据 HTTPS 开关构建 HTTP/HTTPS 监听器
+  // HTTPS 分支：按"全有/仅缺 server/全缺/损坏"分支加载或生成证书，异常即 exit(1)
+  resolveListener() {
+    if (!config.https.enabled) {
+      return {
+        server: this.app,
+        scheme: 'http',
+        port: config.server.port
+      }
+    }
+
+    const { certDir, san, caValidDays, certValidDays, keyBits, minTlsVersion } = config.https
+    const altNames = certificateManager.parseSan(san)
+
+    let bundle
+
+    try {
+      bundle = certificateManager.loadFromDisk(certDir)
+      logger.info(`🔐 Loaded existing TLS material from ${certDir}`)
+    } catch (err) {
+      if (err instanceof certificateManager.MissingCaError) {
+        logger.info(
+          `🔐 No CA found in ${certDir}. Generating new private CA + server certificate (keyBits=${keyBits})...`
+        )
+        const t0 = Date.now()
+        const ca = certificateManager.generateCa({ keyBits, validDays: caValidDays })
+        const srv = certificateManager.generateServerCert(ca.certPem, ca.keyPem, altNames, {
+          keyBits,
+          validDays: certValidDays
+        })
+        const paths = certificateManager.writeToDisk(certDir, {
+          caCertPem: ca.certPem,
+          caKeyPem: ca.keyPem,
+          serverCertPem: srv.certPem,
+          serverKeyPem: srv.keyPem
+        })
+        logger.info(
+          `🔐 CA + server certificate generated in ${Date.now() - t0}ms. Files: ${paths.caCert}, ${paths.serverCert}. Distribute ca.crt to clients and import into system trust store.`
+        )
+        bundle = certificateManager.loadFromDisk(certDir)
+      } else if (err instanceof certificateManager.MissingServerError) {
+        logger.info(
+          `🔐 CA exists but server cert is missing. Re-signing server certificate with existing CA (SAN=${san})...`
+        )
+        const t0 = Date.now()
+        const caCertPem = fs.readFileSync(certificateManager.certPaths(certDir).caCert, 'utf8')
+        const caKeyPem = fs.readFileSync(certificateManager.certPaths(certDir).caKey, 'utf8')
+        const srv = certificateManager.generateServerCert(caCertPem, caKeyPem, altNames, {
+          keyBits,
+          validDays: certValidDays
+        })
+        certificateManager.writeToDisk(certDir, {
+          serverCertPem: srv.certPem,
+          serverKeyPem: srv.keyPem
+        })
+        logger.info(
+          `🔐 Server certificate re-signed in ${Date.now() - t0}ms. CA fingerprint unchanged — clients do not need to re-import ca.crt.`
+        )
+        bundle = certificateManager.loadFromDisk(certDir)
+      } else if (err instanceof certificateManager.InvalidPemError) {
+        logger.error(
+          `❌ TLS material at ${err.filePath} is unparsable. Refusing to overwrite; fix the file manually and restart.`
+        )
+        process.exit(1)
+      } else if (err instanceof certificateManager.ExpiredCertError) {
+        logger.error(
+          `❌ TLS certificate at ${err.filePath} expired at ${err.notAfter && err.notAfter.toISOString ? err.notAfter.toISOString() : err.notAfter}. Delete it and restart to regenerate.`
+        )
+        process.exit(1)
+      } else {
+        throw err
+      }
+    }
+
+    const httpsServer = https.createServer(
+      {
+        key: bundle.serverKeyPem,
+        cert: bundle.serverCertPem,
+        ca: bundle.caCertPem,
+        minVersion: minTlsVersion
+      },
+      this.app
+    )
+
+    return {
+      server: httpsServer,
+      scheme: 'https',
+      port: config.https.port
     }
   }
 

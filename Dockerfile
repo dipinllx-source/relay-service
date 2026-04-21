@@ -64,16 +64,16 @@ COPY --from=frontend-builder /app/web/admin-spa/dist /app/web/admin-spa/dist
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# 📁 创建必要目录
-RUN mkdir -p logs data temp
+# 📁 创建必要目录（data/certs 用于 HTTPS 私有 CA；权限收紧到 700，写入的私钥将进一步 600）
+RUN mkdir -p logs data temp data/certs && chmod 700 data/certs
 
 # 🔧 预先创建配置文件
 RUN if [ ! -f "/app/config/config.js" ] && [ -f "/app/config/config.example.js" ]; then \
         cp /app/config/config.example.js /app/config/config.js; \
     fi
 
-# 🌐 暴露端口
-EXPOSE 3000
+# 🌐 暴露端口（3000 HTTP；3443 HTTPS，仅在 HTTPS_ENABLED=true 时实际监听）
+EXPOSE 3000 3443
 
 # 🏥 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

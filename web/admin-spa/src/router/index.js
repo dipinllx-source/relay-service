@@ -163,6 +163,11 @@ const routes = [
         path: 'model-pricing',
         name: 'SettingsModelPricing',
         component: SettingsView
+      },
+      {
+        path: 'https',
+        name: 'SettingsHttps',
+        component: SettingsView
       }
     ]
   },

@@ -1316,6 +1316,11 @@
         <div v-show="activeSection === 'modelPricing'">
           <ModelPricingSection />
         </div>
+
+        <!-- HTTPS 状态部分（只读） -->
+        <div v-show="activeSection === 'https'">
+          <HttpsStatusSection />
+        </div>
       </div>
     </div>
   </div>
@@ -1919,6 +1924,7 @@ import { useSettingsStore } from '@/stores/settings'
 import * as httpApis from '@/utils/http_apis'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 import ModelPricingSection from '@/components/settings/ModelPricingSection.vue'
+import HttpsStatusSection from '@/components/settings/HttpsStatusSection.vue'
 
 // 定义组件名称，用于keep-alive排除
 defineOptions({
@@ -1940,14 +1946,16 @@ const pathToSection = {
   '/settings/webhook': 'webhook',
   '/settings/claude': 'claude',
   '/settings/service-rates': 'serviceRates',
-  '/settings/model-pricing': 'modelPricing'
+  '/settings/model-pricing': 'modelPricing',
+  '/settings/https': 'https'
 }
 const sectionMeta = {
   branding: { title: '品牌设置', subtitle: '网站定制与展示' },
   webhook: { title: '通知设置', subtitle: 'Webhook 推送配置' },
   claude: { title: 'Claude 转发', subtitle: 'Claude 账户与请求转发配置' },
   serviceRates: { title: '服务倍率', subtitle: '计费倍率配置' },
-  modelPricing: { title: '模型价格', subtitle: '各模型单价管理' }
+  modelPricing: { title: '模型价格', subtitle: '各模型单价管理' },
+  https: { title: 'HTTPS 状态', subtitle: '证书与传输加密（只读）' }
 }
 const activeSection = ref(pathToSection[route.path] || 'branding')
 const sectionTitle = computed(() => sectionMeta[activeSection.value]?.title || '系统设置')

@@ -12,14 +12,31 @@ services:
     ports:
       # 绑定地址：生产环境建议使用反向代理，设置 BIND_HOST=127.0.0.1
       - "${BIND_HOST:-0.0.0.0}:${PORT:-3000}:3000"
+      # 🔒 HTTPS 端口：仅在 HTTPS_ENABLED=true 时生效；容器内默认 3443（非 root 无法绑定 <1024）
+      # 常见做法是将宿主 443 映射到容器 3443，客户端通过 https://<host>:443 访问
+      - "${BIND_HOST:-0.0.0.0}:${HTTPS_BIND_PORT:-3443}:3443"
     volumes:
       - ./logs:/app/logs
+      # data/ 已包含 data/certs/，证书文件随容器持久化
       - ./data:/app/data
     environment:
       # 🌐 服务器配置
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
+
+      # 🔒 HTTPS 配置（一把开关；默认关闭保持向后兼容）
+      # 启用：将下面 HTTPS_ENABLED 改为 true，并填写 HTTPS_SAN，重启容器生效
+      - HTTPS_ENABLED=${HTTPS_ENABLED:-false}
+      - HTTPS_PORT=${HTTPS_PORT:-3443}
+      # SAN 格式：IP:<addr>,DNS:<name>,...（至少一项；HTTPS_ENABLED=true 时必填）
+      - HTTPS_SAN=${HTTPS_SAN:-}
+      - HTTPS_CERT_DIR=${HTTPS_CERT_DIR:-/app/data/certs}
+      - HTTPS_CERT_VALID_DAYS=${HTTPS_CERT_VALID_DAYS:-1825}
+      - HTTPS_CA_VALID_DAYS=${HTTPS_CA_VALID_DAYS:-3650}
+      - HTTPS_MIN_TLS_VERSION=${HTTPS_MIN_TLS_VERSION:-TLSv1.2}
+      - HTTPS_KEY_BITS=${HTTPS_KEY_BITS:-2048}
+      - HTTPS_HSTS_ENABLED=${HTTPS_HSTS_ENABLED:-false}
       
       # 🔧 请求体大小配置
       - REQUEST_MAX_SIZE_MB=60

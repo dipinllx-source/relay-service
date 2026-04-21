@@ -10,6 +10,27 @@ const config = {
     trustProxy: process.env.TRUST_PROXY === 'true'
   },
 
+  // 🔒 HTTPS 监听配置（一把开关；启用后仅监听 HTTPS 端口，HTTP 端口不再监听）
+  // 启用流程：设置 HTTPS_ENABLED=true + 填写 HTTPS_SAN → 重启进程
+  // 详细说明见 README 与 openspec/changes/add-https-support/design.md
+  https: {
+    enabled: process.env.HTTPS_ENABLED === 'true',
+    port: parseInt(process.env.HTTPS_PORT) || 3443,
+    // SAN 示例：IP:203.0.113.10,DNS:localhost,IP:127.0.0.1
+    san: process.env.HTTPS_SAN || '',
+    certDir: process.env.HTTPS_CERT_DIR || path.join(__dirname, '..', 'data', 'certs'),
+    // server 证书有效天数（私有 CA 信任链不受 Chrome 398 天限制）
+    certValidDays: parseInt(process.env.HTTPS_CERT_VALID_DAYS) || 1825,
+    // 根 CA 有效天数
+    caValidDays: parseInt(process.env.HTTPS_CA_VALID_DAYS) || 3650,
+    // 最小 TLS 版本：TLSv1.2 | TLSv1.3
+    minTlsVersion: process.env.HTTPS_MIN_TLS_VERSION || 'TLSv1.2',
+    // RSA 密钥位数（默认 2048；4096 更安全但生成明显更慢）
+    keyBits: parseInt(process.env.HTTPS_KEY_BITS) || 2048,
+    // HSTS 默认关闭——私有 CA 场景下误开易把客户端永久锁在错误状态
+    hstsEnabled: process.env.HTTPS_HSTS_ENABLED === 'true'
+  },
+
   // 🔐 安全配置
   security: {
     jwtSecret: process.env.JWT_SECRET || 'CHANGE-THIS-JWT-SECRET-IN-PRODUCTION',

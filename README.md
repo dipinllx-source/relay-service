@@ -708,6 +708,41 @@ redis-cli ping
 
 ## 🛠️ 进阶
 
+### 应用层 HTTPS（私有 CA，适合内部/固定 IP 部署）
+
+若部署环境**没有公网域名**（例如仅通过固定 IP 对内部团队暴露），可直接由应用层开启 HTTPS。启用后服务会自动生成一套**私有 CA + server 证书**，管理员在后台下载根 CA 分发给各客户端导入系统信任库。
+
+> 📖 **完整文档**：[应用层 HTTPS（私有 CA）使用指南](docs/https-private-ca-guide/README.md) — 含工作原理、系统级/SDK 级信任分发、Docker 端口映射、环境变量速查、常见错误排查。
+
+**最小启用步骤：**
+
+1. 在 `.env` 中追加：
+   ```env
+   HTTPS_ENABLED=true
+   HTTPS_SAN=IP:<公网IP>,DNS:localhost,IP:127.0.0.1
+   ```
+2. 重启服务（首次启动自动生成 CA + server 证书，日志会打印生成耗时与文件路径）
+3. 登录管理后台 → 系统设置 → **HTTPS 状态** → 下载 `ca.crt`
+4. 将 `ca.crt` 分发到各客户端：
+   - **macOS**：双击导入钥匙串 → 始终信任
+   - **Windows**：`certmgr.msc` → 受信任的根证书颁发机构 → 导入
+   - **Linux**：`sudo cp ca.crt /usr/local/share/ca-certificates/relay-ca.crt && sudo update-ca-certificates`
+5. 对 Node/Python 等 SDK（默认不读系统信任 store），额外设置环境变量：
+   - **Node**：`NODE_EXTRA_CA_CERTS=/path/to/ca.crt`
+   - **Python requests/httpx**：`REQUESTS_CA_BUNDLE=/path/to/ca.crt`
+6. 客户端改用 `https://<IP>:3443`（或通过 `443:3443` 映射的宿主端口）访问
+
+**SAN 变更**（新增客户端 IP）：改 `HTTPS_SAN` → 删 `data/certs/server.*` → 重启（CA 保持不变，客户端无需重新导入）。
+**回滚**：`HTTPS_ENABLED=false` + 重启，服务恢复 HTTP 监听。
+
+> ⚠️ **注意事项**：
+>
+> - 若前面已经挂了反向代理（Nginx/Caddy）做 TLS 终结，**不要**同时启用应用层 HTTPS——这通常属于误配。参考下文"反向代理部署指南"。
+> - **`ca.key` 永远不会通过任何后台接口对外返回**；仅 `ca.crt`（公钥）可下载。请妥善保管 `data/certs/ca.key`——泄露等同于整条私有信任链失陷。
+> - 切换 HTTP ↔ HTTPS 后，已配置的 OAuth 账号（Claude / Gemini / Antigravity 等）其回调 URL 若基于旧协议，可能需要在账号管理中重新绑定授权。
+
+---
+
 ### 反向代理部署指南
 
 在生产环境中，建议通过反向代理进行连接，以便使用自动 HTTPS、安全头部和性能优化。下面提供两种常用方案： **Caddy** 和 **Nginx Proxy Manager (NPM)**。

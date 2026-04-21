@@ -395,6 +395,39 @@ redis-cli ping
 
 ## 🛠️ Advanced Usage
 
+### Application-Layer HTTPS (Private CA, for internal/fixed-IP deployments)
+
+If your deployment has **no public domain** (e.g. exposed only over a fixed public IP to an internal team), you can enable HTTPS directly at the application layer. Once enabled, the service auto-generates a **private CA + server certificate**; administrators download the root CA from the admin panel and distribute it to each client's system trust store.
+
+**Minimum enablement steps:**
+
+1. Add to `.env`:
+   ```env
+   HTTPS_ENABLED=true
+   HTTPS_SAN=IP:<your-public-ip>,DNS:localhost,IP:127.0.0.1
+   ```
+2. Restart the service (the first boot auto-generates CA + server cert; logs show generation time and file paths)
+3. Log into the admin panel → System Settings → **HTTPS Status** → download `ca.crt`
+4. Distribute `ca.crt` to each client:
+   - **macOS**: double-click to import to Keychain → Always Trust
+   - **Windows**: `certmgr.msc` → Trusted Root Certification Authorities → Import
+   - **Linux**: `sudo cp ca.crt /usr/local/share/ca-certificates/relay-ca.crt && sudo update-ca-certificates`
+5. SDKs that don't consult the system trust store need explicit env vars:
+   - **Node**: `NODE_EXTRA_CA_CERTS=/path/to/ca.crt`
+   - **Python requests/httpx**: `REQUESTS_CA_BUNDLE=/path/to/ca.crt`
+6. Switch client base URL to `https://<IP>:3443` (or whatever host port is mapped to 3443)
+
+**SAN changes** (adding a new client IP): update `HTTPS_SAN` → delete `data/certs/server.*` → restart. The CA is preserved, so clients that already trust it need no re-import.
+**Rollback**: `HTTPS_ENABLED=false` + restart; the service reverts to HTTP.
+
+> ⚠️ **Important notes:**
+>
+> - If you already have a reverse proxy (Nginx/Caddy) doing TLS termination, **do not** enable application-layer HTTPS at the same time — that typically indicates a misconfiguration. See the "Reverse Proxy Deployment Guide" below.
+> - **`ca.key` is never exposed through any admin endpoint**; only `ca.crt` (the public certificate) can be downloaded. Guard `data/certs/ca.key` carefully — a leak compromises the entire private trust chain.
+> - After switching between HTTP and HTTPS, previously configured OAuth accounts (Claude / Gemini / Antigravity, etc.) may need their callback URLs rebound in Account Management if they were set up under the old scheme.
+
+---
+
 ### Reverse Proxy Deployment Guide
 
 For production environments, it is recommended to use a reverse proxy for automatic HTTPS, security headers, and performance optimization. Two common solutions are provided below: **Caddy** and **Nginx Proxy Manager (NPM)**.

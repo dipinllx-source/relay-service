@@ -167,6 +167,10 @@
             <i class="fas fa-coins" />
             <span>模型价格</span>
           </router-link>
+          <router-link class="admin-dropdown__link" to="/settings/https" @click="closeDropdown">
+            <i class="fas fa-lock" />
+            <span>HTTPS 状态</span>
+          </router-link>
         </div>
       </div>
     </div>

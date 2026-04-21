@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { APP_CONFIG } from '@/utils/tools'
 
 // 模型
 export const getModelsApi = () => request({ url: '/apiStats/models', method: 'GET' })
@@ -35,6 +36,19 @@ export const updateOemSettingsApi = (data) =>
 
 // 服务倍率配置（公开接口）
 export const getServiceRatesApi = () => request({ url: '/apiStats/service-rates', method: 'GET' })
+
+// 🔒 HTTPS 状态（只读）
+export const getHttpsStatusApi = () => request({ url: '/admin/https/status', method: 'GET' })
+// 下载 ca.crt：使用 blob 响应并在前端触发下载，保留 Authorization 头
+export const downloadCaCertApi = async () => {
+  const axios = (await import('axios')).default
+  const token = localStorage.getItem('authToken')
+  const resp = await axios.get(`${APP_CONFIG.apiPrefix}/admin/https/ca`, {
+    responseType: 'blob',
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  })
+  return resp.data
+}
 
 // 仪表板
 export const getDashboardApi = () => request({ url: '/admin/dashboard', method: 'GET' })

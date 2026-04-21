@@ -4,14 +4,14 @@
 
 ## 阶段 0：依赖与骨架
 
-- [ ] 0.1 在 `package.json` 新增 `better-sqlite3` 依赖（生产）；`npm install` 通过
-- [ ] 0.2 在 `.env.example` 新增 `METADATA_BACKEND`（默认 `redis`）、`SQLITE_PATH`（默认 `data/metadata.db`）、`SQLITE_STATS_FLUSH_INTERVAL`（默认 `30`）
-- [ ] 0.3 在 `config/config.js` 与 `config/config.example.js` 同步新增 `metadata` 配置块（`backend` / `sqlitePath` / `statsFlushInterval`）
-- [ ] 0.4 创建 `src/storage/sqlite.js`：导出单例 `db`，执行 WAL + synchronous=NORMAL + foreign_keys=ON 初始化 pragma
-- [ ] 0.5 创建 `src/storage/schema.js`：定义 DDL，启动时 idempotent 执行建表；支持简单 schema version 记录（`_schema_version` 表）
-- [ ] 0.6 `data/` 目录在启动时自动 mkdir；权限强制 `0700`；`metadata.db` 创建后强制 `0600`
-- [ ] 0.7 `.gitignore` 增加 `data/metadata.db*`、`data/backup/`
-- [ ] 0.8 启动日志明确输出当前 `metadata backend: <redis|sqlite>`
+- [x] 0.1 在 `package.json` 新增 `better-sqlite3` 依赖（生产）；`npm install` 通过
+- [x] 0.2 在 `.env.example` 新增 `METADATA_BACKEND`（默认 `redis`）、`SQLITE_PATH`（默认 `data/metadata.db`）、`SQLITE_STATS_FLUSH_INTERVAL`（默认 `30`）
+- [x] 0.3 在 `config/config.js` 与 `config/config.example.js` 同步新增 `metadata` 配置块（`backend` / `sqlitePath` / `statsFlushInterval`）
+- [x] 0.4 创建 `src/storage/sqlite.js`：导出单例 `db`，执行 WAL + synchronous=NORMAL + foreign_keys=ON 初始化 pragma
+- [x] 0.5 创建 `src/storage/schema.js`：定义 DDL，启动时 idempotent 执行建表；支持简单 schema version 记录（`_schema_version` 表）
+- [x] 0.6 `data/` 目录在启动时自动 mkdir；权限强制 `0700`；`metadata.db` 创建后强制 `0600`
+- [x] 0.7 `.gitignore` 增加 `data/metadata.db*`、`data/backup/`
+- [x] 0.8 启动日志明确输出当前 `metadata backend: <redis|sqlite>`
 
 ## 阶段 1：Repository 接口层
 

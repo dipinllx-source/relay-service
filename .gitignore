@@ -22,6 +22,9 @@ data/
 !data/.gitkeep
 # HTTPS 私钥/证书目录（防止私钥误提交）
 data/certs/
+# SQLite metadata + WAL + 备份目录（data/ 已覆盖，显式列出以示意图）
+data/metadata.db*
+data/backup/
 
 # Redis data directory
 redis_data/

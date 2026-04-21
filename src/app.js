@@ -626,6 +626,7 @@ class Application {
             `🔒 HTTPS enabled (minVersion: ${config.https.minTlsVersion}); download CA: ${base}/admin/https/ca (admin login required)`
           )
         }
+        logger.info(`🗄️  metadata backend: ${config.metadata.backend}`)
       })
 
       const serverTimeout = 600000 // 默认10分钟

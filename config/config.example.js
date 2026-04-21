@@ -31,6 +31,16 @@ const config = {
     hstsEnabled: process.env.HTTPS_HSTS_ENABLED === 'true'
   },
 
+  // 🗄️ 元数据存储（账号 / API Key 的 source of truth）
+  // backend=redis  → 所有元数据存 Redis（旧行为，向后兼容）
+  // backend=sqlite → 元数据落 SQLite；Redis 仅作缓存与热状态；仅支持单实例部署
+  metadata: {
+    backend: process.env.METADATA_BACKEND || 'redis',
+    sqlitePath: process.env.SQLITE_PATH || path.join(__dirname, '..', 'data', 'metadata.db'),
+    // API Key 累计统计 flush 到 SQLite 的间隔（秒）；0 表示每请求直写 SQLite
+    statsFlushInterval: parseInt(process.env.SQLITE_STATS_FLUSH_INTERVAL) || 30
+  },
+
   // 🔐 安全配置
   security: {
     jwtSecret: process.env.JWT_SECRET || 'CHANGE-THIS-JWT-SECRET-IN-PRODUCTION',

@@ -21,6 +21,9 @@ ok()   { echo -e "${GREEN}[✓]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 die()  { echo -e "${RED}[✗]${NC} $*" >&2; exit 1; }
 
+# 判断 /dev/tty 是否真的可读写 (权限位可能 OK 但打开会 ENXIO)
+tty_ok() { { : </dev/tty; } 2>/dev/null && { : >/dev/tty; } 2>/dev/null; }
+
 # ---------- 启动图标 (取自 favicon.svg 配色: #F5F5F7 / #D1D5DB + 强调蓝) ----------
 show_logo() {
   local W=$'\033[38;2;245;245;247m'   # 亮白
@@ -44,7 +47,7 @@ menu() {
   local title=$1; shift
   local -a options=("$@")
   local n=${#options[@]} sel=0 i key rest
-  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then MENU_CHOICE=0; return; fi
+  tty_ok || { MENU_CHOICE=0; return; }
 
   printf '\n%s%s%s  %s(↑↓ 选择, Enter 确认)%s\n' "$BOLD" "$title" "$NC" "$DIM" "$NC" >/dev/tty
   for ((i=0; i<n; i++)); do
@@ -76,6 +79,19 @@ menu() {
 
 [[ $EUID -eq 0 ]] || die "请使用 root 或 sudo 运行"
 
+# ---------- 停用残留服务 (重装时必须第一步做) ----------
+# 目的: 旧的 relay-service.service 带 Restart=always, 如果 unit 文件还在,
+# systemd 会在后台每 5 秒 auto-restart. 当 .env 一被新脚本写出时, 它可能
+# 抢在 build:web 完成前就把服务拉起来, 导致 /admin-next 路由看不到 dist.
+for u in relay-service relay-redis; do
+  if systemctl cat "$u.service" >/dev/null 2>&1; then
+    systemctl disable --now "$u.service" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${u}.service"
+  fi
+done
+systemctl reset-failed relay-service relay-redis 2>/dev/null || true
+systemctl daemon-reload
+
 show_logo
 
 # ---------- 0. 交互式配置 ----------
@@ -83,7 +99,7 @@ ADMIN_USERNAME_USER=""; ADMIN_PASSWORD_USER=""
 REDIS_MODE=""
 REDIS_HOST_USER=""; REDIS_PORT_USER=""; REDIS_PASSWORD_USER=""
 
-if [[ -r /dev/tty && -w /dev/tty ]]; then
+if tty_ok; then
   {
     echo "════════════════════════════════════════════════════════"
     echo "  交互式配置 (回车使用默认 / 自动生成)"
@@ -352,6 +368,11 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
+# enable --now 前, 确认 dist 仍在且服务不处于 active 状态 (防止 auto-restart
+# 残留抢跑). 再次启动使用新 unit.
+[[ -f "${INSTALL_DIR}/web/admin-spa/dist/index.html" ]] \
+  || die "dist/index.html 在启动前消失, 中止 (检查 build:web 是否被覆盖)"
+systemctl stop ${SERVICE_NAME} 2>/dev/null || true
 systemctl enable --now ${SERVICE_NAME}
 
 # ---------- 8. 等待就绪 (5 分钟倒计时) ----------

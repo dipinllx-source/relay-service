@@ -8,7 +8,10 @@
 
 const IApiKeyRepository = require('./IApiKeyRepository')
 
+// core 字段直接映射到 SQLite 列；其余字段进 data JSON
+// STATS_FIELDS 是 flusher 原子累加的目标——它们以独立列存储
 const CORE_FIELDS = new Set(['id', 'name', 'ownerUserId', 'status', 'apiKey'])
+const STATS_FIELDS = new Set(['lastUsedAt', 'requestCount', 'totalCost'])
 
 function now() {
   return Date.now()
@@ -16,15 +19,18 @@ function now() {
 
 function splitCoreAndData(keyData) {
   const core = {}
+  const stats = {}
   const data = {}
   for (const [k, v] of Object.entries(keyData || {})) {
     if (CORE_FIELDS.has(k)) {
       core[k] = v
+    } else if (STATS_FIELDS.has(k)) {
+      stats[k] = v
     } else {
       data[k] = v
     }
   }
-  return { core, data }
+  return { core, stats, data }
 }
 
 function rowToObject(row) {
@@ -46,6 +52,9 @@ function rowToObject(row) {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    lastUsedAt: row.last_used_at,
+    requestCount: row.request_count || 0,
+    totalCost: row.total_cost || 0,
     ...data
   }
 }
@@ -65,8 +74,12 @@ class SqliteApiKeyRepository extends IApiKeyRepository {
       selectAllIds: db.prepare('SELECT id FROM api_keys'),
       insert: db.prepare(
         `INSERT INTO api_keys
-           (id, hashed_key, name, owner_user_id, status, data, created_at, updated_at)
-         VALUES (@id, @hashed_key, @name, @owner_user_id, @status, @data, @created_at, @updated_at)`
+           (id, hashed_key, name, owner_user_id, status, data,
+            last_used_at, request_count, total_cost,
+            created_at, updated_at)
+         VALUES (@id, @hashed_key, @name, @owner_user_id, @status, @data,
+                 @last_used_at, @request_count, @total_cost,
+                 @created_at, @updated_at)`
       ),
       updateCore: db.prepare(
         `UPDATE api_keys
@@ -75,6 +88,9 @@ class SqliteApiKeyRepository extends IApiKeyRepository {
                 owner_user_id = COALESCE(@owner_user_id, owner_user_id),
                 status        = COALESCE(@status,        status),
                 data          = @data,
+                last_used_at  = COALESCE(@last_used_at,  last_used_at),
+                request_count = COALESCE(@request_count, request_count),
+                total_cost    = COALESCE(@total_cost,    total_cost),
                 updated_at    = @updated_at
           WHERE id = @id`
       ),
@@ -83,7 +99,7 @@ class SqliteApiKeyRepository extends IApiKeyRepository {
   }
 
   async save(keyId, keyData, hashedKey = null) {
-    const { core, data } = splitCoreAndData(keyData)
+    const { core, stats, data } = splitCoreAndData(keyData)
     const existing = this.stmts.selectById.get(keyId)
     const effectiveHash = hashedKey || core.apiKey || (existing && existing.hashed_key)
     const ts = now()
@@ -99,6 +115,9 @@ class SqliteApiKeyRepository extends IApiKeyRepository {
         owner_user_id: core.ownerUserId || null,
         status: core.status || 'active',
         data: JSON.stringify(data),
+        last_used_at: stats.lastUsedAt !== undefined ? stats.lastUsedAt : null,
+        request_count: stats.requestCount !== undefined ? stats.requestCount : 0,
+        total_cost: stats.totalCost !== undefined ? stats.totalCost : 0,
         created_at: ts,
         updated_at: ts
       })
@@ -120,6 +139,9 @@ class SqliteApiKeyRepository extends IApiKeyRepository {
       owner_user_id: core.ownerUserId || null,
       status: core.status || null,
       data: JSON.stringify(mergedData),
+      last_used_at: stats.lastUsedAt !== undefined ? stats.lastUsedAt : null,
+      request_count: stats.requestCount !== undefined ? stats.requestCount : null,
+      total_cost: stats.totalCost !== undefined ? stats.totalCost : null,
       updated_at: ts
     })
   }

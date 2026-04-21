@@ -56,14 +56,15 @@
 
 ## 阶段 5：API Key Runtime 统计（Redis + flush）
 
-- [ ] 5.1 定义 Redis schema：`apikey:runtime:{id}` hash（`request_count` / `total_cost` / `last_used_at`）
-- [ ] 5.2 在 `apiKeyService.incrementUsage()` 改为写 `apikey:runtime:{id}`，不再写 SQLite
-- [ ] 5.3 实现 `src/storage/flusher.js`：定时任务；读所有 `apikey:runtime:*`，在 SQLite 事务中批量 UPDATE `api_keys`
-- [ ] 5.4 Flusher 成功后原子扣减 Redis（`HINCRBYFLOAT` 负值）
-- [ ] 5.5 Flusher 异常写 `logs/sqlite-flush-error.log` 且不清零 Redis
-- [ ] 5.6 进程 SIGTERM/SIGINT 触发 graceful flush（同步）
-- [ ] 5.7 `GET /admin/apikey/{id}` 返回值合并 SQLite 快照 + Redis 增量
-- [ ] 5.8 单元测试：flusher 的幂等性、异常重试、进程优雅退出
+- [x] 5.1 Redis schema：`apikey:runtime:{id}` hash（request_count / total_cost / last_used_at）
+- [ ] 5.2 **[延至阶段 6]** `apiKeyService.incrementUsage()` 改写到 `apikey:runtime:{id}`
+- [x] 5.3 `src/storage/runtimeStatsFlusher.js`：SCAN + pipeline + 单事务批量 UPDATE api_keys
+- [x] 5.4 Flusher 成功后原子扣减 Redis（hincrby / hincrbyfloat 负值），避免重复累加
+- [x] 5.5 Flusher 异常不清零 Redis；写入 logger.error；下次 tick 继续尝试
+- [ ] 5.6 **[延至阶段 6]** SIGTERM/SIGINT 触发 graceful flush（需接入 app.js 关闭钩子）
+- [ ] 5.7 **[延至阶段 6]** `GET /admin/apikey/{id}` 合并 SQLite 快照 + Redis 增量
+- [x] 5.8 单元测试：tests/storage/runtimeStatsFlusher.test.js 6 cases（空扫描 / 首次应用 / 累计 / last_used_at 单调 / disabled / status）
+- [x] schema evolution: `api_keys.last_used_at`, `api_keys.request_count`, `api_keys.total_cost` 从 JSON blob 抽成独立列以支持原子累加
 
 ## 阶段 6：业务层切换
 

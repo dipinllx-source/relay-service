@@ -26,6 +26,10 @@ const DDL = [
      owner_user_id TEXT,
      status        TEXT NOT NULL DEFAULT 'active',
      data          TEXT NOT NULL DEFAULT '{}',
+     -- 累计统计以独立列存储以便原子累加（flusher 每 30 秒从 Redis 批量 apply）
+     last_used_at  INTEGER,
+     request_count INTEGER NOT NULL DEFAULT 0,
+     total_cost    REAL    NOT NULL DEFAULT 0,
      created_at    INTEGER NOT NULL,
      updated_at    INTEGER NOT NULL
    )`,

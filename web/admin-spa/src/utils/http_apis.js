@@ -42,6 +42,10 @@ export const getHttpsStatusApi = () => request({ url: '/admin/https/status', met
 
 // 🗄️ 元数据存储健康状态（只读）—— StorageHealthSection 使用
 export const getStorageStatus = () => request({ url: '/admin/storage/status', method: 'GET' })
+
+// 🌐 本机网络端点（IPv4 / IPv6）—— 用于 API Key 复制配置时切换地址族
+export const getNetworkEndpointsApi = () =>
+  request({ url: '/admin/system/network-endpoints', method: 'GET' })
 // 下载 ca.crt：使用 blob 响应并在前端触发下载，保留 Authorization 头
 export const downloadCaCertApi = async () => {
   const axios = (await import('axios')).default

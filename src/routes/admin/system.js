@@ -1,5 +1,6 @@
 const express = require('express')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const axios = require('axios')
 const claudeCodeHeadersService = require('../../services/claudeCodeHeadersService')
@@ -448,6 +449,55 @@ router.post('/models/pricing/refresh', authenticateAdmin, async (req, res) => {
   } catch (error) {
     logger.error('Failed to refresh pricing:', error)
     res.status(500).json({ error: 'Failed to refresh pricing', message: error.message })
+  }
+})
+
+// ==================== 网络端点发现 ====================
+// 返回本机可用于复制到客户端的 IPv4 / IPv6 裸 host；IPv6 缺省时用 ::ffff:<ipv4> 合成。
+// 仅返回 host 部分，前端拼 protocol + port（按浏览器当前连接推算）。
+
+function pickNetworkEndpoints() {
+  const ifaces = os.networkInterfaces()
+  let ipv4 = null
+  let ipv6 = null
+  for (const addrs of Object.values(ifaces)) {
+    if (!addrs) {
+      continue
+    }
+    for (const addr of addrs) {
+      if (addr.internal) {
+        continue
+      }
+      if (addr.family === 'IPv4' && !ipv4) {
+        // 跳过 link-local (169.254/16)
+        if (!addr.address.startsWith('169.254.')) {
+          ipv4 = addr.address
+        }
+      } else if (addr.family === 'IPv6' && !ipv6) {
+        // 跳过 link-local (fe80::/10)、loopback (::1)
+        const lower = addr.address.toLowerCase()
+        if (!lower.startsWith('fe80:') && lower !== '::1') {
+          // 部分系统会带 %scope 后缀，剥掉
+          ipv6 = addr.address.replace(/%.*$/, '')
+        }
+      }
+    }
+  }
+  let synthesizedIpv6 = false
+  if (!ipv6 && ipv4) {
+    ipv6 = `::ffff:${ipv4}`
+    synthesizedIpv6 = true
+  }
+  return { ipv4, ipv6, synthesizedIpv6 }
+}
+
+router.get('/network-endpoints', authenticateAdmin, async (req, res) => {
+  try {
+    const { ipv4, ipv6, synthesizedIpv6 } = pickNetworkEndpoints()
+    res.json({ success: true, ipv4, ipv6, synthesizedIpv6 })
+  } catch (error) {
+    logger.error('Failed to pick network endpoints:', error)
+    res.status(500).json({ success: false, error: error.message })
   }
 })
 

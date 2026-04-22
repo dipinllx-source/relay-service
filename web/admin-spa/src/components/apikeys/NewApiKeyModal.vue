@@ -96,6 +96,52 @@
               点击眼睛图标切换显示模式，使用下方按钮复制环境变量配置
             </p>
           </div>
+
+          <!-- 地址族切换：IPv6 默认 / IPv4 备选 -->
+          <div v-if="endpointsAvailable">
+            <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              >API 地址</label
+            >
+            <div
+              class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1 dark:border-gray-600 dark:bg-gray-800"
+            >
+              <button
+                class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+                :class="
+                  addressFamily === 'ipv6'
+                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                "
+                :disabled="!endpoints.ipv6"
+                type="button"
+                @click="addressFamily = 'ipv6'"
+              >
+                IPv6
+                <span
+                  v-if="endpoints.synthesizedIpv6"
+                  class="ml-1 text-[10px] font-normal text-amber-600 dark:text-amber-400"
+                  title="本机未检测到原生 IPv6，由 IPv4 映射而来（::ffff:x.x.x.x）"
+                  >映射</span
+                >
+              </button>
+              <button
+                class="rounded-md px-3 py-1.5 text-xs font-semibold transition-colors"
+                :class="
+                  addressFamily === 'ipv4'
+                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                "
+                :disabled="!endpoints.ipv4"
+                type="button"
+                @click="addressFamily = 'ipv4'"
+              >
+                IPv4
+              </button>
+            </div>
+            <p class="mt-2 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
+              {{ currentBaseUrl }}
+            </p>
+          </div>
         </div>
 
         <!-- 操作按钮 -->
@@ -142,9 +188,10 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { showToast } from '@/utils/tools'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import { getNetworkEndpointsApi } from '@/utils/http_apis'
 
 const props = defineProps({
   apiKey: {
@@ -190,39 +237,66 @@ const handleCancelModal = () => {
   confirmResolve.value?.(false)
 }
 
-// 获取 API Base URL 前缀
+// 后端发现的本机网络端点（IPv4 / IPv6）
+const endpoints = ref({ ipv4: null, ipv6: null, synthesizedIpv6: false })
+const addressFamily = ref('ipv6') // 默认 IPv6
+
+const endpointsAvailable = computed(() => !!(endpoints.value.ipv4 || endpoints.value.ipv6))
+
+// 当前浏览器连接的 protocol / port（复用，避免反向代理场景下出错）
+const clientProtocolAndPort = () => {
+  if (typeof window === 'undefined') {
+    return { protocol: 'http:', portSuffix: '' }
+  }
+  const protocol = window.location.protocol
+  const port = window.location.port
+  return { protocol, portSuffix: port ? `:${port}` : '' }
+}
+
+// 基础前缀：优先 VITE_API_BASE_PREFIX；否则按 addressFamily 选端点；再降级到 window.location
 const getBaseUrlPrefix = () => {
-  // 优先使用环境变量配置的自定义前缀
   const customPrefix = import.meta.env.VITE_API_BASE_PREFIX
   if (customPrefix) {
-    // 去除末尾的斜杠
     return customPrefix.replace(/\/$/, '')
   }
 
-  // 否则使用当前浏览器访问地址
-  if (typeof window !== 'undefined') {
-    const protocol = window.location.protocol // http: 或 https:
-    const host = window.location.host // 域名和端口
-    // 提取协议和主机部分，去除路径
-    let origin = protocol + '//' + host
+  const { protocol, portSuffix } = clientProtocolAndPort()
 
-    // 如果当前URL包含路径，只取协议+主机部分
-    const currentUrl = window.location.href
-    const pathStart = currentUrl.indexOf('/', 8) // 跳过 http:// 或 https://
-    if (pathStart !== -1) {
-      origin = currentUrl.substring(0, pathStart)
-    }
-
-    return origin
+  if (addressFamily.value === 'ipv6' && endpoints.value.ipv6) {
+    return `${protocol}//[${endpoints.value.ipv6}]${portSuffix}`
+  }
+  if (addressFamily.value === 'ipv4' && endpoints.value.ipv4) {
+    return `${protocol}//${endpoints.value.ipv4}${portSuffix}`
   }
 
-  // 服务端渲染或其他情况的回退
+  // 端点未就绪时回退到当前浏览器地址
+  if (typeof window !== 'undefined') {
+    return `${protocol}//${window.location.host}`
+  }
   return ''
 }
 
-// 计算完整的 API Base URL
-const currentBaseUrl = computed(() => {
-  return getBaseUrlPrefix() + '/api'
+// 计算完整的 API Base URL（addressFamily / endpoints 变化自动触发）
+const currentBaseUrl = computed(() => getBaseUrlPrefix() + '/api')
+
+// 组件挂载后拉取端点；默认 IPv6，若服务器无 IPv6（且未合成）则自动切到 IPv4
+onMounted(async () => {
+  try {
+    const resp = await getNetworkEndpointsApi()
+    if (resp && resp.success !== false) {
+      endpoints.value = {
+        ipv4: resp.ipv4 || null,
+        ipv6: resp.ipv6 || null,
+        synthesizedIpv6: !!resp.synthesizedIpv6
+      }
+      if (!endpoints.value.ipv6 && endpoints.value.ipv4) {
+        addressFamily.value = 'ipv4'
+      }
+    }
+  } catch (err) {
+    // 不阻塞用户；静默回退到 window.location
+    console.warn('network-endpoints fetch failed, falling back to current origin', err)
+  }
 })
 
 // 切换密钥可见性

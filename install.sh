@@ -348,8 +348,21 @@ chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 log "安装后端依赖 (可能需要几分钟)"
 run_as_svc "cd '$INSTALL_DIR' && npm install --omit=dev --no-audit --no-fund"
 log "安装并构建前端 SPA"
-run_as_svc "cd '$INSTALL_DIR' && npm run install:web --silent && npm run build:web --silent" \
-  || die "前端构建失败 — /admin-next/ 需要 dist 才能工作。修复后重跑 npm run build:web 再继续。"
+# --silent 会把 prettier / ESLint 的报错藏起来, 出错时用户看不到任何线索,
+# 只能手动重跑才知道错在哪. 这里改成: 全量输出重定向到日志, 失败时 tail
+# 出来直接展示错误; 成功则静默.
+BUILD_LOG=$(mktemp /tmp/relay-install-build.XXXXXX.log)
+if ! run_as_svc "cd '$INSTALL_DIR' && npm run install:web && npm run build:web" \
+      >"$BUILD_LOG" 2>&1; then
+  warn "前端构建失败, 最近 60 行输出 ↓"
+  echo "----------------------------------------------------------------" >&2
+  tail -n 60 "$BUILD_LOG" >&2
+  echo "----------------------------------------------------------------" >&2
+  echo "  完整日志: $BUILD_LOG" >&2
+  echo "  修复后重跑: cd $INSTALL_DIR && npm run build:web" >&2
+  die "前端构建失败 — /admin-next/ 需要 dist 才能工作"
+fi
+rm -f "$BUILD_LOG"
 
 # build 必须产出 dist/index.html, 否则服务启动时会 skip /admin-next 路由
 [[ -f "${INSTALL_DIR}/web/admin-spa/dist/index.html" ]] \

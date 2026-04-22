@@ -39,28 +39,40 @@
       <div
         class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800/50"
       >
-        <h4 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4
+          class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"
+        >
           <i class="fas fa-bolt text-amber-500" />
           Redis
         </h4>
         <div class="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">连接</p>
-            <p :class="status.redis?.connected ? 'text-green-600 dark:text-green-400' : 'text-red-500'">
+            <p
+              :class="
+                status.redis?.connected ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+              "
+            >
               {{ status.redis?.connected ? '正常' : '异常' }}
             </p>
           </div>
           <div v-if="status.redis?.usedMemoryBytes != null">
             <p class="text-xs text-gray-500 dark:text-gray-400">已用内存</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ formatBytes(status.redis.usedMemoryBytes) }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ formatBytes(status.redis.usedMemoryBytes) }}
+            </p>
           </div>
           <div v-if="status.redis?.dbSize != null">
             <p class="text-xs text-gray-500 dark:text-gray-400">Key 总数</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ status.redis.dbSize.toLocaleString() }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ status.redis.dbSize.toLocaleString() }}
+            </p>
           </div>
           <div v-if="status.redis?.lastSaveAt">
             <p class="text-xs text-gray-500 dark:text-gray-400">上次 RDB save</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ formatTime(status.redis.lastSaveAt) }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ formatTime(status.redis.lastSaveAt) }}
+            </p>
           </div>
         </div>
       </div>
@@ -75,7 +87,9 @@
             : 'border-red-300 bg-red-50 dark:border-red-900/60 dark:bg-red-900/20'
         "
       >
-        <h4 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4
+          class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"
+        >
           <i class="fas fa-hdd text-indigo-500" />
           SQLite
           <span
@@ -92,11 +106,15 @@
         <div class="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">文件大小</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ formatBytes(status.sqlite.fileSizeBytes) }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ formatBytes(status.sqlite.fileSizeBytes) }}
+            </p>
           </div>
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">WAL 大小</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ formatBytes(status.sqlite.walSizeBytes) }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ formatBytes(status.sqlite.walSizeBytes) }}
+            </p>
           </div>
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">journal mode</p>
@@ -104,7 +122,10 @@
           </div>
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">文件路径</p>
-            <p class="truncate text-xs text-gray-600 dark:text-gray-400" :title="status.sqlite.path">
+            <p
+              class="truncate text-xs text-gray-600 dark:text-gray-400"
+              :title="status.sqlite.path"
+            >
               {{ status.sqlite.path }}
             </p>
           </div>
@@ -131,22 +152,27 @@
             : 'border-yellow-300 bg-yellow-50 dark:border-yellow-900/60 dark:bg-yellow-900/20'
         "
       >
-        <h4 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-          <i class="fas fa-sync-alt" :class="flusherHealthy ? 'text-blue-500' : 'text-yellow-500'" />
+        <h4
+          class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"
+        >
+          <i
+            class="fas fa-sync-alt"
+            :class="flusherHealthy ? 'text-blue-500' : 'text-yellow-500'"
+          />
           API Key 统计 flusher
         </h4>
         <div class="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">上次成功</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ formatTime(status.flusher.lastSuccessAt) }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ formatTime(status.flusher.lastSuccessAt) }}
+            </p>
           </div>
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">上次失败</p>
             <p
               :class="
-                status.flusher.lastErrorAt
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-gray-400'
+                status.flusher.lastErrorAt ? 'text-red-600 dark:text-red-400' : 'text-gray-400'
               "
             >
               {{ formatTime(status.flusher.lastErrorAt) }}
@@ -154,7 +180,9 @@
           </div>
           <div v-if="status.flusher.pendingRuntimeKeyCount != null">
             <p class="text-xs text-gray-500 dark:text-gray-400">待 flush key 数</p>
-            <p class="text-gray-700 dark:text-gray-300">{{ status.flusher.pendingRuntimeKeyCount }}</p>
+            <p class="text-gray-700 dark:text-gray-300">
+              {{ status.flusher.pendingRuntimeKeyCount }}
+            </p>
           </div>
           <div v-if="status.flusher.intervalSec != null">
             <p class="text-xs text-gray-500 dark:text-gray-400">flush 间隔</p>
@@ -175,7 +203,9 @@
         v-if="status.backup"
         class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800/50"
       >
-        <h4 class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <h4
+          class="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100"
+        >
           <i class="fas fa-archive text-gray-500" />
           备份
         </h4>
@@ -193,7 +223,11 @@
           <div>
             <p class="text-xs text-gray-500 dark:text-gray-400">最近文件大小</p>
             <p class="text-gray-700 dark:text-gray-300">
-              {{ status.backup.lastBackupSizeBytes ? formatBytes(status.backup.lastBackupSizeBytes) : '-' }}
+              {{
+                status.backup.lastBackupSizeBytes
+                  ? formatBytes(status.backup.lastBackupSizeBytes)
+                  : '-'
+              }}
             </p>
           </div>
         </div>

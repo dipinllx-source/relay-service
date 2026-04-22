@@ -312,12 +312,26 @@ fi
 cd "$INSTALL_DIR"
 [[ -f config/config.js ]] || cp config/config.example.js config/config.js
 
-# ---------- 5. 生成 .env ----------
+# ---------- 5. 生成 / 同步 .env ----------
+# 设计要点: JWT_SECRET / ENCRYPTION_KEY 只在首次生成 (再生成会导致旧会话、旧密文全部失效).
+# 但 Redis 地址/端口/密码是基础设施状态, setup_redis_new 每次重装都会重写 redis.conf,
+# 所以 .env 里的 REDIS_* 必须在这一步同步回去, 否则两边密码不一致、服务起不来.
+# 管理员用户名/密码同理: 交互式输入的值应当覆盖 .env 中的旧值.
+sync_env_kv() {
+  local key=$1 val=$2 file=${3:-.env}
+  # 用 | 作分隔符, 避免密码中含 / 破坏 sed
+  if grep -qE "^${key}=" "$file"; then
+    sed -i "s|^${key}=.*|${key}=${val}|" "$file"
+  else
+    echo "${key}=${val}" >>"$file"
+  fi
+}
+
 if [[ ! -f .env ]]; then
   log "生成 .env (JWT_SECRET / ENCRYPTION_KEY 自动生成)"
   JWT_SECRET=$(openssl rand -hex 32)          # 64 字符
-  ENCRYPTION_KEY=$(openssl rand -hex 16)       # 固定 32 字符 (AES-256)
-  cat > .env <<EOF
+  ENCRYPTION_KEY=$(openssl rand -hex 16)      # 固定 32 字符 (AES-256)
+  cat >.env <<EOF
 # 由 install.sh 自动生成 — $(date -Iseconds)
 NODE_ENV=production
 HOST=0.0.0.0
@@ -334,11 +348,18 @@ LOG_LEVEL=info
 TRUST_PROXY=true
 ENABLE_CORS=true
 EOF
-  [[ -n $ADMIN_USERNAME_USER ]] && echo "ADMIN_USERNAME=${ADMIN_USERNAME_USER}" >> .env
-  [[ -n $ADMIN_PASSWORD_USER ]] && echo "ADMIN_PASSWORD=${ADMIN_PASSWORD_USER}" >> .env
+  [[ -n $ADMIN_USERNAME_USER ]] && echo "ADMIN_USERNAME=${ADMIN_USERNAME_USER}" >>.env
+  [[ -n $ADMIN_PASSWORD_USER ]] && echo "ADMIN_PASSWORD=${ADMIN_PASSWORD_USER}" >>.env
   chmod 600 .env
 else
-  warn ".env 已存在, 跳过生成 (交互输入被忽略)"
+  log ".env 已存在, 同步 Redis / 管理员配置 (JWT_SECRET / ENCRYPTION_KEY 保留不变)"
+  sync_env_kv REDIS_HOST "$REDIS_HOST_USER"
+  sync_env_kv REDIS_PORT "$REDIS_PORT_USER"
+  sync_env_kv REDIS_PASSWORD "$REDIS_PASSWORD_USER"
+  sync_env_kv PORT "$PORT"
+  [[ -n $ADMIN_USERNAME_USER ]] && sync_env_kv ADMIN_USERNAME "$ADMIN_USERNAME_USER"
+  [[ -n $ADMIN_PASSWORD_USER ]] && sync_env_kv ADMIN_PASSWORD "$ADMIN_PASSWORD_USER"
+  chmod 600 .env
 fi
 
 mkdir -p logs data temp

@@ -161,6 +161,38 @@
           <div class="tutorial-command-box mt-2">
             <div class="whitespace-nowrap text-gray-300">{{ configTomlWriteCmd }}</div>
           </div>
+
+          <div
+            class="mt-4 rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-500/40 dark:bg-cyan-950/30 sm:p-4"
+          >
+            <h6 class="mb-2 text-sm font-medium text-cyan-800 dark:text-cyan-300 sm:text-base">
+              IPv4 映射 IPv6 格式（可选）
+            </h6>
+            <p class="mb-3 text-sm text-cyan-700 dark:text-cyan-300">
+              如果直接使用 IPv6 地址访问中转服务，请只替换
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">base_url</code>
+              这一行；地址使用
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">[::ffff:ipv4]:port</code>
+              格式，路径仍然保持
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">/openai</code>：
+            </p>
+            <div class="tutorial-code-box">
+              <div class="whitespace-nowrap text-gray-300">
+                base_url = "{{ ipv6OpenaiBaseUrl }}"
+              </div>
+            </div>
+            <p class="mt-3 text-sm text-cyan-700 dark:text-cyan-300">IPv6 格式一键写入命令：</p>
+            <div class="tutorial-command-box mt-2">
+              <div class="whitespace-nowrap text-gray-300">{{ configTomlIpv6WriteCmd }}</div>
+            </div>
+            <p class="mt-2 text-xs text-cyan-700 dark:text-cyan-300">
+              💡 如果当前页面使用 IPv4 地址访问，会自动填入该 IPv4；否则将示例中的
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">ipv4</code>
+              替换为实际 IPv4 地址；如果端口显示为
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">port</code>
+              ，也替换为实际端口。
+            </p>
+          </div>
         </div>
 
         <!-- auth.json 配置 -->
@@ -414,7 +446,7 @@ const props = defineProps({
   }
 })
 
-const { openaiBaseUrl } = useTutorialUrls()
+const { openaiBaseUrl, ipv6OpenaiBaseUrl } = useTutorialUrls()
 
 const platformName = computed(() => {
   const names = { windows: 'Windows', macos: 'macOS', linux: 'Linux / WSL2' }
@@ -448,14 +480,26 @@ const configTomlLines = computed(() => [
 
 const configTomlContent = computed(() => configTomlLines.value.join('\n'))
 
-const configTomlWriteCmd = computed(() => {
+const ipv6ConfigTomlLines = computed(() =>
+  configTomlLines.value.map((line) =>
+    line.startsWith('base_url = ') ? `base_url = "${ipv6OpenaiBaseUrl.value}"` : line
+  )
+)
+
+const ipv6ConfigTomlContent = computed(() => ipv6ConfigTomlLines.value.join('\n'))
+
+const buildConfigTomlWriteCmd = (content) => {
   if (props.platform === 'windows') {
-    const escaped = configTomlContent.value.replace(/"/g, '`"').replace(/\n/g, '`n')
+    const escaped = content.replace(/"/g, '`"').replace(/\n/g, '`n')
     return `New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\.codex" | Out-Null; "${escaped}" | Set-Content -Path "$env:USERPROFILE\\.codex\\config.toml" -Force`
   }
-  const escaped = configTomlContent.value.replace(/\n/g, '\\n')
+  const escaped = content.replace(/\n/g, '\\n')
   return `mkdir -p ~/.codex && printf '${escaped}\\n' > ~/.codex/config.toml`
-})
+}
+
+const configTomlWriteCmd = computed(() => buildConfigTomlWriteCmd(configTomlContent.value))
+
+const configTomlIpv6WriteCmd = computed(() => buildConfigTomlWriteCmd(ipv6ConfigTomlContent.value))
 
 const authJsonWriteCmd = computed(() => {
   if (props.platform === 'windows') {

@@ -1,6 +1,7 @@
 const https = require('https')
 const zlib = require('zlib')
 const path = require('path')
+const crypto = require('crypto')
 const ProxyHelper = require('../../utils/proxyHelper')
 const { filterForClaude } = require('../../utils/headerFilter')
 const claudeAccountService = require('../account/claudeAccountService')
@@ -41,6 +42,93 @@ class ClaudeRelayService {
     this.toolNameSuffix = null
     this.toolNameSuffixGeneratedAt = 0
     this.toolNameSuffixTtlMs = 60 * 60 * 1000
+    this.staticToolNameRewrites = new Map([
+      ['sessions_', 'cc_sess_'],
+      ['session_', 'cc_ses_']
+    ])
+    this.fakeToolNamePrefixes = [
+      'analyze_',
+      'compute_',
+      'fetch_',
+      'generate_',
+      'lookup_',
+      'modify_',
+      'process_',
+      'query_',
+      'render_',
+      'resolve_',
+      'sync_',
+      'update_',
+      'validate_',
+      'convert_',
+      'extract_',
+      'manage_',
+      'monitor_',
+      'parse_',
+      'review_',
+      'search_',
+      'transform_',
+      'handle_',
+      'invoke_',
+      'notify_'
+    ]
+    this.dynamicToolMapThreshold = 5
+    this.nonRealClaudeCodeToolDescriptions = new Map([
+      ['apply_patch', 'Apply a patch to modify files.'],
+      ['bash', 'Run shell commands in the user environment.'],
+      ['edit', 'Modify existing files by replacing exact text.'],
+      ['glob', 'Find files by glob pattern.'],
+      ['grep', 'Search file contents by pattern.'],
+      ['list', 'List directory contents.'],
+      ['read', 'Read file contents.'],
+      ['task', 'Launch a focused sub-agent task.'],
+      ['todoread', 'Read the current task plan.'],
+      ['todowrite', 'Update the task plan.'],
+      ['webfetch', 'Fetch content from a URL.'],
+      ['write', 'Create or overwrite files.']
+    ])
+    this.nonRealClaudeCodeToolAliases = new Map([
+      ['applypatch', 'apply_patch'],
+      ['ls', 'list'],
+      ['read_file', 'read'],
+      ['readfile', 'read'],
+      ['read_plan', 'todoread'],
+      ['readplan', 'todoread'],
+      ['run_shell_command', 'bash'],
+      ['shell', 'bash'],
+      ['todo_read', 'todoread'],
+      ['todo_write', 'todowrite'],
+      ['update_plan', 'todowrite'],
+      ['updateplan', 'todowrite'],
+      ['web_fetch', 'webfetch'],
+      ['web_fetch_url', 'webfetch'],
+      ['write_file', 'write'],
+      ['writefile', 'write']
+    ])
+    this.nonRealClaudeCodeToolDescriptionFingerprints = [
+      'opencode',
+      'codex cli',
+      'gemini cli',
+      'factory droid',
+      'replaces apply_patch',
+      'apply_patch does not exist',
+      'replaces update_plan',
+      'update_plan does not exist',
+      'requires a prior read',
+      'oldstring',
+      'replaceall',
+      'tool, not bash grep',
+      'no workdir parameter',
+      'do not use cd',
+      'do not use ls/cat',
+      'always include a short description',
+      'always set format',
+      'short cache window',
+      'functions.task',
+      'sub-agents',
+      'mcp tools are prefixed'
+    ]
+    this.nonRealClaudeCodeToolDescriptionPatterns = [/\b(?:openclaw|[a-z0-9_-]+paw)\b/i]
   }
 
   // 🔧 根据模型ID和客户端传递的 anthropic-beta 获取最终的 header
@@ -205,15 +293,16 @@ class ClaudeRelayService {
     return message.toLowerCase().includes('extra usage')
   }
 
-  _toPascalCaseToolName(name) {
-    const parts = name.split(/[_-]/).filter(Boolean)
-    if (parts.length === 0) {
-      return name
+  _sanitizeSystemText(text) {
+    if (typeof text !== 'string' || text.length === 0) {
+      return text
     }
-    const pascal = parts
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join('')
-    return `${pascal}_tool`
+
+    // 对齐 sub2api：只替换固定 OpenCode 身份句，避免误改用户自定义指令。
+    return text.replaceAll(
+      'You are OpenCode, the best coding agent on the planet.',
+      this.claudeCodeSystemPrompt
+    )
   }
 
   _getToolNameSuffix() {
@@ -230,60 +319,231 @@ class ClaudeRelayService {
     return `${name}_${suffix}`
   }
 
+  _shouldMimicToolName(tool) {
+    if (!tool || typeof tool !== 'object') {
+      return false
+    }
+
+    const toolType = typeof tool.type === 'string' ? tool.type : ''
+    return toolType === '' || toolType === 'function' || toolType === 'custom'
+  }
+
+  _shuffleToolNamePrefixes(toolNames) {
+    const prefixes = [...this.fakeToolNamePrefixes]
+    const seedMaterial = toolNames.join('\0')
+
+    for (let index = prefixes.length - 1; index > 0; index -= 1) {
+      const digest = crypto.createHash('sha256').update(seedMaterial).update(`:${index}`).digest()
+      const swapIndex = digest.readUInt32BE(0) % (index + 1)
+      const current = prefixes[index]
+      prefixes[index] = prefixes[swapIndex]
+      prefixes[swapIndex] = current
+    }
+
+    return prefixes
+  }
+
+  _buildDynamicToolNameMap(toolNames) {
+    if (!Array.isArray(toolNames) || toolNames.length <= this.dynamicToolMapThreshold) {
+      return null
+    }
+
+    const prefixes = this._shuffleToolNamePrefixes(toolNames)
+    const mapping = new Map()
+
+    toolNames.forEach((name, index) => {
+      const prefix = prefixes[index % prefixes.length]
+      const head = name.slice(0, Math.min(3, name.length))
+      mapping.set(name, `${prefix}${head}${String(index).padStart(2, '0')}`)
+    })
+
+    return mapping
+  }
+
+  _sanitizeToolName(name, dynamicMap) {
+    if (dynamicMap?.has(name)) {
+      return dynamicMap.get(name)
+    }
+
+    for (const [prefix, replacement] of this.staticToolNameRewrites.entries()) {
+      if (name.startsWith(prefix)) {
+        return `${replacement}${name.slice(prefix.length)}`
+      }
+    }
+
+    return name
+  }
+
+  _normalizeToolCatalogName(name) {
+    if (typeof name !== 'string' || !name.trim()) {
+      return ''
+    }
+
+    const normalized = name.trim().toLowerCase()
+    return this.nonRealClaudeCodeToolAliases.get(normalized) || normalized
+  }
+
+  _hasNonRealClaudeCodeToolDescriptionFingerprint(description) {
+    if (typeof description !== 'string' || !description.trim()) {
+      return false
+    }
+
+    const lower = description.toLowerCase()
+    return (
+      this.nonRealClaudeCodeToolDescriptionFingerprints.some((marker) => lower.includes(marker)) ||
+      this.nonRealClaudeCodeToolDescriptionPatterns.some((pattern) => pattern.test(description))
+    )
+  }
+
+  _cleanNonRealClaudeCodeToolDescription(name, description) {
+    if (typeof description !== 'string' || !description.trim()) {
+      return description
+    }
+
+    const normalizedName = this._normalizeToolCatalogName(name)
+    const fallbackDescription = this.nonRealClaudeCodeToolDescriptions.get(normalizedName)
+    const hasFingerprint = this._hasNonRealClaudeCodeToolDescriptionFingerprint(description)
+
+    if (fallbackDescription && hasFingerprint) {
+      return fallbackDescription
+    }
+
+    if (!fallbackDescription && hasFingerprint) {
+      return 'Tool available to the assistant.'
+    }
+
+    return description
+  }
+
+  _sanitizeNonRealClaudeCodeToolDescriptions(body) {
+    if (!body || typeof body !== 'object' || !Array.isArray(body.tools)) {
+      return
+    }
+
+    body.tools.forEach((tool) => {
+      if (!tool || typeof tool !== 'object') {
+        return
+      }
+
+      if (typeof tool.description === 'string') {
+        tool.description = this._cleanNonRealClaudeCodeToolDescription(tool.name, tool.description)
+      }
+
+      if (
+        tool.custom &&
+        typeof tool.custom === 'object' &&
+        typeof tool.custom.description === 'string'
+      ) {
+        tool.custom.description = this._cleanNonRealClaudeCodeToolDescription(
+          tool.name,
+          tool.custom.description
+        )
+      }
+    })
+  }
+
+  _buildToolNameRewrite(body, options = {}) {
+    if (!Array.isArray(body?.tools)) {
+      return null
+    }
+
+    const toolNames = []
+    body.tools.forEach((tool) => {
+      if (!this._shouldMimicToolName(tool) || typeof tool.name !== 'string' || !tool.name) {
+        return
+      }
+      toolNames.push(tool.name)
+    })
+
+    const dynamicMap =
+      options.useRandomizedToolNames === true
+        ? new Map(toolNames.map((name) => [name, this._toRandomizedToolName(name)]))
+        : this._buildDynamicToolNameMap(toolNames)
+
+    const forwardMap = new Map()
+    const reverseMap = new Map()
+
+    toolNames.forEach((name) => {
+      const transformed =
+        options.useRandomizedToolNames === true
+          ? dynamicMap.get(name)
+          : this._sanitizeToolName(name, dynamicMap)
+
+      if (transformed && transformed !== name) {
+        forwardMap.set(name, transformed)
+        reverseMap.set(transformed, name)
+      }
+    })
+
+    if (reverseMap.size === 0) {
+      return null
+    }
+
+    return { forwardMap, reverseMap }
+  }
+
   _transformToolNamesInRequestBody(body, options = {}) {
     if (!body || typeof body !== 'object') {
       return null
     }
 
-    const useRandomized = options.useRandomizedToolNames === true
-    const forwardMap = new Map()
-    const reverseMap = new Map()
-
-    const transformName = (name) => {
-      if (typeof name !== 'string' || name.length === 0) {
-        return name
-      }
-      if (forwardMap.has(name)) {
-        return forwardMap.get(name)
-      }
-      const transformed = useRandomized
-        ? this._toRandomizedToolName(name)
-        : this._toPascalCaseToolName(name)
-      if (transformed !== name) {
-        forwardMap.set(name, transformed)
-        reverseMap.set(transformed, name)
-      }
-      return transformed
+    const rewrite = this._buildToolNameRewrite(body, options)
+    if (!rewrite) {
+      return null
     }
 
-    if (Array.isArray(body.tools)) {
-      body.tools.forEach((tool) => {
-        if (tool && typeof tool.name === 'string') {
-          tool.name = transformName(tool.name)
+    body.tools.forEach((tool) => {
+      if (!this._shouldMimicToolName(tool) || typeof tool.name !== 'string') {
+        return
+      }
+
+      if (rewrite.forwardMap.has(tool.name)) {
+        tool.name = rewrite.forwardMap.get(tool.name)
+      }
+    })
+
+    if (
+      body.tool_choice &&
+      typeof body.tool_choice === 'object' &&
+      body.tool_choice.type === 'tool' &&
+      typeof body.tool_choice.name === 'string'
+    ) {
+      if (rewrite.forwardMap.has(body.tool_choice.name)) {
+        body.tool_choice.name = rewrite.forwardMap.get(body.tool_choice.name)
+      }
+    }
+
+    return rewrite.reverseMap
+  }
+
+  _restoreToolNamesInText(text, toolNameMap, includeStatic = true) {
+    if (typeof text !== 'string' || text.length === 0) {
+      return text
+    }
+
+    let restored = text
+
+    if (toolNameMap && toolNameMap.size > 0) {
+      const orderedEntries = [...toolNameMap.entries()].sort(
+        ([leftFake], [rightFake]) => rightFake.length - leftFake.length
+      )
+
+      orderedEntries.forEach(([fake, real]) => {
+        if (fake && fake !== real && restored.includes(fake)) {
+          restored = restored.split(fake).join(real)
         }
       })
     }
 
-    if (body.tool_choice && typeof body.tool_choice === 'object') {
-      if (typeof body.tool_choice.name === 'string') {
-        body.tool_choice.name = transformName(body.tool_choice.name)
-      }
-    }
-
-    if (Array.isArray(body.messages)) {
-      body.messages.forEach((message) => {
-        const content = message?.content
-        if (Array.isArray(content)) {
-          content.forEach((block) => {
-            if (block?.type === 'tool_use' && typeof block.name === 'string') {
-              block.name = transformName(block.name)
-            }
-          })
+    if (includeStatic) {
+      this.staticToolNameRewrites.forEach((replacement, prefix) => {
+        if (restored.includes(replacement)) {
+          restored = restored.split(replacement).join(prefix)
         }
       })
     }
 
-    return reverseMap.size > 0 ? reverseMap : null
+    return restored
   }
 
   _restoreToolName(name, toolNameMap) {
@@ -320,22 +580,31 @@ class ClaudeRelayService {
   }
 
   _restoreToolNamesInResponseBody(responseBody, toolNameMap) {
-    if (!responseBody || !toolNameMap || toolNameMap.size === 0) {
+    if (!responseBody) {
       return responseBody
     }
 
     if (typeof responseBody === 'string') {
       try {
-        const parsed = JSON.parse(responseBody)
-        this._restoreToolNamesInResponseObject(parsed, toolNameMap)
+        const restored = this._restoreToolNamesInText(responseBody, toolNameMap, true)
+        const parsed = JSON.parse(restored)
         return JSON.stringify(parsed)
       } catch (error) {
-        return responseBody
+        return this._restoreToolNamesInText(responseBody, toolNameMap, true)
       }
     }
 
     if (typeof responseBody === 'object') {
-      this._restoreToolNamesInResponseObject(responseBody, toolNameMap)
+      try {
+        const restored = this._restoreToolNamesInText(
+          JSON.stringify(responseBody),
+          toolNameMap,
+          true
+        )
+        return JSON.parse(restored)
+      } catch (error) {
+        this._restoreToolNamesInResponseObject(responseBody, toolNameMap)
+      }
     }
 
     return responseBody
@@ -367,8 +636,8 @@ class ClaudeRelayService {
     }
   }
 
-  _createToolNameStripperStreamTransformer(streamTransformer, toolNameMap) {
-    if (!toolNameMap || toolNameMap.size === 0) {
+  _createToolNameStripperStreamTransformer(streamTransformer, toolNameMap, includeStatic = false) {
+    if ((!toolNameMap || toolNameMap.size === 0) && !includeStatic) {
       return streamTransformer
     }
 
@@ -378,25 +647,7 @@ class ClaudeRelayService {
         return transformed
       }
 
-      const lines = transformed.split('\n')
-      const updated = lines.map((line) => {
-        if (!line.startsWith('data:')) {
-          return line
-        }
-        const jsonStr = line.slice(5).trimStart()
-        if (!jsonStr || jsonStr === '[DONE]') {
-          return line
-        }
-        try {
-          const data = JSON.parse(jsonStr)
-          this._restoreToolNamesInStreamEvent(data, toolNameMap)
-          return `data: ${JSON.stringify(data)}`
-        } catch (error) {
-          return line
-        }
-      })
-
-      return updated.join('\n')
+      return this._restoreToolNamesInText(transformed, toolNameMap, includeStatic)
     }
   }
 
@@ -1145,6 +1396,65 @@ class ClaudeRelayService {
     return patched
   }
 
+  _normalizeSystemEntry(entry) {
+    if (typeof entry === 'string') {
+      const text = this._sanitizeSystemText(entry)
+      return text.trim() ? { type: 'text', text } : null
+    }
+
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return null
+    }
+
+    if (typeof entry.text !== 'string') {
+      return null
+    }
+
+    if (!entry.text.trim()) {
+      return null
+    }
+
+    const text = this._sanitizeSystemText(entry.text)
+
+    return {
+      ...entry,
+      type: 'text',
+      text
+    }
+  }
+
+  _buildClaudeCodeSystem(system) {
+    const rawEntries = Array.isArray(system) ? system : [system]
+    const systemEntries = []
+    let claudeCodeEntry = { type: 'text', text: this.claudeCodeSystemPrompt }
+
+    rawEntries.forEach((entry) => {
+      const normalized = this._normalizeSystemEntry(entry)
+      if (!normalized) {
+        return
+      }
+
+      if (normalized.text.trim() === this.claudeCodeSystemPrompt) {
+        claudeCodeEntry = normalized
+        return
+      }
+
+      systemEntries.push(normalized)
+    })
+
+    return [claudeCodeEntry, ...systemEntries]
+  }
+
+  _applyNonRealClaudeCodeDefaults(body) {
+    if (body.max_tokens === undefined || body.max_tokens === null) {
+      body.max_tokens = 32000
+    }
+
+    if (body.temperature === undefined || body.temperature === null) {
+      body.temperature = 1
+    }
+  }
+
   // 🔄 处理请求体
   _processRequestBody(body, account = null, isRealClaudeCodeOverride = undefined) {
     if (!body) {
@@ -1171,45 +1481,11 @@ class ClaudeRelayService {
         : this.isRealClaudeCodeRequest(processedBody)
 
     // 如果不是真实的 Claude Code 请求，需要处理 system prompt
-    // 策略：将原始 system prompt 迁移至 messages，system 仅保留 Claude Code 标识
-    // 原因：Anthropic 基于 system 参数内容检测第三方应用，仅前置追加 Claude Code 提示词
-    //       无法通过检测，因为后续内容仍为非 Claude Code 格式
+    // 策略：按真实 Claude Code 抓包形态使用 system 数组，保留原始系统指令
     if (!isRealClaudeCode) {
-      // 提取原始 system prompt 文本
-      let originalSystemText = ''
-      if (typeof processedBody.system === 'string') {
-        originalSystemText = processedBody.system
-      } else if (Array.isArray(processedBody.system)) {
-        originalSystemText = processedBody.system
-          .filter((item) => item && item.type === 'text' && item.text)
-          .map((item) => item.text)
-          .join('\n\n')
-      }
-
-      // 将 system 替换为 Claude Code 标准提示词
-      processedBody.system = this.claudeCodeSystemPrompt
-
-      // 将原始 system prompt 作为 user/assistant 消息对注入到 messages 开头
-      // 模型仍通过 messages 接收完整指令，保留客户端功能
-      if (originalSystemText && originalSystemText.trim()) {
-        const instructionMessage = {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `[System Instructions - follow these strictly]\n${originalSystemText.trim()}`
-            }
-          ]
-        }
-        const ackMessage = {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Understood. I will follow these instructions.' }]
-        }
-        if (!Array.isArray(processedBody.messages)) {
-          processedBody.messages = []
-        }
-        processedBody.messages.unshift(instructionMessage, ackMessage)
-      }
+      processedBody.system = this._buildClaudeCodeSystem(processedBody.system)
+      this._applyNonRealClaudeCodeDefaults(processedBody)
+      this._sanitizeNonRealClaudeCodeToolDescriptions(processedBody)
     }
 
     // 如果不是真实的 Claude Code 请求且缺少 metadata.user_id，注入合法的 user_id
@@ -1219,7 +1495,6 @@ class ClaudeRelayService {
         processedBody.metadata = {}
       }
       if (!processedBody.metadata.user_id || typeof processedBody.metadata.user_id !== 'string') {
-        const crypto = require('crypto')
         const deviceId = crypto.createHash('sha256').update('relay-generated-device').digest('hex')
         const sessionId = crypto.randomUUID()
         processedBody.metadata.user_id = JSON.stringify({
@@ -1594,6 +1869,7 @@ class ClaudeRelayService {
 
     let toolNameMap = null
     if (!isRealClaudeCode) {
+      this._sanitizeNonRealClaudeCodeToolDescriptions(requestPayload)
       toolNameMap = this._transformToolNamesInRequestBody(requestPayload, {
         useRandomizedToolNames: requestOptions.useRandomizedToolNames === true
       })
@@ -2130,10 +2406,11 @@ class ClaudeRelayService {
     }
 
     let { bodyString } = prepared
-    const { headers, toolNameMap } = prepared
+    const { headers, isRealClaudeCode, toolNameMap } = prepared
     const toolNameStreamTransformer = this._createToolNameStripperStreamTransformer(
       streamTransformer,
-      toolNameMap
+      toolNameMap,
+      !isRealClaudeCode
     )
 
     return new Promise((resolve, reject) => {

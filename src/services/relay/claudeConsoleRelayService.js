@@ -13,6 +13,186 @@ const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 const userMessageQueueService = require('../userMessageQueueService')
 const { isStreamWritable } = require('../../utils/streamHelper')
 const { filterForClaude } = require('../../utils/headerFilter')
+const crypto = require('crypto')
+
+/**
+ * snake_case → PascalCase 转换
+ * 例: "memory_get" → "MemoryGet", "web_fetch" → "WebFetch", "read" → "Read"
+ */
+function snakeToPascal(name) {
+  return name
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('')
+}
+
+/**
+ * 文本混淆：替换 body 中可识别的客户端/平台标识
+ * 使上游无法通过内容关键词识别非 Claude Code 客户端
+ */
+function obfuscateText(text) {
+  if (!text || typeof text !== 'string') return text
+
+  // 替换规则（顺序重要：先匹配长的，避免部分替换）
+  const replacements = [
+    // OpenClaw 相关
+    [/OpenClaw Control Platform/gi, 'Claude Code Terminal'],
+    [/OpenClaw CLI Quick Reference/gi, 'CLI Quick Reference'],
+    [/OpenClaw-managed browser/gi, 'managed browser'],
+    [/openclaw-tui/gi, 'claude-tui'],
+    [/openclaw tasks/gi, 'scheduled tasks'],
+    [/inside OpenClaw/gi, 'inside Claude Code'],
+    [/OpenClaw agent/gi, 'Claude agent'],
+    [/OpenClaw process/gi, 'Claude process'],
+    [/OpenClaw['']s/gi, "Claude Code's"],
+    [/OpenClaw/g, 'Claude Code'],
+    [/openclaw/g, 'claude'],
+    [/OPENCLAW/g, 'CLAUDE_CODE'],
+
+    // QwenPaw / copaw 相关
+    [/QwenPaw/gi, 'Claude Code'],
+    [/qwen-?paw/gi, 'claude-code'],
+    [/copaw/gi, 'claude'],
+    [/CoPaw/g, 'Claude'],
+
+    // 人格/身份标识
+    [/奥米加兽/g, 'Claude Assistant'],
+    [/奥米加/g, 'Claude'],
+
+    // 阿里内部域名脱敏
+    [/aiway\.alibaba-inc\.com/g, 'internal.example.com'],
+    [/alibaba-inc\.com/g, 'example.com'],
+    [/alibabacloud/gi, 'cloud-service'],
+    [/alibaba/gi, 'example'],
+    [/dashscope\.aliyuncs\.com/g, 'api.example.com'],
+    [/aliyuncs\.com/g, 'example.com'],
+    [/aliyun/gi, 'cloud'],
+
+    // 文件路径中的标识
+    [/\.openclaw-bundle/g, '.claude-code'],
+    [/\.openclaw/g, '.claude'],
+    [/openclaw/g, 'claude'],
+
+    // 转义形式的标识（JSON 嵌套字符串中出现）
+    [/\\"openclaw\\"/g, '\\"claude\\"'],
+    [/\\"OpenClaw\\"/g, '\\"Claude Code\\"'],
+
+    // AIWay 社区
+    [/AIWay/g, 'Community'],
+    [/aiway/gi, 'community'],
+
+    // 通义相关
+    [/通义千问/g, 'AI Assistant'],
+    [/通义/g, 'AI'],
+    [/tongyi/gi, 'assistant'],
+    [/qwen/gi, 'model'],
+  ]
+
+  let result = text
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement)
+  }
+  return result
+}
+
+/**
+ * 将请求体转译为 Claude Code CLI 格式
+ * 使上游无法通过 body 内容区分是否为真实 CLI 请求
+ */
+function transformBodyForClaudeCode(body) {
+  const transformed = { ...body }
+
+  // === 1. System prompt 转译：转换为 CLI 的 3-item 结构 ===
+  // Claude CLI 格式: [0] billing header, [1] identity, [2] instructions
+  const billingHeader = {
+    type: 'text',
+    text: `x-anthropic-billing-header: cc_version=2.1.143.0d4; cc_entrypoint=sdk-ts; cch=4b181;`
+  }
+  const identityBlock = {
+    type: 'text',
+    text: "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+    cache_control: { type: 'ephemeral' }
+  }
+
+  if (Array.isArray(transformed.system)) {
+    const originalItems = transformed.system.map((item) => ({ ...item }))
+    // 合并所有原始 text 为一个大 block，并应用混淆
+    const combinedText = originalItems.map((item) => item.text || '').join('\n')
+    const instructionBlock = {
+      type: 'text',
+      text: obfuscateText(combinedText),
+      cache_control: { type: 'ephemeral' }
+    }
+    transformed.system = [billingHeader, identityBlock, instructionBlock]
+  } else if (typeof transformed.system === 'string') {
+    const instructionBlock = {
+      type: 'text',
+      text: obfuscateText(transformed.system),
+      cache_control: { type: 'ephemeral' }
+    }
+    transformed.system = [billingHeader, identityBlock, instructionBlock]
+  }
+
+  // === 2. Tools 描述混淆 + 名称转换 (snake_case → PascalCase) ===
+  // 保存映射表用于响应时逆转换
+  const toolNameMap = {} // PascalCase → snake_case
+  if (Array.isArray(transformed.tools)) {
+    transformed.tools = transformed.tools
+      .filter((t) => t.name !== 'web_search')
+      .map((tool) => {
+        const t = { ...tool }
+        // 名称转换
+        const originalName = t.name
+        const pascalName = snakeToPascal(originalName)
+        t.name = pascalName
+        toolNameMap[pascalName] = originalName
+        // 描述混淆
+        if (t.description) {
+          t.description = obfuscateText(t.description)
+        }
+        return t
+      })
+  }
+  // 将映射表附在 transformed 上供后续 SSE 处理使用
+  transformed._toolNameMap = toolNameMap
+
+  // === 3. Messages：仅做 tool_use name 转换，内容原样透传 ===
+  if (Array.isArray(transformed.messages)) {
+    transformed.messages = transformed.messages.map((msg) => {
+      const newMsg = { ...msg }
+      if (Array.isArray(newMsg.content)) {
+        newMsg.content = newMsg.content.map((block) => {
+          // tool_use 的 name 需要转成 PascalCase（与 tools 定义一致）
+          if (block.type === 'tool_use') {
+            const newBlock = { ...block }
+            if (newBlock.name && toolNameMap[snakeToPascal(newBlock.name)]) {
+              newBlock.name = snakeToPascal(newBlock.name)
+            }
+            return newBlock
+          }
+          return block
+        })
+      }
+      return newMsg
+    })
+  }
+
+  // === 4. Metadata 注入：添加 CLI 格式的 user_id ===
+  if (!transformed.metadata) {
+    transformed.metadata = {}
+  }
+  if (!transformed.metadata.user_id) {
+    const deviceId = crypto.createHash('sha256').update('relay-service-device').digest('hex')
+    const sessionId = crypto.randomUUID()
+    transformed.metadata.user_id = JSON.stringify({
+      device_id: deviceId,
+      account_uuid: '',
+      session_id: sessionId
+    })
+  }
+
+  return transformed
+}
 
 class ClaudeConsoleRelayService {
   constructor() {
@@ -158,10 +338,14 @@ class ClaudeConsoleRelayService {
       }
 
       // 创建修改后的请求体
-      const modifiedRequestBody = {
+      const modifiedRequestBody = transformBodyForClaudeCode({
         ...requestBody,
         model: mappedModel
-      }
+      })
+
+      // 提取 tool name 映射表，从 body 中删除
+      const toolNameMap = modifiedRequestBody._toolNameMap || {}
+      delete modifiedRequestBody._toolNameMap
 
       // 模型兼容性检查已经在调度器中完成，这里不需要再检查
 
@@ -233,7 +417,6 @@ class ClaudeConsoleRelayService {
 
       if (proxyAgent) {
         requestConfig.httpAgent = proxyAgent
-        requestConfig.httpsAgent = proxyAgent
         requestConfig.proxy = false
       }
 
@@ -424,6 +607,15 @@ class ClaudeConsoleRelayService {
         // 成功响应，不需要清理
         responseBody =
           typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      }
+
+      // Tool name 逆转换（非流式）：PascalCase → snake_case
+      if (toolNameMap && Object.keys(toolNameMap).length > 0) {
+        for (const [pascalName, snakeName] of Object.entries(toolNameMap)) {
+          // 替换 "name": "PascalName" 格式
+          responseBody = responseBody.split(`"name":"${pascalName}"`).join(`"name":"${snakeName}"`)
+          responseBody = responseBody.split(`"name": "${pascalName}"`).join(`"name": "${snakeName}"`)
+        }
       }
 
       logger.debug(`[DEBUG] Final response body to return: ${responseBody.substring(0, 200)}...`)
@@ -643,11 +835,15 @@ class ClaudeConsoleRelayService {
         }
       }
 
-      // 创建修改后的请求体
-      const modifiedRequestBody = {
+      // 创建修改后的请求体（转译为 Claude Code CLI 格式）
+      const modifiedRequestBody = transformBodyForClaudeCode({
         ...requestBody,
         model: mappedModel
-      }
+      })
+
+      // 提取 tool name 映射表（PascalCase → snake_case），从 body 中删除以免发往上游
+      const toolNameMap = modifiedRequestBody._toolNameMap || {}
+      delete modifiedRequestBody._toolNameMap
 
       // 模型兼容性检查已经在调度器中完成，这里不需要再检查
 
@@ -664,7 +860,7 @@ class ClaudeConsoleRelayService {
         accountId,
         usageCallback,
         streamTransformer,
-        options,
+        { ...options, toolNameMap },
         // 📬 回调：在收到响应头时释放队列锁
         async () => {
           if (queueLockAcquired && queueRequestId && accountId) {
@@ -1028,6 +1224,22 @@ class ClaudeConsoleRelayService {
                     } else {
                       dataToWrite = null
                     }
+                  }
+
+                  // Tool name 逆转换：PascalCase → snake_case
+                  // SSE 中 content_block_start 含 "type":"tool_use","name":"PascalName"
+                  if (dataToWrite && requestOptions.toolNameMap && Object.keys(requestOptions.toolNameMap).length > 0) {
+                    const nameMap = requestOptions.toolNameMap
+                    dataToWrite = dataToWrite.replace(
+                      /"type"\s*:\s*"tool_use"\s*,\s*"id"\s*:\s*"[^"]*"\s*,\s*"name"\s*:\s*"([^"]*)"/g,
+                      (match, toolName) => {
+                        if (nameMap[toolName]) {
+                          return match.replace(`"name":"${toolName}"`, `"name":"${nameMap[toolName]}"`)
+                            .replace(`"name": "${toolName}"`, `"name": "${nameMap[toolName]}"`)
+                        }
+                        return match
+                      }
+                    )
                   }
 
                   if (dataToWrite) {

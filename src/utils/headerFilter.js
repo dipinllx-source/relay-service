@@ -53,9 +53,12 @@ function filterForOpenAI(headers) {
 /**
  * 为 Claude/Anthropic API 过滤 headers
  * 使用白名单模式，只允许指定的 headers 通过
+ * 同时注入 Claude Code CLI 特征 headers，使请求与 CLI 指纹一致
  */
 function filterForClaude(headers) {
   // 白名单模式：只允许以下 headers
+  // 注意：移除了 'sec-fetch-mode'（浏览器专有，CLI 不发送）
+  // 注意：移除了 'user-agent'（由 account.userAgent 或上层逻辑控制，避免透传客户端 UA 覆盖伪装）
   const allowedHeaders = [
     'accept',
     'x-stainless-retry-count',
@@ -69,13 +72,11 @@ function filterForClaude(headers) {
     'x-stainless-helper-method',
     'anthropic-dangerous-direct-browser-access',
     'anthropic-version',
-    'x-app',
+    // 'x-app' — 不从客户端透传，下方强制注入 'cli'
     'anthropic-beta',
     'accept-language',
-    'sec-fetch-mode',
     // 注意：不透传 accept-encoding，避免客户端发送的 zstd 等 Node.js 不支持的编码
     // 被转发到上游，导致 axios 无法解压响应（Node 18 zlib 不支持 zstd）
-    'user-agent',
     'content-type',
     'connection'
   ]
@@ -87,6 +88,36 @@ function filterForClaude(headers) {
       filtered[key] = headers[key]
     }
   })
+
+  // === Claude Code CLI 指纹注入 ===
+  // 1. 强制设置 x-app: cli（CLI 特有标识）
+  filtered['x-app'] = 'cli'
+
+  // 2. 注入 x-claude-code-session-id（CLI 每次会话生成一个 UUID）
+  filtered['x-claude-code-session-id'] = require('crypto').randomUUID()
+
+  // 3. 确保 anthropic-beta 包含完整的 Claude Code CLI beta flags
+  const existingBeta = filtered['anthropic-beta'] || ''
+  const claudeCodeBeta = 'claude-code-20250219'
+  if (!existingBeta.includes(claudeCodeBeta)) {
+    // 完整的 Claude CLI v2.1.143 beta flags 列表
+    const betaFlags = [
+      claudeCodeBeta,
+      'context-1m-2025-08-07',
+      'interleaved-thinking-2025-05-14',
+      'context-management-2025-06-27',
+      'prompt-caching-scope-2026-01-05',
+      'effort-2025-11-24'
+    ]
+    if (existingBeta) {
+      // 合并已有的 beta flags（去重）
+      const existing = existingBeta.split(',').map(s => s.trim())
+      existing.forEach(f => {
+        if (f && !betaFlags.includes(f)) betaFlags.push(f)
+      })
+    }
+    filtered['anthropic-beta'] = betaFlags.join(',')
+  }
 
   return filtered
 }

@@ -110,6 +110,8 @@
 
 仓库根目录提供 `install.sh`，适用于 **Ubuntu / Debian / CentOS / RHEL / Rocky / AlmaLinux / 阿里云 Linux**。脚本会自动安装 Node.js 20、Redis、克隆仓库、构建前端 SPA、生成 `.env`、写入 systemd 单元并启动服务。
 
+macOS 用户可使用 `install-macos.sh`。脚本会自动安装/检查 Homebrew、Node.js 20、Redis、Claude Code CLI，克隆仓库、构建前端 SPA、生成 `.env`，并写入当前用户的 LaunchAgent（随登录自动启动）。
+
 ### 一行拉起
 
 ```bash
@@ -124,6 +126,22 @@ sudo bash install.sh                          # 默认: /opt/relay-service, 端�
 sudo bash install.sh /opt/relay-service 8080  # 自定义安装目录和端口
 ```
 
+### macOS 一键安装
+
+> 请使用普通用户运行，不要加 `sudo`。默认安装到 `~/relay-service`，端口 `3000`。
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dipinllx-source/relay-service/main/install-macos.sh | bash
+```
+
+或先下载再执行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dipinllx-source/relay-service/main/install-macos.sh -o install-macos.sh
+bash install-macos.sh                         # 默认: ~/relay-service, 端口 3000
+bash install-macos.sh "$HOME/relay-service" 8080  # 自定义安装目录和端口
+```
+
 ### 交互式 / 非交互式
 
 - **交互式终端**：脚本会提示端口、管理员用户名/密码（>=8 字符，含数字/字母/特殊字符）、Redis 部署方式（已有实例 / 新启独立实例）。回车可跳过用自动生成的值。
@@ -136,6 +154,15 @@ systemctl status relay-service     # 服务状态
 systemctl restart relay-service    # 重启
 journalctl -u relay-service -f     # 实时日志
 cat /opt/relay-service/data/init.json  # 首次管理员凭据
+```
+
+macOS：
+
+```bash
+launchctl print gui/$(id -u)/com.relay-service.app       # 服务状态
+launchctl kickstart -k gui/$(id -u)/com.relay-service.app # 重启
+tail -f ~/relay-service/logs/stderr.log                  # 实时错误日志
+cat ~/relay-service/data/init.json                       # 首次管理员凭据
 ```
 
 管理面板访问：`http://<服务器IP>:<端口>/admin-next/`。

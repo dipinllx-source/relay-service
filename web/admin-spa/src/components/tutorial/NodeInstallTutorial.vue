@@ -81,19 +81,19 @@
     </div>
 
     <!-- macOS -->
-    <div v-else-if="platform === 'macos'" class="node-install-section">
+    <div v-else-if="platform === 'macos'" class="node-install-section dark:text-slate-100">
       <div
         class="mb-4 rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-50 p-4 dark:border-gray-700 dark:from-gray-800 dark:to-gray-800 sm:mb-6 sm:p-6"
       >
         <h5
-          class="mb-2 flex items-center text-base font-semibold text-gray-800 dark:text-gray-200 sm:mb-3 sm:text-lg"
+          class="mb-2 flex items-center text-base font-semibold text-gray-800 dark:text-white sm:mb-3 sm:text-lg"
         >
-          <i class="fab fa-apple mr-2 text-gray-700 dark:text-gray-400" />
+          <i class="fab fa-apple mr-2 text-gray-700 dark:text-slate-100" />
           macOS 安装方法
         </h5>
         <div class="mb-4">
-          <p class="mb-3 text-gray-700 dark:text-gray-300">方法一：使用 Homebrew（推荐）</p>
-          <p class="mb-2 text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
+          <p class="mb-3 text-gray-700 dark:text-slate-100">方法一：使用 Homebrew（推荐）</p>
+          <p class="mb-2 text-xs text-gray-600 dark:text-slate-200 sm:text-sm">
             如果你已经安装了 Homebrew，使用它安装 Node.js 会更方便：
           </p>
           <div class="tutorial-command-box">
@@ -104,14 +104,14 @@
           </div>
         </div>
         <div class="mb-4">
-          <p class="mb-3 text-gray-700 dark:text-gray-300">方法二：官网下载</p>
+          <p class="mb-3 text-gray-700 dark:text-slate-100">方法二：官网下载</p>
           <ol
-            class="ml-2 list-inside list-decimal space-y-1 text-xs text-gray-600 dark:text-gray-400 sm:ml-4 sm:space-y-2 sm:text-sm"
+            class="ml-2 list-inside list-decimal space-y-1 text-xs text-gray-600 dark:text-slate-200 sm:ml-4 sm:space-y-2 sm:text-sm"
           >
             <li>
               访问
               <code
-                class="rounded bg-gray-100 px-1 py-1 text-xs dark:bg-gray-700 sm:px-2 sm:text-sm"
+                class="rounded bg-gray-100 px-1 py-1 text-xs dark:bg-gray-700 dark:text-yellow-300 sm:px-2 sm:text-sm"
                 >https://nodejs.org/</code
               >
             </li>
@@ -119,7 +119,7 @@
             <li>
               打开下载的
               <code
-                class="rounded bg-gray-100 px-1 py-1 text-xs dark:bg-gray-700 sm:px-2 sm:text-sm"
+                class="rounded bg-gray-100 px-1 py-1 text-xs dark:bg-gray-700 dark:text-yellow-300 sm:px-2 sm:text-sm"
                 >.pkg</code
               >
               文件
@@ -130,13 +130,16 @@
         <div
           class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-800 sm:p-4"
         >
-          <h6 class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-300 sm:text-base">
+          <h6 class="mb-2 text-sm font-medium text-gray-800 dark:text-white sm:text-base">
             macOS 注意事项
           </h6>
-          <ul class="space-y-1 text-xs text-gray-700 dark:text-gray-300 sm:text-sm">
+          <ul class="space-y-1 text-xs text-gray-700 dark:text-slate-100 sm:text-sm">
             <li>
               • 如果遇到权限问题，可能需要使用
-              <code class="rounded bg-gray-200 px-1 text-xs dark:bg-gray-700 sm:text-sm">sudo</code>
+              <code
+                class="rounded bg-gray-200 px-1 text-xs dark:bg-gray-700 dark:text-yellow-300 sm:text-sm"
+                >sudo</code
+              >
             </li>
             <li>• 首次运行可能需要在系统偏好设置中允许</li>
             <li>• 建议使用 Terminal 或 iTerm2</li>

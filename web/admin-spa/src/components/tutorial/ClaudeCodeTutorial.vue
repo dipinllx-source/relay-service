@@ -243,6 +243,45 @@
               </div>
             </div>
           </template>
+
+          <div
+            class="rounded-lg border border-cyan-200 bg-cyan-50 p-3 dark:border-cyan-500/40 dark:bg-cyan-950/30 sm:p-4"
+          >
+            <h6 class="mb-2 text-sm font-medium text-cyan-800 dark:text-cyan-300 sm:text-base">
+              IPv4 映射 IPv6 格式（可选）
+            </h6>
+            <p class="mb-3 text-sm text-cyan-700 dark:text-cyan-300">
+              如果需要使用 IPv4 映射 IPv6 格式访问中转服务，请使用
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">[::ffff:ipv4]:port</code>
+              ，路径仍然保持
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">/api</code>：
+            </p>
+            <div class="tutorial-command-box">
+              <template v-if="platform === 'windows'">
+                <div class="whitespace-nowrap text-gray-300">
+                  $env:ANTHROPIC_BASE_URL = "{{ ipv6CurrentBaseUrl }}"
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  $env:ANTHROPIC_AUTH_TOKEN = "你的API密钥"
+                </div>
+              </template>
+              <template v-else>
+                <div class="whitespace-nowrap text-gray-300">
+                  export ANTHROPIC_BASE_URL="{{ ipv6CurrentBaseUrl }}"
+                </div>
+                <div class="whitespace-nowrap text-gray-300">
+                  export ANTHROPIC_AUTH_TOKEN="你的API密钥"
+                </div>
+              </template>
+            </div>
+            <p class="mt-2 text-xs text-cyan-700 dark:text-cyan-300">
+              💡 如果当前页面使用 IPv4 地址访问，会自动填入该 IPv4；否则将示例中的
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">ipv4</code>
+              替换为实际 IPv4 地址；如果端口显示为
+              <code class="rounded bg-cyan-100 px-1 dark:bg-cyan-900">port</code>
+              ，也替换为实际端口。
+            </p>
+          </div>
         </div>
       </div>
 
@@ -599,7 +638,7 @@ const props = defineProps({
   }
 })
 
-const { currentBaseUrl } = useTutorialUrls()
+const { currentBaseUrl, ipv6CurrentBaseUrl } = useTutorialUrls()
 
 const platformName = computed(() => {
   const names = { windows: 'Windows', macos: 'macOS', linux: 'Linux / WSL2' }

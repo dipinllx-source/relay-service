@@ -1480,9 +1480,19 @@ class ClaudeRelayService {
         ? isRealClaudeCodeOverride
         : this.isRealClaudeCodeRequest(processedBody)
 
+    // 🎭 账号级"三方工具伪装"开关：默认开启，仅显式 'false' 才关闭（向后兼容旧账号）
+    // 关闭后即使是非真 Claude Code 客户端也不再做 system 重写 / 工具描述清洗 / metadata 伪装
+    const enableEmulation = !account || account.enableThirdPartyToolEmulation !== 'false'
+    const shouldEmulate = !isRealClaudeCode && enableEmulation
+    if (!isRealClaudeCode && !enableEmulation) {
+      logger.debug(
+        `🎭 third-party tool emulation: disabled for account ${account?.name || account?.id || 'unknown'}`
+      )
+    }
+
     // 如果不是真实的 Claude Code 请求，需要处理 system prompt
     // 策略：按真实 Claude Code 抓包形态使用 system 数组，保留原始系统指令
-    if (!isRealClaudeCode) {
+    if (shouldEmulate) {
       processedBody.system = this._buildClaudeCodeSystem(processedBody.system)
       this._applyNonRealClaudeCodeDefaults(processedBody)
       this._sanitizeNonRealClaudeCodeToolDescriptions(processedBody)
@@ -1490,7 +1500,7 @@ class ClaudeRelayService {
 
     // 如果不是真实的 Claude Code 请求且缺少 metadata.user_id，注入合法的 user_id
     // 非 Claude Code 客户端通常不发送 metadata，补全后避免上游检测到缺失
-    if (!isRealClaudeCode) {
+    if (shouldEmulate) {
       if (!processedBody.metadata || typeof processedBody.metadata !== 'object') {
         processedBody.metadata = {}
       }
@@ -1838,11 +1848,15 @@ class ClaudeRelayService {
         ? this.isRealClaudeCodeRequest(body)
         : requestOptions.isRealClaudeCodeRequest === true
 
+    // 🎭 账号级"三方工具伪装"开关：与 _processRequestBody 中保持一致
+    const enableEmulation = !account || account.enableThirdPartyToolEmulation !== 'false'
+    const shouldEmulate = !isRealClaudeCode && enableEmulation
+
     // 如果不是真实的 Claude Code 请求，需要使用从账户获取的 Claude Code headers
     let finalHeaders = { ...filteredHeaders }
     let requestPayload = body
 
-    if (!isRealClaudeCode) {
+    if (shouldEmulate) {
       const claudeCodeHeaders = await claudeCodeHeadersService.getAccountHeaders(accountId)
       Object.keys(claudeCodeHeaders).forEach((key) => {
         finalHeaders[key] = claudeCodeHeaders[key]
@@ -1868,7 +1882,7 @@ class ClaudeRelayService {
     finalHeaders = extensionResult.headers
 
     let toolNameMap = null
-    if (!isRealClaudeCode) {
+    if (shouldEmulate) {
       this._sanitizeNonRealClaudeCodeToolDescriptions(requestPayload)
       toolNameMap = this._transformToolNamesInRequestBody(requestPayload, {
         useRandomizedToolNames: requestOptions.useRandomizedToolNames === true
@@ -1918,6 +1932,8 @@ class ClaudeRelayService {
       bodyString,
       headers,
       isRealClaudeCode,
+      // 是否执行了"三方工具伪装"：用于响应侧反向还原对称判断
+      emulationApplied: shouldEmulate,
       toolNameMap
     }
   }
@@ -1985,7 +2001,9 @@ class ClaudeRelayService {
     }
 
     let { bodyString } = prepared
-    const { headers, isRealClaudeCode, toolNameMap } = prepared
+    const { headers, isRealClaudeCode, emulationApplied, toolNameMap } = prepared
+    // 引用 isRealClaudeCode 以保持调试可见性（已被 emulationApplied 取代用于响应反向还原）
+    void isRealClaudeCode
 
     return new Promise((resolve, reject) => {
       // 支持自定义路径（如 count_tokens）
@@ -2040,7 +2058,7 @@ class ClaudeRelayService {
               responseBody = responseData.toString('utf8')
             }
 
-            if (!isRealClaudeCode) {
+            if (emulationApplied) {
               responseBody = this._restoreToolNamesInResponseBody(responseBody, toolNameMap)
             }
 
@@ -2406,11 +2424,13 @@ class ClaudeRelayService {
     }
 
     let { bodyString } = prepared
-    const { headers, isRealClaudeCode, toolNameMap } = prepared
+    const { headers, isRealClaudeCode, emulationApplied, toolNameMap } = prepared
+    void isRealClaudeCode
+    // 流式响应反向还原：仅当请求侧实际进行了伪装时才做（保持对称）
     const toolNameStreamTransformer = this._createToolNameStripperStreamTransformer(
       streamTransformer,
       toolNameMap,
-      !isRealClaudeCode
+      emulationApplied
     )
 
     return new Promise((resolve, reject) => {

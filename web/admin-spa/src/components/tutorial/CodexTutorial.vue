@@ -150,7 +150,7 @@
           <div class="tutorial-code-box">
             <div
               v-for="(line, index) in configTomlLines"
-              :key="line + index"
+              :key="`${line}-${index}`"
               class="whitespace-nowrap text-gray-300"
               :class="{ 'mt-2': line === '' }"
             >
@@ -183,7 +183,7 @@
             </div>
             <p class="mt-3 text-sm text-cyan-700 dark:text-cyan-300">IPv6 格式一键写入命令：</p>
             <div class="tutorial-command-box mt-2">
-              <div class="whitespace-nowrap text-gray-300">{{ configTomlIpv6WriteCmd }}</div>
+              <div class="whitespace-nowrap text-gray-300">{{ ipv6ConfigTomlWriteCmd }}</div>
             </div>
             <p class="mt-2 text-xs text-cyan-700 dark:text-cyan-300">
               💡 如果当前页面使用 IPv4 地址访问，会自动填入该 IPv4；否则将示例中的
@@ -263,7 +263,7 @@
       </div>
     </div>
 
-    <!-- 第四步：开始使用 -->
+    <!-- 第四步：启动并使用 Codex -->
     <div class="mb-6 sm:mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
@@ -367,11 +367,20 @@
             <p class="mb-2">这通常是 npm 全局安装目录没有加入 PATH：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <template v-if="platform === 'windows'">
-                <li>重新打开 PowerShell 后再执行 <code>codex --version</code></li>
-                <li>确认 npm 全局目录（通常是 <code>%APPDATA%\npm</code>）已经加入 PATH</li>
+                <li>
+                  重新打开 PowerShell 后再执行
+                  <code>codex --version</code>
+                </li>
+                <li>
+                  确认 npm 全局目录（通常是
+                  <code>%APPDATA%\npm</code>）已经加入 PATH
+                </li>
               </template>
               <template v-else>
-                <li>重新打开终端后再执行 <code>codex --version</code></li>
+                <li>
+                  重新打开终端后再执行
+                  <code>codex --version</code>
+                </li>
                 <li>如果使用 nvm，请确认当前 shell 已加载 nvm 的环境变量</li>
               </template>
             </ul>
@@ -416,13 +425,17 @@
                 <code class="rounded bg-gray-200 px-1 text-xs dark:bg-gray-700 sm:text-sm"
                   >model_provider = "crs"</code
                 >
-                是否位于 <code>{{ configPath }}</code> 文件开头
+                是否位于
+                <code>{{ configPath }}</code>
+                文件开头
               </li>
               <li>
                 <code class="rounded bg-gray-200 px-1 text-xs dark:bg-gray-700 sm:text-sm"
                   >base_url</code
                 >
-                是否指向当前服务的 <code>/openai</code> 路径
+                是否指向当前服务的
+                <code>/openai</code>
+                路径
               </li>
               <li>Nginx 反向代理需要保留下划线请求头，否则粘性会话可能失效</li>
             </ul>
@@ -488,18 +501,18 @@ const ipv6ConfigTomlLines = computed(() =>
 
 const ipv6ConfigTomlContent = computed(() => ipv6ConfigTomlLines.value.join('\n'))
 
-const buildConfigTomlWriteCmd = (content) => {
+const buildConfigWriteCmd = (content) => {
   if (props.platform === 'windows') {
     const escaped = content.replace(/"/g, '`"').replace(/\n/g, '`n')
     return `New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\\.codex" | Out-Null; "${escaped}" | Set-Content -Path "$env:USERPROFILE\\.codex\\config.toml" -Force`
   }
+
   const escaped = content.replace(/\n/g, '\\n')
   return `mkdir -p ~/.codex && printf '${escaped}\\n' > ~/.codex/config.toml`
 }
 
-const configTomlWriteCmd = computed(() => buildConfigTomlWriteCmd(configTomlContent.value))
-
-const configTomlIpv6WriteCmd = computed(() => buildConfigTomlWriteCmd(ipv6ConfigTomlContent.value))
+const configTomlWriteCmd = computed(() => buildConfigWriteCmd(configTomlContent.value))
+const ipv6ConfigTomlWriteCmd = computed(() => buildConfigWriteCmd(ipv6ConfigTomlContent.value))
 
 const authJsonWriteCmd = computed(() => {
   if (props.platform === 'windows') {

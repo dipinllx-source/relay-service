@@ -172,6 +172,7 @@ beforeEach(() => {
     typeof v === 'string' ? `enc:${v}` : v
   )
   claudeAccountService._createProxyAgent = jest.fn(() => null)
+  claudeAccountService._getClaudeBinPath = jest.fn(() => '/usr/local/bin/claude')
   claudeAccountService.getCredentialsPath = jest.fn(async () => FILE_PATH)
   claudeAccountService.fetchAndUpdateAccountProfile = jest.fn(async () => undefined)
   // Speed up retry loop in tests: minimal backoff and short mtime poll

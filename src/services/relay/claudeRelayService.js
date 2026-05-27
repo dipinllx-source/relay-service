@@ -1552,6 +1552,11 @@ class ClaudeRelayService {
       }
     }
 
+    if (shouldEmulate) {
+      this._injectClaudeCodeStyleCacheControl(processedBody)
+      this._enforceCacheControlLimit(processedBody)
+    }
+
     // Claude API只允许temperature或top_p其中之一，优先使用temperature
     if (processedBody.top_p !== undefined && processedBody.top_p !== null) {
       delete processedBody.top_p
@@ -1700,6 +1705,230 @@ class ClaudeRelayService {
     }
   }
 
+  _hasExistingCacheControl(body) {
+    if (!body || typeof body !== 'object') {
+      return false
+    }
+
+    const stack = []
+    if (body.system) {
+      stack.push(body.system)
+    }
+    if (body.messages) {
+      stack.push(body.messages)
+    }
+    if (body.tools) {
+      stack.push(body.tools)
+    }
+
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (!current || typeof current !== 'object') {
+        continue
+      }
+      if (current.cache_control) {
+        return true
+      }
+      if (Array.isArray(current)) {
+        current.forEach((item) => stack.push(item))
+      } else {
+        Object.values(current).forEach((value) => stack.push(value))
+      }
+    }
+
+    return false
+  }
+
+  _tryAddCacheControlToLastTextContent(message) {
+    if (!message || typeof message !== 'object') {
+      return null
+    }
+
+    if (typeof message.content === 'string') {
+      message.content = [
+        {
+          type: 'text',
+          text: message.content,
+          cache_control: { type: 'ephemeral' }
+        }
+      ]
+      return 'content[0]'
+    }
+
+    if (!Array.isArray(message.content)) {
+      return null
+    }
+
+    for (let index = message.content.length - 1; index >= 0; index -= 1) {
+      const item = message.content[index]
+      if (item && typeof item === 'object' && item.type === 'text' && !item.cache_control) {
+        item.cache_control = { type: 'ephemeral' }
+        return `content[${index}]`
+      }
+    }
+
+    return null
+  }
+
+  // 🧰 给 tools 数组的最后一项打 cache_control，让 system + tools 整段进入缓存前缀
+  // 仅当 tools 数组内不存在任何 cache_control 时才注入（与上游已自带的设置共存）
+  // 返回被注入的路径（如 'tools[23]'）或 null
+  _injectToolsCacheControl(body) {
+    if (!body || typeof body !== 'object') {
+      return null
+    }
+    if (!Array.isArray(body.tools) || body.tools.length === 0) {
+      return null
+    }
+    // 检测 tools 数组内是否已有任何 cache_control（包括嵌套 input_schema / custom 等）
+    const stack = [...body.tools]
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (!current || typeof current !== 'object') {
+        continue
+      }
+      if (current.cache_control) {
+        return null
+      }
+      if (Array.isArray(current)) {
+        current.forEach((item) => stack.push(item))
+      } else {
+        Object.values(current).forEach((value) => stack.push(value))
+      }
+    }
+    const lastIndex = body.tools.length - 1
+    const lastTool = body.tools[lastIndex]
+    if (!lastTool || typeof lastTool !== 'object') {
+      return null
+    }
+    lastTool.cache_control = { type: 'ephemeral' }
+    return `tools[${lastIndex}]`
+  }
+
+  _injectClaudeCodeStyleCacheControl(body) {
+    if (!body || typeof body !== 'object') {
+      return
+    }
+
+    const injected = []
+
+    // 在判断 system/messages 是否已自带 cache_control 之前，先快照检测，
+    // 避免把"我们即将注入到 tools 上的 cache_control"误当成"上游已设"。
+    const skipSystemAndMessages = this._hasExistingCacheControl(body)
+
+    // 1. 先注入 tools 缓存断点（独立路径，与 system/messages 解耦）
+    //    tools 一般是长期不变的大块（OpenClaw 等 runtime 常带 30~60KB schema），
+    //    单独打一个断点即可让 system+tools 整段进入缓存前缀。
+    const toolsPath = this._injectToolsCacheControl(body)
+    if (toolsPath) {
+      injected.push(toolsPath)
+    }
+
+    // 2. 细化检测：system / messages / tools 各自是否有 cache_control
+    const hasSystemAnchor = this._hasSystemCacheControl(body)
+    const hasMessagesAnchor = this._hasMessagesCacheControl(body)
+
+    // 3. cache_control 仅在 tools 上（如 Claude Code 原生请求）→ 保持旧契约
+    //    不注入 system/messages，由客户端自行管理
+    if (skipSystemAndMessages && !hasSystemAnchor && !hasMessagesAnchor) {
+      if (injected.length > 0) {
+        logger.info(`🎯 Auto-injected cache_control at: ${injected.join(', ')}`)
+      }
+      return
+    }
+
+    // 4. system 和 messages 都已有 cache_control → 保持旧契约，不再覆盖
+    if (hasSystemAnchor && hasMessagesAnchor) {
+      if (injected.length > 0) {
+        logger.info(`🎯 Auto-injected cache_control at: ${injected.join(', ')}`)
+      } else {
+        logger.debug('🎯 Skipping auto cache_control injection: request already has cache_control')
+      }
+      return
+    }
+
+    // 5. system 有 cache_control 但 messages 缺锚点（典型 qwenpaw 场景）→ 补 messages
+    //    或完全没有 cache_control → 正常注入 system + messages
+    if (Array.isArray(body.system) && body.system.length > 0 && !hasSystemAnchor) {
+      for (let index = body.system.length - 1; index >= 0; index -= 1) {
+        const item = body.system[index]
+        if (item && typeof item === 'object' && item.type === 'text' && !item.cache_control) {
+          item.cache_control = { type: 'ephemeral' }
+          injected.push(`system[${index}]`)
+          break
+        }
+      }
+    }
+
+    if (Array.isArray(body.messages) && body.messages.length >= 2) {
+      const index = body.messages.length - 2
+      const contentPath = this._tryAddCacheControlToLastTextContent(body.messages[index])
+      if (contentPath) {
+        injected.push(`messages[${index}].${contentPath}`)
+      }
+    }
+
+    if (Array.isArray(body.messages) && body.messages.length >= 1) {
+      const index = body.messages.length - 1
+      const contentPath = this._tryAddCacheControlToLastTextContent(body.messages[index])
+      if (contentPath) {
+        injected.push(`messages[${index}].${contentPath}`)
+      }
+    }
+
+    if (injected.length > 0) {
+      logger.info(`🎯 Auto-injected cache_control at: ${injected.join(', ')}`)
+    } else {
+      logger.debug('🎯 Auto cache_control injection skipped: no cacheable text blocks found')
+    }
+  }
+
+  // 检查 messages 数组中是否已有 cache_control 锚点
+  _hasMessagesCacheControl(body) {
+    if (!body || !Array.isArray(body.messages)) {
+      return false
+    }
+    const stack = [...body.messages]
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (!current || typeof current !== 'object') {
+        continue
+      }
+      if (current.cache_control) {
+        return true
+      }
+      if (Array.isArray(current)) {
+        current.forEach((item) => stack.push(item))
+      } else {
+        Object.values(current).forEach((value) => stack.push(value))
+      }
+    }
+    return false
+  }
+
+  // 检查 system 数组中是否已有 cache_control 锚点
+  _hasSystemCacheControl(body) {
+    if (!body || !Array.isArray(body.system)) {
+      return false
+    }
+    const stack = [...body.system]
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (!current || typeof current !== 'object') {
+        continue
+      }
+      if (current.cache_control) {
+        return true
+      }
+      if (Array.isArray(current)) {
+        current.forEach((item) => stack.push(item))
+      } else {
+        Object.values(current).forEach((value) => stack.push(value))
+      }
+    }
+    return false
+  }
+
   // ⚖️ 限制带缓存控制的内容数量
   _enforceCacheControlLimit(body) {
     const MAX_CACHE_CONTROL_BLOCKS = 4
@@ -1726,6 +1955,14 @@ class ClaudeRelayService {
 
       if (Array.isArray(body.system)) {
         body.system.forEach((item) => {
+          if (item && item.cache_control) {
+            total += 1
+          }
+        })
+      }
+
+      if (Array.isArray(body.tools)) {
+        body.tools.forEach((item) => {
           if (item && item.cache_control) {
             total += 1
           }
@@ -1778,16 +2015,43 @@ class ClaudeRelayService {
       return false
     }
 
+    // 兜底：从 tools 中移除 cache_control（仅当 messages/system 都已无可删时才动）
+    // 优先删除非末尾的 tool（保留 `_injectToolsCacheControl` 注入的最后一项）
+    const removeCacheControlFromTools = () => {
+      if (!Array.isArray(body.tools)) {
+        return false
+      }
+      for (let index = 0; index < body.tools.length - 1; index += 1) {
+        const tool = body.tools[index]
+        if (tool && tool.cache_control) {
+          delete tool.cache_control
+          return true
+        }
+      }
+      const last = body.tools[body.tools.length - 1]
+      if (last && last.cache_control) {
+        delete last.cache_control
+        return true
+      }
+      return false
+    }
+
     let total = countCacheControlBlocks()
 
     while (total > MAX_CACHE_CONTROL_BLOCKS) {
-      // 优先从 messages 中移除 cache_control，再从 system 中移除
+      // 优先从 messages 中移除 cache_control，再从 system 中移除，
+      // 最后才动 tools（tools 上的断点稳定且收益最大）
       if (removeCacheControlFromMessages()) {
         total -= 1
         continue
       }
 
       if (removeCacheControlFromSystem()) {
+        total -= 1
+        continue
+      }
+
+      if (removeCacheControlFromTools()) {
         total -= 1
         continue
       }

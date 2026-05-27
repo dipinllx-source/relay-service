@@ -61,9 +61,18 @@ describe('claudeRelayService non-real Claude Code normalization', () => {
 
     expect(result.system).toEqual([
       { type: 'text', text: claudeRelayService.claudeCodeSystemPrompt },
-      { type: 'text', text: 'Custom system instructions' }
+      {
+        type: 'text',
+        text: 'Custom system instructions',
+        cache_control: { type: 'ephemeral' }
+      }
     ])
-    expect(result.messages).toEqual(body.messages)
+    expect(result.messages).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello', cache_control: { type: 'ephemeral' } }]
+      }
+    ])
     expect(result.max_tokens).toBe(32000)
     expect(result.temperature).toBe(1)
     expect(metadataUserIdHelper.isValid(result.metadata.user_id)).toBe(true)
@@ -112,7 +121,8 @@ describe('claudeRelayService non-real Claude Code normalization', () => {
     expect(result.system).toEqual([
       {
         type: 'text',
-        text: claudeRelayService.claudeCodeSystemPrompt
+        text: claudeRelayService.claudeCodeSystemPrompt,
+        cache_control: { type: 'ephemeral' }
       }
     ])
   })

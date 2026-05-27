@@ -55,7 +55,7 @@ function filterForOpenAI(headers) {
  * 使用白名单模式，只允许指定的 headers 通过
  * 同时注入 Claude Code CLI 特征 headers，使请求与 CLI 指纹一致
  */
-function filterForClaude(headers) {
+function filterForClaude(headers, options = {}) {
   // 白名单模式：只允许以下 headers
   // 注意：移除了 'sec-fetch-mode'（浏览器专有，CLI 不发送）
   // 注意：移除了 'user-agent'（由 account.userAgent 或上层逻辑控制，避免透传客户端 UA 覆盖伪装）
@@ -88,6 +88,10 @@ function filterForClaude(headers) {
       filtered[key] = headers[key]
     }
   })
+
+  if (options.injectClaudeCodeHeaders === false) {
+    return filtered
+  }
 
   // === Claude Code CLI 指纹注入 ===
   // 1. 强制设置 x-app: cli（CLI 特有标识）

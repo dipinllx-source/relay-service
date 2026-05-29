@@ -53,35 +53,40 @@ show_logo() {
 menu() {
   local title=$1; shift
   local -a options=("$@")
-  local n=${#options[@]} sel=0 i key rest
+  local n=${#options[@]} sel=0 i key key2 key3 seq
   tty_ok || { MENU_CHOICE=0; return; }
 
-  printf '\n%s%s%s  %s(↑↓ 选择, Enter 确认)%s\n' "$BOLD" "$title" "$NC" "$DIM" "$NC" >/dev/tty
-  for ((i=0; i<n; i++)); do
-    if (( i == sel )); then printf '  %s▸ %s%s\n' "$CYAN" "${options[$i]}" "$NC" >/dev/tty
-    else printf '    %s\n' "${options[$i]}" >/dev/tty; fi
-  done
-
+  # 保存菜单起点，每次从同一位置清屏重画，避免中文宽度/换行导致残影。
+  printf '\n' >/dev/tty
+  tput sc >/dev/tty 2>/dev/null || printf '\033[s' >/dev/tty
   while :; do
+    tput rc >/dev/tty 2>/dev/null || printf '\033[u' >/dev/tty
+    tput ed >/dev/tty 2>/dev/null || printf '\033[J' >/dev/tty
+    printf '%s%s%s  %s(↑↓ 选择, Enter 确认)%s\n' "$BOLD" "$title" "$NC" "$DIM" "$NC" >/dev/tty
+    for ((i=0; i<n; i++)); do
+      if (( i == sel )); then
+        printf '  %s▸ %s%s\n' "$CYAN" "${options[$i]}" "$NC" >/dev/tty
+      else
+        printf '    %s\n' "${options[$i]}" >/dev/tty
+      fi
+    done
+
     IFS= read -rsn1 key </dev/tty || key=""
-    if [[ $key == $'\e' ]]; then
-      IFS= read -rsn2 -t 0.1 rest </dev/tty || rest=""
-      case $rest in
-        '[A') (( sel > 0 )) && sel=$((sel - 1)) || : ;;
-        '[B') (( sel < n-1 )) && sel=$((sel + 1)) || : ;;
-      esac
-    elif [[ -z $key ]]; then
+    if [[ -z $key ]]; then
       break
     fi
-
-    printf '\033[%dA' "$n" >/dev/tty
-    for ((i=0; i<n; i++)); do
-      printf '\r\033[K' >/dev/tty
-      if (( i == sel )); then printf '  %s▸ %s%s\n' "$CYAN" "${options[$i]}" "$NC" >/dev/tty
-      else printf '    %s\n' "${options[$i]}" >/dev/tty; fi
-    done
+    if [[ $key == $'\e' ]]; then
+      IFS= read -rsn1 -t 0.2 key2 </dev/tty || key2=""
+      IFS= read -rsn1 -t 0.2 key3 </dev/tty || key3=""
+      seq="${key2}${key3}"
+      case $seq in
+        '[A'|'OA') (( sel > 0 )) && sel=$((sel - 1)) || : ;;
+        '[B'|'OB') (( sel < n-1 )) && sel=$((sel + 1)) || : ;;
+      esac
+    fi
   done
   MENU_CHOICE=$sel
+  printf '\n' >/dev/tty
 }
 
 xml_escape() {
@@ -383,8 +388,10 @@ if tty_ok; then
     echo "  × 两次输入不一致, 请重新输入" >/dev/tty
   done
 
-  menu "选择 Redis 部署方式" "使用已有 Redis 实例" "新启动 Redis 实例 (仅本地访问)"
+  menu "选择 Redis 部署方式" "新启动 Redis 实例 (仅本地访问)" "使用已有 Redis 实例"
   if [[ $MENU_CHOICE == 0 ]]; then
+    REDIS_MODE=new
+  else
     REDIS_MODE=existing
     printf 'Redis 地址 [127.0.0.1]: ' >/dev/tty
     read -r REDIS_HOST_USER </dev/tty || REDIS_HOST_USER=""
@@ -399,8 +406,6 @@ if tty_ok; then
     printf 'Redis 密码 (回车表示无密码): ' >/dev/tty
     read -rs REDIS_PASSWORD_USER </dev/tty || REDIS_PASSWORD_USER=""
     echo >/dev/tty
-  else
-    REDIS_MODE=new
   fi
   echo >/dev/tty
 else

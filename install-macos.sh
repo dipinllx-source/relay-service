@@ -76,8 +76,10 @@ menu() {
       break
     fi
     if [[ $key == $'\e' ]]; then
-      IFS= read -rsn1 -t 0.2 key2 </dev/tty || key2=""
-      IFS= read -rsn1 -t 0.2 key3 </dev/tty || key3=""
+      # macOS 自带 bash 3.2 不支持小数超时 (-t 0.2 会报 invalid timeout 而失败),
+      # 导致方向键转义序列读不到、菜单永远停在第 0 项; 用整数超时兼容 3.2。
+      IFS= read -rsn1 -t 1 key2 </dev/tty || key2=""
+      IFS= read -rsn1 -t 1 key3 </dev/tty || key3=""
       seq="${key2}${key3}"
       case $seq in
         '[A'|'OA') (( sel > 0 )) && sel=$((sel - 1)) || : ;;

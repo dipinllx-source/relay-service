@@ -56,21 +56,20 @@ menu() {
   local n=${#options[@]} sel=0 i key key2 key3 seq
   tty_ok || { MENU_CHOICE=0; return; }
 
-  # 保存菜单起点，每次从同一位置清屏重画，避免中文宽度/换行导致残影。
-  printf '\n' >/dev/tty
-  tput sc >/dev/tty 2>/dev/null || printf '\033[s' >/dev/tty
-  while :; do
-    tput rc >/dev/tty 2>/dev/null || printf '\033[u' >/dev/tty
-    tput ed >/dev/tty 2>/dev/null || printf '\033[J' >/dev/tty
-    printf '%s%s%s  %s(↑↓ 选择, Enter 确认)%s\n' "$BOLD" "$title" "$NC" "$DIM" "$NC" >/dev/tty
-    for ((i=0; i<n; i++)); do
-      if (( i == sel )); then
-        printf '  %s▸ %s%s\n' "$CYAN" "${options[$i]}" "$NC" >/dev/tty
-      else
-        printf '    %s\n' "${options[$i]}" >/dev/tty
-      fi
-    done
+  # 标题打印一次；选项区用相对光标(上移 n 行 + 清到屏幕底)就地重画。
+  # 不用 tput sc/rc(ESC 7/8 绝对光标保存/恢复)：菜单画在终端底部触发滚动时,
+  # 保存的绝对坐标会失效, 导致每次按键都在新位置重画 → 出现重复文案。
+  # 相对移动会随内容一起滚动, 始终对齐, 不受滚动影响。
+  printf '\n%s%s%s  %s(↑↓ 选择, Enter 确认)%s\n' "$BOLD" "$title" "$NC" "$DIM" "$NC" >/dev/tty
+  for ((i=0; i<n; i++)); do
+    if (( i == sel )); then
+      printf '  %s▸ %s%s\n' "$CYAN" "${options[$i]}" "$NC" >/dev/tty
+    else
+      printf '    %s\n' "${options[$i]}" >/dev/tty
+    fi
+  done
 
+  while :; do
     IFS= read -rsn1 key </dev/tty || key=""
     if [[ -z $key ]]; then
       break
@@ -86,6 +85,15 @@ menu() {
         '[B'|'OB') (( sel < n-1 )) && sel=$((sel + 1)) || : ;;
       esac
     fi
+    # 回到选项区起点(上移 n 行)，清除旧选项后重画
+    printf '\033[%dA\033[J' "$n" >/dev/tty
+    for ((i=0; i<n; i++)); do
+      if (( i == sel )); then
+        printf '  %s▸ %s%s\n' "$CYAN" "${options[$i]}" "$NC" >/dev/tty
+      else
+        printf '    %s\n' "${options[$i]}" >/dev/tty
+      fi
+    done
   done
   MENU_CHOICE=$sel
   printf '\n' >/dev/tty

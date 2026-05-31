@@ -23,6 +23,7 @@
     "service:logs:follow": "node scripts/manage.js logs -f",
     "service:restart:d": "node scripts/manage.js restart -d",
     "service:status": "node scripts/manage.js status",
+    "service:update": "node scripts/manage.js update",
     "service:logs": "node scripts/manage.js logs",
     "monitor": "bash scripts/monitor-enhanced.sh",
     "status": "bash scripts/status-unified.sh",

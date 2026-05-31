@@ -178,6 +178,27 @@
       </div>
     </section>
 
+    <!-- Service management -->
+    <section class="ops">
+      <div class="ops__inner reveal">
+        <p class="ops__eyebrow">部署与运维</p>
+        <h2 class="ops__title">管理你的服务</h2>
+        <p class="ops__sub">
+          元数据默认持久化到 SQLite（<code>data/metadata.db</code>），Redis
+          仅作缓存与热状态。使用内置命令管理服务进程：
+        </p>
+        <div class="ops__grid">
+          <article v-for="cmd in serviceCommands" :key="cmd.code" class="ops__card">
+            <h3 class="ops__card-title">{{ cmd.title }}</h3>
+            <p class="ops__card-desc">{{ cmd.desc }}</p>
+            <div class="ops__code">
+              <code>{{ cmd.code }}</code>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <!-- CTA -->
     <section class="start-cta">
       <div class="start-cta__inner reveal">
@@ -242,6 +263,29 @@ const steps = [
     title: '开始对话',
     desc: '一切就绪。你的请求将被智能调度到最佳可用账户。',
     code: 'curl -X POST /api/v1/chat/completions ...'
+  }
+]
+
+const serviceCommands = [
+  {
+    title: '启动',
+    desc: '在后台启动服务进程，终端可安全关闭。',
+    code: 'npm run service:start:daemon'
+  },
+  {
+    title: '停止',
+    desc: '优雅停止服务，超时后自动强制结束。',
+    code: 'npm run service:stop'
+  },
+  {
+    title: '重启',
+    desc: '停止后重新启动，加载最新配置。',
+    code: 'npm run service:restart'
+  },
+  {
+    title: '更新',
+    desc: '拉取最新代码 → 安装依赖 → 构建前端 → 自动后台重启。',
+    code: 'npm run service:update'
   }
 ]
 
@@ -659,6 +703,78 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 720px) {
   .steps__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Service management */
+.ops {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 22px 100px;
+}
+.ops__eyebrow {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0071e3;
+  margin: 0 0 8px;
+}
+.ops__title {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+  margin: 0 0 12px;
+}
+.ops__sub {
+  font-size: 17px;
+  color: #6e6e73;
+  line-height: 1.5;
+  margin: 0 0 28px;
+  max-width: 720px;
+}
+.ops__sub code {
+  font-family: 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  background: #f5f5f7;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.ops__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+.ops__card {
+  background: #fff;
+  border-radius: 22px;
+  padding: 28px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.ops__card-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: #1d1d1f;
+  margin: 0 0 8px;
+}
+.ops__card-desc {
+  font-size: 15px;
+  color: #6e6e73;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+.ops__code {
+  padding: 12px 16px;
+  background: #f5f5f7;
+  border-radius: 10px;
+}
+.ops__code code {
+  font-size: 14px;
+  color: #1d1d1f;
+  font-family: 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (max-width: 720px) {
+  .ops__grid {
     grid-template-columns: 1fr;
   }
 }

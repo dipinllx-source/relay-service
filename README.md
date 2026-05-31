@@ -294,6 +294,21 @@ npm run service:start:daemon   # 后台运行
 npm run service:status
 ```
 
+### 服务管理命令
+
+通过 `scripts/manage.js`（PID + nohup，跨平台）管理服务进程：
+
+```bash
+npm run service:start:daemon   # 启动（后台运行，终端可安全关闭）
+npm run service:stop           # 停止（优雅关闭，超时自动强制结束）
+npm run service:restart        # 重启（加载最新配置）
+npm run service:update         # 更新（git pull → 装依赖 → 构建前端 → 自动后台重启）
+npm run service:status         # 查看状态
+npm run service:logs           # 查看日志
+```
+
+> 元数据默认持久化到 **SQLite**（`data/metadata.db`），Redis 仅作缓存与热状态，仅支持单实例部署。如需放回 Redis，在 `.env` 设 `METADATA_BACKEND=redis`；从已有 Redis 数据迁移到 SQLite 见 `docs/metadata-storage-guide`。
+
 ---
 
 ## 🐳 Docker 部署

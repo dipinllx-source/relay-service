@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-const { spawn, exec } = require('child_process')
+const { spawn, exec, execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const process = require('process')
 
+const ROOT_DIR = path.join(__dirname, '..')
 const PID_FILE = path.join(__dirname, '..', 'claude-relay-service.pid')
 const LOG_FILE = path.join(__dirname, '..', 'logs', 'service.log')
 const ERROR_LOG_FILE = path.join(__dirname, '..', 'logs', 'service-error.log')
@@ -194,6 +195,32 @@ class ServiceManager {
     return true
   }
 
+  update() {
+    console.log('⬆️  更新 Claude Relay Service...')
+
+    const steps = [
+      { desc: '拉取最新代码', cmd: 'git pull' },
+      { desc: '安装后端依赖', cmd: 'npm install' },
+      { desc: '安装前端依赖', cmd: 'npm run install:web' },
+      { desc: '构建前端', cmd: 'npm run build:web' }
+    ]
+
+    for (const step of steps) {
+      console.log(`\n▶️  ${step.desc}: ${step.cmd}`)
+      try {
+        execSync(step.cmd, { cwd: ROOT_DIR, stdio: 'inherit' })
+      } catch (error) {
+        console.error(`\n❌ ${step.desc}失败，已中断更新。请修复后重试 (${error.message})`)
+        return false
+      }
+    }
+
+    console.log('\n✅ 代码与前端已更新，正在后台重启服务...')
+    this.restart(true)
+
+    return true
+  }
+
   status() {
     const status = this.getStatus()
     if (status.running) {
@@ -239,6 +266,7 @@ class ServiceManager {
   start [-d|--daemon]   启动服务 (-d: 后台运行)
   stop                  停止服务
   restart [-d|--daemon] 重启服务 (-d: 后台运行)
+  update                更新服务 (git pull → 装依赖 → 构建前端 → 后台重启)
   status                查看服务状态
   logs [lines]          查看日志 (默认50行)
   help                  显示帮助信息
@@ -246,6 +274,7 @@ class ServiceManager {
 命令缩写:
   s, start              启动服务
   r, restart            重启服务
+  u, update             更新服务
   st, status            查看状态
   l, log, logs          查看日志
   halt, stop            停止服务
@@ -301,6 +330,10 @@ function main() {
     case 'restart':
     case 'r':
       manager.restart(isDaemon)
+      break
+    case 'update':
+    case 'u':
+      manager.update()
       break
     case 'status':
     case 'st':

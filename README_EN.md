@@ -253,6 +253,21 @@ npm run service:start:daemon   # Run in background (recommended)
 npm run service:status
 ```
 
+### Service Management Commands
+
+Manage the service process via `scripts/manage.js` (PID + nohup, cross-platform):
+
+```bash
+npm run service:start:daemon   # Start (background; terminal can be closed safely)
+npm run service:stop           # Stop (graceful; force-kills after timeout)
+npm run service:restart        # Restart (reloads latest config)
+npm run service:update         # Update (git pull → install deps → build web → auto restart in background)
+npm run service:status         # Show status
+npm run service:logs           # View logs
+```
+
+> Metadata is persisted to **SQLite** by default (`data/metadata.db`); Redis is used only as cache + hot state, and only single-instance deployment is supported. To keep metadata in Redis, set `METADATA_BACKEND=redis` in `.env`. To migrate existing Redis data to SQLite, see `docs/metadata-storage-guide`.
+
 ---
 
 ## 🎮 Getting Started

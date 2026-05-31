@@ -87,8 +87,8 @@ data/init.json            # 管理员凭据
 
 | backend | 职能划分 | 适合场景 |
 |---|---|---|
-| `redis`（默认） | 所有元数据 + 热状态都在 Redis | 自管 Redis、可持久化 |
-| `sqlite` | 元数据 → `data/metadata.db` (WAL)；Redis 仅作缓存 + 热状态 | Redis 是托管服务或纯缓存 |
+| `sqlite`（默认） | 元数据 → `data/metadata.db` (WAL)；Redis 仅作缓存 + 热状态 | 单实例部署、Redis 是托管服务或纯缓存 |
+| `redis` | 所有元数据 + 热状态都在 Redis | 多实例部署、自管 Redis、向后兼容旧行为 |
 
 **分层边界**（仓储接口 `src/storage/repositories/`）：
 - `IApiKeyRepository` / `IAccountRepository` / `ITagRepository` — 业务代码只依赖接口
@@ -167,6 +167,17 @@ npm test -- --coverage          # 运行测试并生成覆盖率报告
 npm run cli status              # 系统状态
 npm run data:export             # 导出 Redis 数据
 npm run data:debug              # 调试 Redis 键
+```
+
+### 服务管理命令（scripts/manage.js，PID + nohup，跨平台）
+
+```bash
+npm run service:start:daemon    # 启动（后台运行）
+npm run service:stop            # 停止（优雅关闭，超时强制结束）
+npm run service:restart         # 重启（加载最新配置）
+npm run service:update          # 更新（git pull → 装依赖 → 构建前端 → 自动后台重启）
+npm run service:status          # 查看状态
+npm run service:logs            # 查看日志
 ```
 
 ### 前端命令

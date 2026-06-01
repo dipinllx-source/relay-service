@@ -311,6 +311,40 @@ npm run service:logs           # 查看日志
 
 ---
 
+## 🔀 Claude Code 使用 GPT 模型（Anthropic → OpenAI 适配）
+
+让 Claude Code（只会说 Anthropic Messages API）经中转由 GPT（OpenAI Chat Completions 兼容端点）承载推理。
+
+**工作方式**：新增路由 `POST /claude/openai/v1/messages` 接收 Anthropic 请求 → 转换为 OpenAI Chat Completions → 转发到 `openai-compatible` 账号的 `{baseUrl}/v1/chat/completions` → 响应/流式转回 Anthropic 格式。原生 `/v1/messages → Claude` 链路不受影响。
+
+**1. 创建 openai-compatible 账号**（暂无管理后台表单，先用脚本/REPL）：
+
+```js
+await require('./src/services/account/openaiCompatibleAccountService').createAccount({
+  name: 'gpt',
+  baseUrl: 'https://api.openai.com', // 任意 OpenAI 兼容端点
+  apiKey: 'sk-...',
+  defaultModel: 'gpt-4o-mini',
+  // 可选：claude 模型名 → 目标 GPT 模型（支持 * 前缀通配）
+  modelMapping: { 'claude-3-5-haiku-*': 'gpt-4o-mini', 'claude-sonnet-*': 'gpt-4o' }
+})
+```
+
+**2. 给 API Key 赋予 `openai` 权限**（管理后台编辑 Key 的权限）。
+
+**3. 配置 Claude Code** 指向该前缀：
+
+```bash
+export ANTHROPIC_BASE_URL=http://<host>:<port>/claude/openai
+export ANTHROPIC_API_KEY=cr_你的key
+```
+
+**目标模型解析顺序**：请求头 `x-target-model`（或 body `target_model`）覆盖 → 账号 `modelMapping`（精确/前缀）→ 出厂默认（haiku→gpt-4o-mini、sonnet/opus→gpt-4o）→ 账号 `defaultModel`。客户端的 `claude-*` 名不会透传给上游。
+
+> 说明：`thinking`、`cache_control`、1M 上下文等 Anthropic 专有特性在 Chat Completions 无对应，会被安全忽略；成本按实际 GPT 模型由 `pricingService` 计算。
+
+---
+
 ## 🐳 Docker 部署
 
 ### Docker compose

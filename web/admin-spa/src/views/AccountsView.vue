@@ -2461,7 +2461,12 @@ const platformHierarchy = [
     children: [
       { value: 'openai', label: 'OpenAI 官方', icon: 'fa-openai' },
       { value: 'openai-responses', label: 'OpenAI-Responses (Codex)', icon: 'fa-server' },
-      { value: 'azure_openai', label: 'Azure OpenAI', icon: 'fab fa-microsoft' }
+      { value: 'azure_openai', label: 'Azure OpenAI', icon: 'fab fa-microsoft' },
+      {
+        value: 'openai-compatible',
+        label: 'OpenAI Compatible (GPT for Claude Code)',
+        icon: 'fa-plug'
+      }
     ]
   },
   {
@@ -2484,7 +2489,7 @@ const platformHierarchy = [
 // 平台分组映射
 const platformGroupMap = {
   'group-claude': ['claude', 'claude-console', 'bedrock', 'ccr'],
-  'group-openai': ['openai', 'openai-responses', 'azure_openai'],
+  'group-openai': ['openai', 'openai-responses', 'azure_openai', 'openai-compatible'],
   'group-gemini': ['gemini', 'gemini-api'],
   'group-droid': ['droid']
 }
@@ -2498,6 +2503,7 @@ const platformRequestHandlers = {
   openai: () => httpApis.getOpenAIAccountsApi(),
   azure_openai: () => httpApis.getAzureOpenAIAccountsApi(),
   'openai-responses': () => httpApis.getOpenAIResponsesAccountsApi(),
+  'openai-compatible': () => httpApis.getOpenaiCompatibleAccountsApi(),
   ccr: () => httpApis.getCcrAccountsApi(),
   droid: () => httpApis.getDroidAccountsApi(),
   'gemini-api': () => httpApis.getGeminiApiAccountsApi()
@@ -3425,6 +3431,15 @@ const loadAccounts = async (forceReload = false) => {
             const boundApiKeysCount = counts.geminiAccountId?.[`api:${acc.id}`] || 0
             return { ...acc, platform: 'gemini-api', boundApiKeysCount }
           })
+          allAccounts.push(...items)
+          break
+        }
+        case 'openai-compatible': {
+          const items = list.map((acc) => ({
+            ...acc,
+            platform: 'openai-compatible',
+            boundApiKeysCount: acc.boundApiKeysCount || 0
+          }))
           allAccounts.push(...items)
           break
         }

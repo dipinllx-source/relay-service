@@ -185,17 +185,79 @@
         <h2 class="ops__title">管理你的服务</h2>
         <p class="ops__sub">
           元数据默认持久化到 SQLite（<code>data/metadata.db</code>），Redis
-          仅作缓存与热状态。使用内置命令管理服务进程：
+          仅作缓存与热状态。按部署平台选择对应命令：
         </p>
+        <div class="ops__tabs" role="tablist">
+          <button
+            v-for="p in platforms"
+            :key="p.key"
+            :aria-selected="activePlatform === p.key"
+            class="ops__tab"
+            :class="{ 'ops__tab--active': activePlatform === p.key }"
+            role="tab"
+            type="button"
+            @click="activePlatform = p.key"
+          >
+            <i :class="p.icon" />
+            <span>{{ p.label }}</span>
+          </button>
+        </div>
         <div class="ops__grid">
-          <article v-for="cmd in serviceCommands" :key="cmd.code" class="ops__card">
+          <article v-for="cmd in serviceCommands[activePlatform]" :key="cmd.code" class="ops__card">
             <h3 class="ops__card-title">{{ cmd.title }}</h3>
             <p class="ops__card-desc">{{ cmd.desc }}</p>
             <div class="ops__code">
               <code>{{ cmd.code }}</code>
+              <button
+                :aria-label="copiedCode === cmd.code ? '已复制' : '复制命令'"
+                class="ops__copy"
+                :class="{ 'ops__copy--copied': copiedCode === cmd.code }"
+                :title="copiedCode === cmd.code ? '已复制' : '复制命令'"
+                type="button"
+                @click="copyCommand(cmd.code)"
+              >
+                <i :class="copiedCode === cmd.code ? 'fas fa-check' : 'fas fa-copy'" />
+              </button>
             </div>
           </article>
         </div>
+      </div>
+    </section>
+
+    <!-- Claude Code via GPT -->
+    <section class="ops">
+      <div class="ops__inner reveal">
+        <p class="ops__eyebrow">进阶用法</p>
+        <h2 class="ops__title">让 Claude Code 用上 GPT</h2>
+        <p class="ops__sub">
+          让 Claude Code（Anthropic 协议）由 GPT（OpenAI Chat Completions
+          兼容端点）承载推理，无需改客户端。
+        </p>
+        <ol class="gpt-steps">
+          <li>
+            控制台 <strong>账号管理 → OpenAI Compatible</strong> 创建账号，填写 baseUrl / apiKey /
+            默认模型 /（可选）模型映射。
+          </li>
+          <li>给要使用的 API Key 勾选 <code>openai</code> 权限。</li>
+          <li>把 Claude Code 指向适配前缀：</li>
+        </ol>
+        <div class="ops__code">
+          <code>{{ gptBaseUrlCmd }}</code>
+          <button
+            :aria-label="copiedCode === gptBaseUrlCmd ? '已复制' : '复制命令'"
+            class="ops__copy"
+            :class="{ 'ops__copy--copied': copiedCode === gptBaseUrlCmd }"
+            :title="copiedCode === gptBaseUrlCmd ? '已复制' : '复制命令'"
+            type="button"
+            @click="copyCommand(gptBaseUrlCmd)"
+          >
+            <i :class="copiedCode === gptBaseUrlCmd ? 'fas fa-check' : 'fas fa-copy'" />
+          </button>
+        </div>
+        <p class="gpt-note">
+          目标模型解析顺序：请求头 <code>x-target-model</code> → 账号模型映射（支持 * 前缀）→
+          默认模型；客户端的 claude-* 名不会透传给上游。
+        </p>
       </div>
     </section>
 
@@ -223,6 +285,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { copyText } from '@/utils/tools'
 
 const scrolled = ref(false)
 const activeDropdown = ref(null)
@@ -266,28 +329,89 @@ const steps = [
   }
 ]
 
-const serviceCommands = [
-  {
-    title: '启动',
-    desc: '在后台启动服务进程，终端可安全关闭。',
-    code: 'npm run service:start:daemon'
-  },
-  {
-    title: '停止',
-    desc: '优雅停止服务，超时后自动强制结束。',
-    code: 'npm run service:stop'
-  },
-  {
-    title: '重启',
-    desc: '停止后重新启动，加载最新配置。',
-    code: 'npm run service:restart'
-  },
-  {
-    title: '更新',
-    desc: '拉取最新代码 → 安装依赖 → 构建前端 → 自动后台重启。',
-    code: 'npm run service:update'
-  }
+const platforms = [
+  { key: 'linux', label: 'Linux', icon: 'fab fa-linux' },
+  { key: 'mac', label: 'macOS', icon: 'fab fa-apple' }
 ]
+const activePlatform = ref('linux')
+
+// Claude Code → GPT 适配的客户端配置命令
+const gptBaseUrlCmd = 'export ANTHROPIC_BASE_URL=http://<host>:<port>/claude/openai'
+
+// Linux: 跨平台进程管理脚本 scripts/manage.js（PID + nohup）
+// macOS: launchd KeepAlive 代理 com.relay-service.app
+const serviceCommands = {
+  linux: [
+    {
+      title: '启动',
+      desc: '在后台启动服务进程，终端可安全关闭。',
+      code: 'npm run service:start:daemon'
+    },
+    {
+      title: '停止',
+      desc: '优雅停止服务，超时后自动强制结束。',
+      code: 'npm run service:stop'
+    },
+    {
+      title: '重启',
+      desc: '停止后重新启动，加载最新配置。',
+      code: 'npm run service:restart'
+    },
+    {
+      title: '状态',
+      desc: '查看服务运行状态与进程信息。',
+      code: 'npm run service:status'
+    },
+    {
+      title: '更新',
+      desc: '拉取最新代码 → 安装依赖 → 构建前端 → 自动后台重启。',
+      code: 'npm run service:update'
+    }
+  ],
+  mac: [
+    {
+      title: '启动',
+      desc: '加载并启动 launchd 服务（KeepAlive 自动守护）。',
+      code: 'launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.relay-service.app.plist'
+    },
+    {
+      title: '停止',
+      desc: '卸载 launchd 服务（停止并取消守护）。',
+      code: 'launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.relay-service.app.plist'
+    },
+    {
+      title: '重启',
+      desc: '原地重启 launchd 服务，加载最新代码。',
+      code: 'launchctl kickstart -k gui/$(id -u)/com.relay-service.app'
+    },
+    {
+      title: '状态',
+      desc: '查看 launchd 服务状态、PID 与配置。',
+      code: 'launchctl print gui/$(id -u)/com.relay-service.app'
+    },
+    {
+      title: '更新',
+      desc: '拉取最新代码 → 安装依赖 → 构建前端 → 重启 launchd 服务。',
+      code: 'git pull && npm install && npm run install:web && npm run build:web && launchctl kickstart -k gui/$(id -u)/com.relay-service.app'
+    }
+  ]
+}
+
+const copiedCode = ref('')
+let copyResetTimer = null
+const copyCommand = async (code) => {
+  const ok = await copyText(code, '命令已复制')
+  if (!ok) {
+    return
+  }
+  copiedCode.value = code
+  if (copyResetTimer) {
+    clearTimeout(copyResetTimer)
+  }
+  copyResetTimer = setTimeout(() => {
+    copiedCode.value = ''
+  }, 1600)
+}
 
 let onScroll
 let observer
@@ -316,6 +440,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   observer && observer.disconnect()
+  if (copyResetTimer) {
+    clearTimeout(copyResetTimer)
+  }
 })
 </script>
 
@@ -740,6 +867,36 @@ onBeforeUnmount(() => {
   padding: 2px 6px;
   border-radius: 6px;
 }
+.ops__tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  background: #f5f5f7;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+.ops__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: #6e6e73;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.ops__tab--active {
+  background: #fff;
+  color: #1d1d1f;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
 .ops__grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -764,14 +921,71 @@ onBeforeUnmount(() => {
   margin: 0 0 14px;
 }
 .ops__code {
-  padding: 12px 16px;
+  position: relative;
+  padding: 12px 48px 12px 16px;
   background: #f5f5f7;
   border-radius: 10px;
 }
 .ops__code code {
+  display: block;
   font-size: 14px;
   color: #1d1d1f;
   font-family: 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.5;
+  word-break: break-all;
+}
+.ops__copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #6e6e73;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.ops__copy:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1d1d1f;
+}
+.ops__copy--copied {
+  background: #34c759;
+  color: #fff;
+}
+.gpt-steps {
+  margin: 0 0 20px;
+  padding-left: 22px;
+  max-width: 720px;
+  color: #1d1d1f;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.gpt-steps li {
+  margin-bottom: 8px;
+}
+.gpt-steps code,
+.gpt-note code {
+  font-family: 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  background: #f5f5f7;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.gpt-note {
+  margin: 16px 0 0;
+  max-width: 720px;
+  font-size: 14px;
+  color: #6e6e73;
+  line-height: 1.6;
 }
 @media (max-width: 720px) {
   .ops__grid {

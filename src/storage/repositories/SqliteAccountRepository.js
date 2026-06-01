@@ -18,7 +18,8 @@ const SUPPORTED_PLATFORMS = new Set([
   'bedrock',
   'azure-openai',
   'ccr',
-  'droid'
+  'droid',
+  'openai-compatible'
 ])
 
 const CORE_FIELDS = new Set(['id', 'name', 'status'])

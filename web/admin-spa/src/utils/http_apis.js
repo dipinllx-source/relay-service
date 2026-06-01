@@ -227,6 +227,14 @@ export const createAzureOpenAIAccountApi = (data) =>
 export const updateAzureOpenAIAccountApi = (id, data) =>
   request({ url: `/admin/azure-openai-accounts/${id}`, method: 'PUT', data })
 
+// OpenAI-Compatible 账户（Claude Code → GPT 适配）
+export const getOpenaiCompatibleAccountsApi = () =>
+  request({ url: '/admin/openai-compatible-accounts', method: 'GET' })
+export const createOpenaiCompatibleAccountApi = (data) =>
+  request({ url: '/admin/openai-compatible-accounts', method: 'POST', data })
+export const updateOpenaiCompatibleAccountApi = (id, data) =>
+  request({ url: `/admin/openai-compatible-accounts/${id}`, method: 'PUT', data })
+
 // Droid 账户
 export const getDroidAccountsApi = () => request({ url: '/admin/droid-accounts', method: 'GET' })
 export const createDroidAccountApi = (data) =>

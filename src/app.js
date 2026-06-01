@@ -25,6 +25,7 @@ const geminiRoutes = require('./routes/geminiRoutes')
 const openaiGeminiRoutes = require('./routes/openaiGeminiRoutes')
 const standardGeminiRoutes = require('./routes/standardGeminiRoutes')
 const openaiClaudeRoutes = require('./routes/openaiClaudeRoutes')
+const claudeOpenaiRoutes = require('./routes/claudeOpenaiRoutes')
 const openaiRoutes = require('./routes/openaiRoutes')
 const droidRoutes = require('./routes/droidRoutes')
 const userRoutes = require('./routes/userRoutes')
@@ -342,6 +343,9 @@ class Application {
       // 🛣️ 路由
       this.app.use('/api', apiRoutes)
       this.app.use('/api', unifiedRoutes) // 统一智能路由（支持 /v1/chat/completions 等）
+      // Claude Code（Anthropic 格式）→ GPT（OpenAI Chat Completions）适配路由
+      // 必须在 /claude 别名之前注册，以确保 /claude/openai/v1/messages 优先匹配
+      this.app.use('/claude/openai', claudeOpenaiRoutes)
       this.app.use('/claude', apiRoutes) // /claude 路由别名，与 /api 功能相同
       // Anthropic (Claude Code) 路由：按路径强制分流到 Gemini OAuth 账户
       // - /antigravity/api/v1/messages -> Antigravity OAuth

@@ -443,6 +443,39 @@
                           <i class="fas fa-check text-xs text-white"></i>
                         </div>
                       </label>
+
+                      <label
+                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                        :class="[
+                          form.platform === 'openai-compatible'
+                            ? 'border-cyan-500 bg-cyan-50 dark:border-cyan-400 dark:bg-cyan-900/30'
+                            : 'border-gray-300 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-cyan-500 dark:hover:bg-cyan-900/20'
+                        ]"
+                      >
+                        <input
+                          v-model="form.platform"
+                          class="sr-only"
+                          type="radio"
+                          value="openai-compatible"
+                        />
+                        <div class="flex items-center gap-2">
+                          <i class="fas fa-plug text-sm text-cyan-600 dark:text-cyan-400"></i>
+                          <div>
+                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                              >Compatible</span
+                            >
+                            <span class="text-xs text-gray-500 dark:text-gray-400"
+                              >GPT for Claude Code</span
+                            >
+                          </div>
+                        </div>
+                        <div
+                          v-if="form.platform === 'openai-compatible'"
+                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500"
+                        >
+                          <i class="fas fa-check text-xs text-white"></i>
+                        </div>
+                      </label>
                     </template>
 
                     <!-- Gemini 子选项 -->
@@ -1718,6 +1751,80 @@
 
               <!-- 限流时长字段 - 隐藏不显示，使用默认值60 -->
               <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
+            </div>
+
+            <!-- OpenAI Compatible 配置（Claude Code → GPT） -->
+            <div v-if="form.platform === 'openai-compatible' && !isEdit" class="space-y-4">
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >API 基础地址 *</label
+                >
+                <input
+                  v-model="form.compatibleBaseUrl"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="https://api.openai.com"
+                  required
+                  type="url"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  OpenAI 兼容服务的基础地址，转发到 {baseUrl}/v1/chat/completions
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >API 密钥 *</label
+                >
+                <div class="relative">
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="sk-xxxxxxxxxxxx"
+                    required
+                    :type="showApiKey ? 'text' : 'password'"
+                  />
+                  <button
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                    type="button"
+                    @click="showApiKey = !showApiKey"
+                  >
+                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                  </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  作为 Bearer Token 发送给上游
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >默认模型</label
+                >
+                <input
+                  v-model="form.defaultModel"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="gpt-4o-mini"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  当请求未命中头部覆盖与映射表时使用
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  >模型映射 (JSON, 可选)</label
+                >
+                <textarea
+                  v-model="form.modelMapping"
+                  class="form-input w-full border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder='{"claude-sonnet-*": "gpt-4o", "claude-3-5-haiku-*": "gpt-4o-mini"}'
+                  rows="3"
+                ></textarea>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  claude 模型名 → 目标 GPT 模型，支持 * 前缀通配
+                </p>
+              </div>
             </div>
 
             <!-- Gemini API 配置 -->
@@ -3975,6 +4082,64 @@
             </div>
           </div>
 
+          <!-- OpenAI Compatible 特定字段（编辑模式）-->
+          <div v-if="form.platform === 'openai-compatible'" class="space-y-4">
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700">API 基础地址</label>
+              <input
+                v-model="form.compatibleBaseUrl"
+                class="form-input w-full"
+                placeholder="https://api.openai.com"
+                type="url"
+              />
+            </div>
+
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700">API 密钥</label>
+              <div class="relative">
+                <input
+                  v-model="form.apiKey"
+                  class="form-input w-full pr-10"
+                  placeholder="留空表示不更新"
+                  :type="showApiKey ? 'text' : 'password'"
+                />
+                <button
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  type="button"
+                  @click="showApiKey = !showApiKey"
+                >
+                  <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                </button>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
+            </div>
+
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700">默认模型</label>
+              <input
+                v-model="form.defaultModel"
+                class="form-input w-full"
+                placeholder="gpt-4o-mini"
+                type="text"
+              />
+            </div>
+
+            <div>
+              <label class="mb-3 block text-sm font-semibold text-gray-700"
+                >模型映射 (JSON, 可选)</label
+              >
+              <textarea
+                v-model="form.modelMapping"
+                class="form-input w-full font-mono text-xs"
+                placeholder='{"claude-sonnet-*": "gpt-4o"}'
+                rows="3"
+              ></textarea>
+              <p class="mt-1 text-xs text-gray-500">
+                claude 模型名 → 目标 GPT 模型，支持 * 前缀通配
+              </p>
+            </div>
+          </div>
+
           <!-- Azure OpenAI 特定字段（编辑模式）-->
           <div v-if="form.platform === 'azure_openai'" class="space-y-4">
             <div>
@@ -4702,6 +4867,11 @@ const form = ref({
   endpointType: props.account?.endpointType || 'anthropic',
   // OpenAI-Responses 特定字段
   baseApi: props.account?.baseApi || '',
+  compatibleBaseUrl:
+    props.account?.platform === 'openai-compatible' ? props.account?.baseUrl || '' : '',
+  modelMapping: props.account?.modelMapping
+    ? JSON.stringify(props.account.modelMapping, null, 2)
+    : '',
   providerEndpoint: props.account?.providerEndpoint || 'responses',
   // Gemini-API 特定字段
   baseUrl: props.account?.baseUrl || 'https://generativelanguage.googleapis.com',
@@ -4919,6 +5089,8 @@ const errors = ref({
   apiUrl: '',
   apiKey: '',
   baseApi: '',
+  compatibleBaseUrl: '',
+  modelMapping: '',
   accessKeyId: '',
   secretAccessKey: '',
   region: '',
@@ -5692,6 +5864,25 @@ const createAccount = async () => {
       errors.value.apiKey = '请填写 API 密钥'
       hasError = true
     }
+  } else if (form.value.platform === 'openai-compatible') {
+    if (!form.value.compatibleBaseUrl || form.value.compatibleBaseUrl.trim() === '') {
+      errors.value.compatibleBaseUrl = '请填写 API 基础地址'
+      hasError = true
+    }
+    // 编辑时 apiKey 可留空表示不更新
+    if (!isEdit.value && (!form.value.apiKey || form.value.apiKey.trim() === '')) {
+      errors.value.apiKey = '请填写 API 密钥'
+      hasError = true
+    }
+    // modelMapping 若填写必须是合法 JSON
+    if (form.value.modelMapping && form.value.modelMapping.trim() !== '') {
+      try {
+        JSON.parse(form.value.modelMapping)
+      } catch (e) {
+        errors.value.modelMapping = '模型映射必须是合法 JSON'
+        hasError = true
+      }
+    }
   } else if (form.value.platform === 'bedrock') {
     // Bedrock 验证 - 根据凭证类型进行不同验证
     if (form.value.credentialType === 'access_key') {
@@ -5962,6 +6153,15 @@ const createAccount = async () => {
       data.rateLimitDuration = 60 // 默认值60，不从用户输入获取
       data.dailyQuota = form.value.dailyQuota || 0
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
+    } else if (form.value.platform === 'openai-compatible') {
+      // OpenAI-Compatible 账户特定数据
+      data.baseUrl = form.value.compatibleBaseUrl
+      data.apiKey = form.value.apiKey
+      data.defaultModel = form.value.defaultModel || ''
+      data.modelMapping = form.value.modelMapping || ''
+      data.priority = form.value.priority || 50
+      data.isActive = form.value.isActive !== false
+      data.schedulable = form.value.schedulable !== false
     } else if (form.value.platform === 'gemini-antigravity') {
       // Antigravity OAuth - set oauthProvider, submission happens below
       data.oauthProvider = 'antigravity'
@@ -6025,6 +6225,8 @@ const createAccount = async () => {
       result = await accountsStore.createDroidAccount(data)
     } else if (form.value.platform === 'openai-responses') {
       result = await accountsStore.createOpenAIResponsesAccount(data)
+    } else if (form.value.platform === 'openai-compatible') {
+      result = await accountsStore.createOpenaiCompatibleAccount(data)
     } else if (form.value.platform === 'bedrock') {
       result = await accountsStore.createBedrockAccount(data)
     } else if (form.value.platform === 'openai') {
@@ -6325,6 +6527,17 @@ const updateAccount = async () => {
       data.quotaResetTime = form.value.quotaResetTime || '00:00'
     }
 
+    // OpenAI-Compatible 特定更新
+    if (props.account.platform === 'openai-compatible') {
+      data.baseUrl = form.value.compatibleBaseUrl
+      if (form.value.apiKey) {
+        data.apiKey = form.value.apiKey
+      }
+      data.defaultModel = form.value.defaultModel || ''
+      data.modelMapping = form.value.modelMapping || ''
+      data.priority = form.value.priority || 50
+    }
+
     // Bedrock 特定更新
     if (props.account.platform === 'bedrock') {
       // 更新凭证类型
@@ -6404,6 +6617,8 @@ const updateAccount = async () => {
       await accountsStore.updateClaudeConsoleAccount(props.account.id, data)
     } else if (props.account.platform === 'openai-responses') {
       await accountsStore.updateOpenAIResponsesAccount(props.account.id, data)
+    } else if (props.account.platform === 'openai-compatible') {
+      await accountsStore.updateOpenaiCompatibleAccount(props.account.id, data)
     } else if (props.account.platform === 'bedrock') {
       await accountsStore.updateBedrockAccount(props.account.id, data)
     } else if (props.account.platform === 'openai') {
@@ -6533,6 +6748,8 @@ const filteredGroups = computed(() => {
   }
   // OpenAI-Responses 使用 OpenAI 分组
   else if (form.value.platform === 'openai-responses') {
+    platformFilter = 'openai'
+  } else if (form.value.platform === 'openai-compatible') {
     platformFilter = 'openai'
   }
   // Gemini-API 使用 Gemini 分组
@@ -6936,6 +7153,12 @@ watch(
         // OpenAI-Responses 特定字段
         baseApi: newAccount.baseApi || '',
         providerEndpoint: newAccount.providerEndpoint || 'responses',
+        // OpenAI-Compatible 特定字段
+        compatibleBaseUrl:
+          newAccount.platform === 'openai-compatible' ? newAccount.baseUrl || '' : '',
+        modelMapping: newAccount.modelMapping
+          ? JSON.stringify(newAccount.modelMapping, null, 2)
+          : '',
         // Gemini-API 特定字段
         baseUrl: newAccount.baseUrl || 'https://generativelanguage.googleapis.com',
         // 额度管理字段

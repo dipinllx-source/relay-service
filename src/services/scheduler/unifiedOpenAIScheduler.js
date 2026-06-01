@@ -1,5 +1,6 @@
 const openaiAccountService = require('../account/openaiAccountService')
 const openaiResponsesAccountService = require('../account/openaiResponsesAccountService')
+const openaiCompatibleAccountService = require('../account/openaiCompatibleAccountService')
 const accountGroupService = require('../accountGroupService')
 const redis = require('../../models/redis')
 const logger = require('../../utils/logger')
@@ -633,6 +634,44 @@ class UnifiedOpenAIScheduler {
   async _deleteSessionMapping(sessionHash) {
     const client = redis.getClientSafe()
     await client.del(`${this.SESSION_MAPPING_PREFIX}${sessionHash}`)
+  }
+
+  // 🎯 为 Claude→OpenAI（openai-compatible）路由选号
+  // 隔离实现：仅枚举 openai-compatible 账号，复用粘性会话映射，不影响 openai / openai-responses 选号
+  async selectCompatibleAccountForApiKey(apiKeyData, sessionHash = null) {
+    if (sessionHash) {
+      const mapping = await this._getSessionMapping(sessionHash)
+      if (mapping && mapping.accountType === 'openai-compatible') {
+        const account = await openaiCompatibleAccountService.getAccount(mapping.accountId)
+        if (this._isCompatibleAccountUsable(account)) {
+          await this._extendSessionMappingTTL(sessionHash)
+          return { accountId: mapping.accountId, accountType: 'openai-compatible' }
+        }
+      }
+    }
+
+    const accounts = await openaiCompatibleAccountService.getAllAccounts(false)
+    const available = accounts.filter((a) => this._isCompatibleAccountUsable(a))
+    if (available.length === 0) {
+      return null
+    }
+    available.sort((a, b) => (parseInt(b.priority, 10) || 0) - (parseInt(a.priority, 10) || 0))
+    const selected = available[0]
+
+    if (sessionHash) {
+      await this._setSessionMapping(sessionHash, selected.id, 'openai-compatible')
+    }
+    return { accountId: selected.id, accountType: 'openai-compatible' }
+  }
+
+  _isCompatibleAccountUsable(account) {
+    if (!account) {
+      return false
+    }
+    const schedulable = account.schedulable === true || account.schedulable === 'true'
+    const active =
+      account.isActive === true || account.isActive === 'true' || account.status === 'active'
+    return schedulable && active && account.status !== 'error' && account.status !== 'rateLimited'
   }
 
   // 🔁 续期统一调度会话映射TTL（针对 unified_openai_session_mapping:* 键），遵循会话配置

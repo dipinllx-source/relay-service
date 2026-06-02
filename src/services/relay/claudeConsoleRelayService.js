@@ -145,7 +145,7 @@ function obfuscateText(text) {
     [/通义千问/g, 'AI Assistant'],
     [/通义/g, 'AI'],
     [/tongyi/gi, 'assistant'],
-    [/qwen/gi, 'model'],
+    [/qwen/gi, 'model']
   ]
 
   let result = text
@@ -670,9 +670,24 @@ class ClaudeConsoleRelayService {
         if (!fs.existsSync(dumpDir)) fs.mkdirSync(dumpDir, { recursive: true })
         const ts = new Date().toISOString().replace(/[:.]/g, '-')
         const file = path.join(dumpDir, `upstream-nonstream-${ts}.json`)
-        fs.writeFileSync(file, JSON.stringify({ ts, account: account?.name || accountId, headers: requestConfig.headers, body: requestConfig.data }, null, 2))
-        fs.writeFileSync('/tmp/relay-upstream-dump-nonstream.json', JSON.stringify({ headers: requestConfig.headers, body: requestConfig.data }, null, 2))
-      } catch(e) {}
+        fs.writeFileSync(
+          file,
+          JSON.stringify(
+            {
+              ts,
+              account: account?.name || accountId,
+              headers: requestConfig.headers,
+              body: requestConfig.data
+            },
+            null,
+            2
+          )
+        )
+        fs.writeFileSync(
+          '/tmp/relay-upstream-dump-nonstream.json',
+          JSON.stringify({ headers: requestConfig.headers, body: requestConfig.data }, null, 2)
+        )
+      } catch (e) {}
       const response = await axios(requestConfig)
 
       // 📬 请求已发送成功，立即释放队列锁（无需等待响应处理完成）
@@ -839,7 +854,9 @@ class ClaudeConsoleRelayService {
         for (const [pascalName, snakeName] of Object.entries(toolNameMap)) {
           // 替换 "name": "PascalName" 格式
           responseBody = responseBody.split(`"name":"${pascalName}"`).join(`"name":"${snakeName}"`)
-          responseBody = responseBody.split(`"name": "${pascalName}"`).join(`"name": "${snakeName}"`)
+          responseBody = responseBody
+            .split(`"name": "${pascalName}"`)
+            .join(`"name": "${snakeName}"`)
         }
       }
 
@@ -1241,10 +1258,25 @@ class ClaudeConsoleRelayService {
         if (!fs.existsSync(dumpDir)) fs.mkdirSync(dumpDir, { recursive: true })
         const ts = new Date().toISOString().replace(/[:.]/g, '-')
         const file = path.join(dumpDir, `upstream-${ts}.json`)
-        fs.writeFileSync(file, JSON.stringify({ ts, account: account?.name || accountId, headers: requestConfig.headers, body: requestConfig.data }, null, 2))
+        fs.writeFileSync(
+          file,
+          JSON.stringify(
+            {
+              ts,
+              account: account?.name || accountId,
+              headers: requestConfig.headers,
+              body: requestConfig.data
+            },
+            null,
+            2
+          )
+        )
         // 兼容旧路径
-        fs.writeFileSync('/tmp/relay-upstream-dump-stream.json', JSON.stringify({ headers: requestConfig.headers, body: requestConfig.data }, null, 2))
-      } catch(e) {}
+        fs.writeFileSync(
+          '/tmp/relay-upstream-dump-stream.json',
+          JSON.stringify({ headers: requestConfig.headers, body: requestConfig.data }, null, 2)
+        )
+      } catch (e) {}
       const request = axios(requestConfig)
 
       // 注意：使用 .then(async ...) 模式处理响应
@@ -1465,13 +1497,18 @@ class ClaudeConsoleRelayService {
 
                   // Tool name 逆转换：PascalCase → snake_case
                   // SSE 中 content_block_start 含 "type":"tool_use","name":"PascalName"
-                  if (dataToWrite && requestOptions.toolNameMap && Object.keys(requestOptions.toolNameMap).length > 0) {
+                  if (
+                    dataToWrite &&
+                    requestOptions.toolNameMap &&
+                    Object.keys(requestOptions.toolNameMap).length > 0
+                  ) {
                     const nameMap = requestOptions.toolNameMap
                     dataToWrite = dataToWrite.replace(
                       /"type"\s*:\s*"tool_use"\s*,\s*"id"\s*:\s*"[^"]*"\s*,\s*"name"\s*:\s*"([^"]*)"/g,
                       (match, toolName) => {
                         if (nameMap[toolName]) {
-                          return match.replace(`"name":"${toolName}"`, `"name":"${nameMap[toolName]}"`)
+                          return match
+                            .replace(`"name":"${toolName}"`, `"name":"${nameMap[toolName]}"`)
                             .replace(`"name": "${toolName}"`, `"name": "${nameMap[toolName]}"`)
                         }
                         return match
@@ -1924,6 +1961,7 @@ class ClaudeConsoleRelayService {
       const payload = createClaudeTestPayload(model, { stream: true })
 
       const extraHeaders = account.userAgent ? { 'User-Agent': account.userAgent } : {}
+      extraHeaders['anthropic-beta'] = 'prompt-caching-2024-07-31,interleaved-thinking-2025-05-14'
       const requestOptions = {
         apiUrl,
         responseStream,

@@ -27,6 +27,7 @@ class AccountBalanceService {
       'gemini-api',
       'openai',
       'openai-responses',
+      'openai-compatible',
       'azure_openai',
       'bedrock',
       'droid',

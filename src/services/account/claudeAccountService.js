@@ -71,6 +71,9 @@ class ClaudeAccountService {
     // 🔄 解密结果缓存，提高解密性能
     this._decryptCache = new LRUCache(500)
 
+    // 📋 上游动态模型列表缓存（成功长缓存 / 失败短缓存防雪崩）
+    this._modelsCache = { data: null, fetchedAt: 0, failedAt: 0 }
+
     // 🧹 定期清理缓存（每10分钟）
     setInterval(
       () => {
@@ -1278,6 +1281,87 @@ class ClaudeAccountService {
     } catch (error) {
       logger.error(`❌ Failed to get valid access token for account ${accountId}:`, error)
       throw error
+    }
+  }
+
+  // 📋 动态获取上游 Claude 模型列表（带 TTL 缓存；任何失败返回 null，由调用方静态兜底）
+  async fetchAvailableModels() {
+    const now = Date.now()
+    const successTTL = config.claude?.modelsCacheTTLMs || 60 * 60 * 1000
+    const failureTTL = config.claude?.modelsFailureCacheTTLMs || 60 * 1000
+
+    if (this._modelsCache.data && now - this._modelsCache.fetchedAt < successTTL) {
+      return this._modelsCache.data
+    }
+    if (this._modelsCache.failedAt && now - this._modelsCache.failedAt < failureTTL) {
+      return null
+    }
+
+    try {
+      const accounts = await redis.getAllClaudeAccounts()
+      const account = accounts.find(
+        (acc) =>
+          acc.isActive === 'true' &&
+          acc.status !== 'error' &&
+          acc.schedulable !== 'false' &&
+          !this.isSubscriptionExpired(acc)
+      )
+
+      if (!account) {
+        logger.warn('⚠️ No available Claude account for fetching upstream models list')
+        this._modelsCache.failedAt = now
+        return null
+      }
+
+      const accessToken = await this.getValidAccessToken(account.id)
+      const agent = this._createProxyAgent(account.proxy)
+
+      const axiosConfig = {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+          'anthropic-version': config.claude?.apiVersion || '2023-06-01',
+          'anthropic-beta': 'oauth-2025-04-20'
+        },
+        timeout: 15000
+      }
+
+      if (agent) {
+        axiosConfig.httpAgent = agent
+        axiosConfig.httpsAgent = agent
+        axiosConfig.proxy = false
+      }
+
+      const response = await axios.get('https://api.anthropic.com/v1/models?limit=100', axiosConfig)
+
+      const created = Math.floor(now / 1000)
+      const models = (response.data?.data || [])
+        .filter((m) => m && m.id)
+        .map((m) => ({
+          id: m.id,
+          object: 'model',
+          created,
+          owned_by: 'anthropic',
+          ...(m.display_name ? { display_name: m.display_name } : {})
+        }))
+
+      if (models.length === 0) {
+        logger.warn('⚠️ Upstream Claude models list is empty, falling back to static list')
+        this._modelsCache.failedAt = now
+        return null
+      }
+
+      this._modelsCache = { data: models, fetchedAt: now, failedAt: 0 }
+      logger.info(
+        `📋 Fetched ${models.length} Claude models from upstream (account: ${account.name})`
+      )
+      return models
+    } catch (error) {
+      logger.warn(
+        `⚠️ Failed to fetch upstream Claude models list: ${error.response?.status || error.message}`
+      )
+      this._modelsCache.failedAt = Date.now()
+      return null
     }
   }
 

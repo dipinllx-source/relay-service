@@ -16,29 +16,57 @@ const { getSafeMessage } = require('../utils/errorSanitizer')
 
 const router = express.Router()
 
+// 📋 获取动态 Claude 模型选项（上游实时列表，失败返回 null 由调用处静态兜底）
+async function getDynamicClaudeModelOptions() {
+  try {
+    const dynamicModels = await claudeAccountService.fetchAvailableModels()
+    if (dynamicModels && dynamicModels.length > 0) {
+      return dynamicModels.map((m) => ({ value: m.id, label: m.display_name || m.id }))
+    }
+  } catch (error) {
+    logger.warn(`⚠️ Failed to load dynamic Claude models, using static list: ${error.message}`)
+  }
+  return null
+}
+
 // 📋 获取可用模型列表（公开接口）
-router.get('/models', (req, res) => {
+router.get('/models', async (req, res) => {
   const { service } = req.query
+  const dynamicClaudeModels = await getDynamicClaudeModelOptions()
 
   if (service) {
-    // 返回指定服务的模型
-    const models = modelsConfig.getModelsByService(service)
+    // 返回指定服务的模型（claude 优先用上游动态列表）
+    const models =
+      service === 'claude' && dynamicClaudeModels
+        ? dynamicClaudeModels
+        : modelsConfig.getModelsByService(service)
     return res.json({
       success: true,
       data: models
     })
   }
 
-  // 返回所有模型（按服务分组 + 平台维度）
+  const claudeModels = dynamicClaudeModels || modelsConfig.CLAUDE_MODELS
+
+  // 返回所有模型（按服务分组 + 平台维度）；Claude 段优先使用上游动态列表
   res.json({
     success: true,
     data: {
-      claude: modelsConfig.CLAUDE_MODELS,
+      claude: claudeModels,
       gemini: modelsConfig.GEMINI_MODELS,
       openai: modelsConfig.OPENAI_MODELS,
       other: modelsConfig.OTHER_MODELS,
-      all: modelsConfig.getAllModels(),
-      platforms: modelsConfig.PLATFORM_TEST_MODELS
+      all: [
+        ...claudeModels,
+        ...modelsConfig.GEMINI_MODELS,
+        ...modelsConfig.OPENAI_MODELS,
+        ...modelsConfig.OTHER_MODELS
+      ],
+      platforms: {
+        ...modelsConfig.PLATFORM_TEST_MODELS,
+        claude: claudeModels
+      },
+      claudeSource: dynamicClaudeModels ? 'upstream' : 'fallback'
     }
   })
 })

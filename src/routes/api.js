@@ -1532,8 +1532,9 @@ router.get('/v1/models', authenticateApiKey, async (req, res) => {
 
     const modelService = require('../services/modelService')
 
-    // 从 modelService 获取所有支持的模型
-    const models = modelService.getAllModels()
+    // Claude 段优先使用上游动态列表（带缓存），失败时回落 modelService 静态列表
+    const dynamicClaudeModels = await claudeAccountService.fetchAvailableModels()
+    const models = modelService.getAllModels({ claudeModels: dynamicClaudeModels })
 
     // 可选：根据 API Key 的模型限制过滤
     let filteredModels = models

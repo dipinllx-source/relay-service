@@ -70,21 +70,14 @@ router.get('/v1/models', authenticateApiKey, async (req, res) => {
       })
     }
 
-    // Claude 模型列表 - 只返回 opus-4 和 sonnet-4
-    let models = [
-      {
-        id: 'claude-opus-4-20250514',
-        object: 'model',
-        created: 1736726400, // 2025-01-13
-        owned_by: 'anthropic'
-      },
-      {
-        id: 'claude-sonnet-4-20250514',
-        object: 'model',
-        created: 1736726400, // 2025-01-13
-        owned_by: 'anthropic'
-      }
-    ]
+    // Claude 模型列表 - 优先上游动态列表，失败回落 modelService 静态 Claude 段
+    const claudeAccountService = require('../services/account/claudeAccountService')
+    const modelService = require('../services/modelService')
+    const dynamicClaudeModels = await claudeAccountService.fetchAvailableModels()
+    let models =
+      dynamicClaudeModels && dynamicClaudeModels.length > 0
+        ? dynamicClaudeModels
+        : modelService.getModelsByProvider('anthropic')
 
     // 如果启用了模型限制，视为黑名单：过滤掉受限模型
     if (apiKeyData.enableModelRestriction && apiKeyData.restrictedModels?.length > 0) {

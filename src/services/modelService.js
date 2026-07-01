@@ -30,6 +30,11 @@ class ModelService {
         provider: 'anthropic',
         description: 'Claude models from Anthropic',
         models: [
+          'claude-fable-5',
+          'claude-opus-4-8',
+          'claude-opus-4-7',
+          'claude-opus-4-6',
+          'claude-sonnet-4-6',
           'claude-opus-4-5-20251101',
           'claude-haiku-4-5-20251001',
           'claude-sonnet-4-5-20250929',
@@ -74,12 +79,19 @@ class ModelService {
 
   /**
    * 获取所有支持的模型（OpenAI API 格式）
+   * @param {object} [options]
+   * @param {Array|null} [options.claudeModels] - 动态 Claude 模型列表（OpenAI list 条目格式）。
+   *   传入时替换静态 claude 段（OpenAI / Gemini 段不变）；不传或为 null 时使用静态列表。
    */
-  getAllModels() {
+  getAllModels({ claudeModels = null } = {}) {
     const models = []
     const now = Math.floor(Date.now() / 1000)
 
-    for (const [_service, config] of Object.entries(this.supportedModels)) {
+    for (const [service, config] of Object.entries(this.supportedModels)) {
+      if (service === 'claude' && Array.isArray(claudeModels) && claudeModels.length > 0) {
+        models.push(...claudeModels)
+        continue
+      }
       for (const modelId of config.models) {
         models.push({
           id: modelId,

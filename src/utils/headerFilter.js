@@ -75,8 +75,8 @@ function filterForClaude(headers, options = {}) {
     // 'x-app' — 不从客户端透传，下方强制注入 'cli'
     'anthropic-beta',
     'accept-language',
-    // 注意：不透传 accept-encoding，避免客户端发送的 zstd 等 Node.js 不支持的编码
-    // 被转发到上游，导致 axios 无法解压响应（Node 18 zlib 不支持 zstd）
+    // 注意：不透传 accept-encoding —— 由转发层统一设置为可解压的编码集合
+    // （gzip/deflate/br/zstd，Node 22.15+/24 已内置 zstd，见 claudeRelayService 响应解压逻辑）
     'content-type',
     'connection'
   ]
@@ -115,9 +115,11 @@ function filterForClaude(headers, options = {}) {
     ]
     if (existingBeta) {
       // 合并已有的 beta flags（去重）
-      const existing = existingBeta.split(',').map(s => s.trim())
-      existing.forEach(f => {
-        if (f && !betaFlags.includes(f)) betaFlags.push(f)
+      const existing = existingBeta.split(',').map((s) => s.trim())
+      existing.forEach((f) => {
+        if (f && !betaFlags.includes(f)) {
+          betaFlags.push(f)
+        }
       })
     }
     filtered['anthropic-beta'] = betaFlags.join(',')

@@ -1,5 +1,6 @@
 const https = require('https')
 const zlib = require('zlib')
+const { Transform } = require('stream')
 const path = require('path')
 const crypto = require('crypto')
 const ProxyHelper = require('../../utils/proxyHelper')
@@ -2091,6 +2092,116 @@ class ClaudeRelayService {
     return filterForClaude(clientHeaders)
   }
 
+  // 🗜️ 根据 content-encoding 创建解压流（支持 gzip/deflate/br/zstd；Node 22.15+/24 内置 zstd）
+  _createDecompressStream(encoding) {
+    switch ((encoding || '').toLowerCase()) {
+      case 'gzip':
+      case 'x-gzip':
+        return zlib.createGunzip()
+      case 'deflate':
+        return zlib.createInflate()
+      case 'br':
+        return zlib.createBrotliDecompress()
+      case 'zstd':
+        return typeof zlib.createZstdDecompress === 'function' ? zlib.createZstdDecompress() : null
+      default:
+        return null
+    }
+  }
+
+  // 🗜️ 同步解压响应体；content-encoding 缺失时按魔数嗅探
+  // （兜底 issue #1030：上游经 Cloudflare 可能压缩但未带 Content-Encoding 头）
+  _decompressBufferSync(buffer, encoding) {
+    const enc = (encoding || '').toLowerCase()
+    try {
+      switch (enc) {
+        case 'gzip':
+        case 'x-gzip':
+          return zlib.gunzipSync(buffer)
+        case 'deflate':
+          return zlib.inflateSync(buffer)
+        case 'br':
+          return zlib.brotliDecompressSync(buffer)
+        case 'zstd':
+          return zlib.zstdDecompressSync(buffer)
+        default:
+          break
+      }
+      // 魔数嗅探兜底（gzip: 1f 8b；zstd: 28 b5 2f fd）
+      if (buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
+        return zlib.gunzipSync(buffer)
+      }
+      if (
+        buffer.length >= 4 &&
+        buffer[0] === 0x28 &&
+        buffer[1] === 0xb5 &&
+        buffer[2] === 0x2f &&
+        buffer[3] === 0xfd
+      ) {
+        return zlib.zstdDecompressSync(buffer)
+      }
+    } catch (err) {
+      logger.error(`❌ Failed to decompress ${enc || 'sniffed'} response:`, err)
+    }
+    return buffer
+  }
+
+  // 🗜️ 返回自适应解压流：有可解压的 content-encoding 头则直接按头解压；
+  // 头缺失时按首个数据块魔数嗅探（兜底 issue #1030 在流式场景下的二进制损坏）
+  _createAdaptiveDecompressStream(contentEncoding) {
+    const enc = (contentEncoding || '').toLowerCase()
+    if (enc) {
+      // 头存在：可解压类型返回对应流，其它（identity 等）返回 null 透传
+      return this._createDecompressStream(enc)
+    }
+    // 无 content-encoding 头：首块魔数嗅探，必要时插入解压器
+    const self = this
+    let inner = null
+    let decided = false
+    const transform = new Transform({
+      transform(chunk, _e, cb) {
+        if (!decided) {
+          decided = true
+          let sniffEnc = null
+          if (chunk.length >= 2 && chunk[0] === 0x1f && chunk[1] === 0x8b) {
+            sniffEnc = 'gzip'
+          } else if (
+            chunk.length >= 4 &&
+            chunk[0] === 0x28 &&
+            chunk[1] === 0xb5 &&
+            chunk[2] === 0x2f &&
+            chunk[3] === 0xfd
+          ) {
+            sniffEnc = 'zstd'
+          }
+          if (sniffEnc) {
+            inner = self._createDecompressStream(sniffEnc)
+            logger.warn(
+              `🗜️ Stream missing Content-Encoding header, sniffed ${sniffEnc} (issue #1030 fallback)`
+            )
+            inner.on('data', (d) => transform.push(d))
+            inner.on('error', (e) => transform.destroy(e))
+          }
+        }
+        if (inner) {
+          inner.write(chunk)
+          cb()
+        } else {
+          cb(null, chunk)
+        }
+      },
+      flush(cb) {
+        if (inner) {
+          inner.end()
+          inner.on('end', () => cb())
+        } else {
+          cb()
+        }
+      }
+    })
+    return transform
+  }
+
   // 🔧 准备请求头和 payload（抽离公共逻辑）
   async _prepareRequestHeadersAndPayload(
     body,
@@ -2158,24 +2269,25 @@ class ClaudeRelayService {
     const contentLength = Buffer.byteLength(bodyString, 'utf8')
 
     // 构建最终请求头（包含认证、版本、User-Agent、Beta 等）
-    // Force identity encoding to prevent upstream (Cloudflare) from returning
-    // gzip-compressed responses without a Content-Encoding header, which causes
-    // binary data to be silently corrupted by UTF-8 text decoding in the stream
-    // handler. See: https://github.com/Wei-Shaw/claude-relay-service/issues/1030
+    // 与真实 Claude Code 一致地协商压缩编码（避免 identity 成为指纹破绽）。
+    // Node 22.15+/24 的 zlib 已内置 zstd，响应侧 _createAdaptiveDecompressStream /
+    // _decompressBufferSync 支持 gzip/deflate/br/zstd，并在上游漏发 Content-Encoding 头时
+    // 按魔数嗅探兜底（历史 issue #1030 的二进制损坏问题已由嗅探逻辑覆盖）。
+    const ACCEPT_ENCODING = 'gzip, deflate, br, zstd'
     const headers = {
       host: 'api.anthropic.com',
       connection: 'keep-alive',
       'content-type': 'application/json',
       'content-length': String(contentLength),
-      'accept-encoding': 'identity',
+      'accept-encoding': ACCEPT_ENCODING,
       authorization: `Bearer ${accessToken}`,
       'anthropic-version': this.apiVersion,
       ...finalHeaders
     }
 
-    // 强制 identity 编码：finalHeaders 可能携带客户端或 Redis 缓存中的 accept-encoding（如 zstd），
-    // 必须在 spread 后覆盖回 identity，因为 https.request 的手动解压只支持 gzip/deflate
-    headers['accept-encoding'] = 'identity'
+    // finalHeaders 可能携带客户端或 Redis 缓存中的 accept-encoding，统一覆盖为
+    // 我们确定能解压的编码集合，保证 spread 后值稳定
+    headers['accept-encoding'] = ACCEPT_ENCODING
 
     // 使用统一 User-Agent 或客户端提供的，最后使用默认值
     const userAgent = unifiedUA || headers['user-agent'] || 'claude-cli/1.0.119 (external, cli)'
@@ -2302,25 +2414,11 @@ class ClaudeRelayService {
             const responseData = Buffer.concat(chunks)
             let responseBody = ''
 
-            // 根据Content-Encoding处理响应数据
+            // 根据 Content-Encoding 处理响应数据（gzip/deflate/br/zstd，缺失时魔数嗅探）
             const contentEncoding = res.headers['content-encoding']
-            if (contentEncoding === 'gzip') {
-              try {
-                responseBody = zlib.gunzipSync(responseData).toString('utf8')
-              } catch (unzipError) {
-                logger.error('❌ Failed to decompress gzip response:', unzipError)
-                responseBody = responseData.toString('utf8')
-              }
-            } else if (contentEncoding === 'deflate') {
-              try {
-                responseBody = zlib.inflateSync(responseData).toString('utf8')
-              } catch (unzipError) {
-                logger.error('❌ Failed to decompress deflate response:', unzipError)
-                responseBody = responseData.toString('utf8')
-              }
-            } else {
-              responseBody = responseData.toString('utf8')
-            }
+            responseBody = this._decompressBufferSync(responseData, contentEncoding).toString(
+              'utf8'
+            )
 
             if (emulationApplied) {
               responseBody = this._restoreToolNamesInResponseBody(responseBody, toolNameMap)
@@ -3249,25 +3347,22 @@ class ClaudeRelayService {
         const requestedModel = body?.model || 'unknown'
         const { isRealClaudeCodeRequest } = requestOptions
 
-        // 🔧 处理上游 gzip/deflate 压缩：Anthropic (经 Cloudflare) 可能返回压缩响应
+        // 🔧 处理上游压缩：Anthropic (经 Cloudflare) 可能返回 gzip/deflate/br/zstd 压缩响应；
+        // Content-Encoding 头缺失时由自适应流按首块魔数嗅探（兜底 issue #1030）
         const upstreamEncoding = res.headers['content-encoding']
         let dataSource = res
-        if (upstreamEncoding === 'gzip') {
-          dataSource = res.pipe(zlib.createGunzip())
-          dataSource.on('error', (err) => {
-            logger.error('❌ Gzip decompression error in stream:', err.message)
+        const decompressStream = this._createAdaptiveDecompressStream(upstreamEncoding)
+        if (decompressStream) {
+          decompressStream.on('error', (err) => {
+            logger.error(
+              `❌ Decompression error in stream (${upstreamEncoding || 'sniffed'}):`,
+              err.message
+            )
             if (isStreamWritable(responseStream)) {
               responseStream.end()
             }
           })
-        } else if (upstreamEncoding === 'deflate') {
-          dataSource = res.pipe(zlib.createInflate())
-          dataSource.on('error', (err) => {
-            logger.error('❌ Deflate decompression error in stream:', err.message)
-            if (isStreamWritable(responseStream)) {
-              responseStream.end()
-            }
-          })
+          dataSource = res.pipe(decompressStream)
         }
 
         dataSource.on('data', (chunk) => {

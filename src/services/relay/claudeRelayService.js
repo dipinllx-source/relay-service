@@ -1457,6 +1457,45 @@ class ClaudeRelayService {
   }
 
   // 🔄 处理请求体
+  // 📅 Rewrite "Today's date is YYYY-MM-DD." (or YYYY/MM/DD) inside system + user messages
+  // to reflect the CURRENT SERVER LOCAL DATE. Strictly emits YYYY-MM-DD.
+  _rewriteTodayDate(body) {
+    if (!body || typeof body !== 'object') {
+      return
+    }
+    const serverDate = new Date().toLocaleDateString('en-CA') // en-CA gives YYYY-MM-DD, uses system TZ
+    const replacement = "Today's date is " + serverDate + '.'
+    // Accept both YYYY-MM-DD and YYYY/MM/DD, with any whitespace between tokens
+    const dateRegex = /Today's date is \d{4}[-/]\d{2}[-/]\d{2}\./g
+    const rewriteText = (t) => (typeof t === 'string' ? t.replace(dateRegex, replacement) : t)
+    // system entries
+    if (Array.isArray(body.system)) {
+      for (const entry of body.system) {
+        if (entry && typeof entry.text === 'string') {
+          entry.text = rewriteText(entry.text)
+        }
+      }
+    } else if (typeof body.system === 'string') {
+      body.system = rewriteText(body.system)
+    }
+    // messages content blocks
+    if (Array.isArray(body.messages)) {
+      for (const msg of body.messages) {
+        if (!msg) continue
+        const content = msg.content
+        if (typeof content === 'string') {
+          msg.content = rewriteText(content)
+        } else if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block && typeof block.text === 'string') {
+              block.text = rewriteText(block.text)
+            }
+          }
+        }
+      }
+    }
+  }
+
   _processRequestBody(body, account = null, isRealClaudeCodeOverride = undefined) {
     if (!body) {
       return body
@@ -1464,6 +1503,8 @@ class ClaudeRelayService {
 
     // 使用 safeClone 替代 JSON.parse(JSON.stringify()) 提升性能
     const processedBody = safeClone(body)
+    // 🕰️ Overwrite any "Today's date is …" strings with server local date (strict YYYY-MM-DD.)
+    this._rewriteTodayDate(processedBody)
 
     processedBody.messages = this._patchOrphanedToolUse(processedBody.messages)
 
@@ -1743,6 +1784,20 @@ class ClaudeRelayService {
   _tryAddCacheControlToLastTextContent(message) {
     if (!message || typeof message !== 'object') {
       return null
+    }
+
+    // P0/P1 fix: never inject cache_control into an assistant turn that carries a
+    // thinking or redacted_thinking block. Extended thinking requires each historical
+    // assistant turn to stay byte-identical to what the model emitted; adding a field
+    // to a sibling block invalidates the thinking signature, and the upstream then
+    // rejects the request with HTTP 400 Invalid signature in thinking block.
+    if (message.role === 'assistant' && Array.isArray(message.content)) {
+      const hasThinking = message.content.some(
+        (b) => b && typeof b === 'object' && (b.type === 'thinking' || b.type === 'redacted_thinking')
+      )
+      if (hasThinking) {
+        return null
+      }
     }
 
     if (typeof message.content === 'string') {
@@ -2820,7 +2875,7 @@ class ClaudeRelayService {
               res.on('end', resolveBody)
               res.on('error', resolveBody)
             })
-            const errorBody429 = Buffer.concat(bodyChunks429).toString()
+            const errorBody429 = this._decodeUpstreamErrorBody(bodyChunks429, res.headers)
 
             // 检查是否为 "Extra usage required" 的非限流 429
             if (this._isExtraUsageRequired429(res.statusCode, errorBody429)) {
@@ -2831,8 +2886,7 @@ class ClaudeRelayService {
                 `❌ Claude API returned error status: 429 | Account: ${account?.name || accountId}`
               )
               logger.error(
-                `❌ Claude API error response (Account: ${account?.name || accountId}):`,
-                errorBody429
+                `❌ Claude API error response (429) (Account: ${account?.name || accountId}): ${(errorBody429 || '').slice(0, 2000)}`
               )
               if (isStreamWritable(responseStream)) {
                 let errorMessage = `Claude API error: 429`
@@ -2945,8 +2999,7 @@ class ClaudeRelayService {
               `❌ Claude API returned error status: 429 | Account: ${account?.name || accountId}`
             )
             logger.error(
-              `❌ Claude API error response (Account: ${account?.name || accountId}):`,
-              errorBody429
+              `❌ Claude API error response (429) (Account: ${account?.name || accountId}): ${(errorBody429 || '').slice(0, 2000)}`
             )
             if (isStreamWritable(responseStream)) {
               let errorMessage = `Claude API error: 429`
@@ -3219,16 +3272,16 @@ class ClaudeRelayService {
           logger.error(
             `❌ Claude API returned error status: ${res.statusCode} | Account: ${account?.name || accountId}`
           )
-          let errorData = ''
+          const _errChunks = []
 
           res.on('data', (chunk) => {
-            errorData += chunk.toString()
+            try { _errChunks.push(Buffer.from(chunk)) } catch (e) {}
           })
 
           res.on('end', async () => {
+            const errorData = this._decodeUpstreamErrorBody(_errChunks, res.headers)
             logger.error(
-              `❌ Claude API error response (Account: ${account?.name || accountId}):`,
-              errorData
+              `❌ Claude API error response (${res.statusCode}) (Account: ${account?.name || accountId}): ${(errorData || '').slice(0, 2000)}`
             )
             if (
               this._isClaudeCodeCredentialError(errorData) &&
@@ -3817,6 +3870,37 @@ class ClaudeRelayService {
       bodyString = null
       req.end()
     })
+  }
+
+  _decodeUpstreamErrorBody(chunks, headers) {
+    try {
+      const raw = Buffer.isBuffer(chunks) ? chunks : Buffer.concat(chunks || [])
+      if (!raw || raw.length === 0) {
+        return ''
+      }
+      const zlib = require('zlib')
+      const enc = String((headers && (headers['content-encoding'] || headers['Content-Encoding'])) || '').toLowerCase()
+      let out = raw
+      if (enc.includes('gzip')) {
+        out = zlib.gunzipSync(raw)
+      } else if (enc.includes('br')) {
+        out = zlib.brotliDecompressSync(raw)
+      } else if (enc.includes('deflate')) {
+        out = zlib.inflateSync(raw)
+      } else if (enc.includes('zstd') && typeof zlib.zstdDecompressSync === 'function') {
+        out = zlib.zstdDecompressSync(raw)
+      } else if (raw[0] === 0x1f && raw[1] === 0x8b) {
+        out = zlib.gunzipSync(raw)
+      }
+      return out.toString('utf8')
+    } catch (e) {
+      try {
+        const raw = Buffer.isBuffer(chunks) ? chunks : Buffer.concat(chunks || [])
+        return raw.toString('utf8')
+      } catch (e2) {
+        return ''
+      }
+    }
   }
 
   // 🛠️ 统一的错误处理方法

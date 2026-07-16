@@ -268,6 +268,14 @@ class ClaudeRelayService {
     return undefined
   }
 
+  _isInvalidThinkingSignatureError(body) {
+    const message = this._extractErrorMessage(body)
+    if (!message) {
+      return false
+    }
+    return message.includes('Invalid') && message.includes('signature') && message.includes('thinking')
+  }
+
   _isClaudeCodeCredentialError(body) {
     const message = this._extractErrorMessage(body)
     if (!message) {
@@ -1314,6 +1322,100 @@ class ClaudeRelayService {
     }
   }
 
+  // 🧹 全局去重 tool_result：Anthropic 要求整个 messages 数组内每个 tool_use_id 只能有唯一 tool_result，
+  // 否则 400 "each tool_use must have a single result. Found multiple `tool_result` blocks with id".
+  // 某些客户端（如 OpenClaw）会把同一 tool 的结果既放进正常 user 消息、又在后续再补一条重复的 user 消息，
+  // 形成跨消息重复。这里在整个数组范围内保留每个 id 的第一个 tool_result，移除后续重复；
+  // 若某条 user 消息的 tool_result 被全部移除且无其它内容，则删除该空消息。
+  // 🧠 Helper: check if a message is an assistant turn containing thinking/redacted_thinking blocks
+  // 🧠 Replace thinking/redacted_thinking blocks with safe redacted_thinking format
+  // to avoid Anthropic signature validation on corrupted client-supplied signatures.
+  _redactThinkingBlocks(body) {
+    if (!body || !Array.isArray(body.messages)) {
+      return
+    }
+    let redacted = 0
+    for (const message of body.messages) {
+      if (!message || message.role !== 'assistant' || !Array.isArray(message.content)) {
+        continue
+      }
+      const before = message.content.length
+      // Remove thinking / redacted_thinking blocks entirely. We cannot forge a valid
+      // redacted_thinking.data (Anthropic validates its format), so dropping the blocks is
+      // the only safe way to strip corrupted signatures. Historical assistant turns do not
+      // require a thinking block, so [tool_use...] / [text...] remain valid.
+      message.content = message.content.filter(
+        (b) => b && b.type !== 'thinking' && b.type !== 'redacted_thinking'
+      )
+      const removedHere = before - message.content.length
+      if (removedHere > 0) {
+        redacted += removedHere
+        // If the turn became empty, insert a placeholder so the assistant message stays valid.
+        if (message.content.length === 0) {
+          message.content = [{ type: 'text', text: '(thinking redacted)' }]
+        }
+      }
+    }
+    if (redacted > 0) {
+      logger.warn("Stripped " + redacted + " thinking block(s) for signature-retry")
+    }
+  }
+
+  _isThinkingTurn(message) {
+    return (
+      message &&
+      message.role === 'assistant' &&
+      Array.isArray(message.content) &&
+      message.content.some(
+        (b) => b && typeof b === 'object' && (b.type === 'thinking' || b.type === 'redacted_thinking')
+      )
+    )
+  }
+
+  _dedupeToolResults(messages) {
+    if (!Array.isArray(messages)) {
+      return messages
+    }
+    const seenResultIds = new Set()
+    const out = []
+    let removedResults = 0
+    const removedIds = []
+    for (const message of messages) {
+      if (!message || !Array.isArray(message.content)) {
+        out.push(message)
+        continue
+      }
+      let hadToolResult = false
+      const kept = []
+      for (const block of message.content) {
+        if (block && block.type === 'tool_result' && typeof block.tool_use_id === 'string') {
+          hadToolResult = true
+          if (seenResultIds.has(block.tool_use_id)) {
+            removedResults += 1
+            removedIds.push(block.tool_use_id)
+            continue
+          }
+          seenResultIds.add(block.tool_use_id)
+        }
+        kept.push(block)
+      }
+      // 若整条消息原本就是 tool_result 承载，且去重后为空，则丢弃这条空 user 消息
+      if (kept.length === 0 && hadToolResult) {
+        continue
+      }
+      if (kept.length !== message.content.length) {
+        message.content = kept
+      }
+      out.push(message)
+    }
+    if (removedResults > 0) {
+      logger.warn(
+        `🧹 Deduped ${removedResults} cross-message duplicate tool_result(s) for id(s): ${[...new Set(removedIds)].join(', ')}`
+      )
+    }
+    return out
+  }
+
   // 🔧 修补孤立的 tool_use（缺少对应 tool_result）
   // 客户端在长对话中可能截断历史消息，导致 tool_use 丢失对应的 tool_result，
   // 上游 Claude API 严格校验每个 tool_use 必须紧跟 tool_result，否则返回 400。
@@ -1506,6 +1608,7 @@ class ClaudeRelayService {
     // 🕰️ Overwrite any "Today's date is …" strings with server local date (strict YYYY-MM-DD.)
     this._rewriteTodayDate(processedBody)
 
+    processedBody.messages = this._dedupeToolResults(processedBody.messages)
     processedBody.messages = this._patchOrphanedToolUse(processedBody.messages)
 
     // 验证并限制max_tokens参数
@@ -1531,6 +1634,10 @@ class ClaudeRelayService {
         `🎭 third-party tool emulation: disabled for account ${account?.name || account?.id || 'unknown'}`
       )
     }
+
+    // 🧠 Thinking blocks are now preserved on first attempt to maintain context.
+    // If upstream returns 400 "Invalid signature in thinking block", the retry path
+    // will call _redactThinkingBlocks before re-sending (see stream error handler).
 
     // 如果不是真实的 Claude Code 请求，需要处理 system prompt
     // 策略：按真实 Claude Code 抓包形态使用 system 数组，保留原始系统指令
@@ -1740,6 +1847,10 @@ class ClaudeRelayService {
 
     if (Array.isArray(body.messages)) {
       body.messages.forEach((message) => {
+        // 🧠 Skip assistant turns with thinking blocks to preserve signature integrity
+        if (this._isThinkingTurn(message)) {
+          return
+        }
         if (message && Array.isArray(message.content)) {
           processContentArray(message.content)
         }
@@ -2037,6 +2148,10 @@ class ClaudeRelayService {
       for (let messageIndex = 0; messageIndex < body.messages.length; messageIndex += 1) {
         const message = body.messages[messageIndex]
         if (!message || !Array.isArray(message.content)) {
+          continue
+        }
+        // 🧠 Skip assistant turns with thinking blocks to preserve signature integrity
+        if (this._isThinkingTurn(message)) {
           continue
         }
 
@@ -2535,7 +2650,7 @@ class ClaudeRelayService {
         reject(new Error('Request timeout'))
       })
 
-      // 写入请求体
+        // 写入请求体
       req.write(bodyString)
       // 🧹 内存优化：立即清空 bodyString 引用，避免闭包捕获
       bodyString = null
@@ -3208,7 +3323,7 @@ class ClaudeRelayService {
             } else if (res.statusCode === 403) {
               // 403 处理：先检查是否为封禁性质的 403（组织被禁用/OAuth 被禁止）
               // 注意：重试逻辑已在 handleErrorResponse 外部提前处理
-              if (this._isOrganizationDisabledError(res.statusCode, errorData)) {
+            if (this._isOrganizationDisabledError(res.statusCode, errorData)) {
                 logger.error(
                   `🚫 [Stream] Organization disabled/banned error (403) detected for account ${accountId}, marking as blocked`
                 )
@@ -3312,6 +3427,51 @@ class ClaudeRelayService {
                   sessionHash,
                   streamTransformer,
                   { ...requestOptions, useRandomizedToolNames: true },
+                  isDedicatedOfficialAccount,
+                  onResponseStart,
+                  retryCount
+                )
+                resolve(retryResult)
+              } catch (retryError) {
+                reject(retryError)
+              }
+              return
+            }
+            // 🧠 Invalid thinking signature (any status, typically 400) → redact & retry
+            if (
+              this._isInvalidThinkingSignatureError(errorData) &&
+              requestOptions.bodyStoreId &&
+              this.bodyStore.has(requestOptions.bodyStoreId)
+            ) {
+              let sigRetryBody
+              try {
+                sigRetryBody = JSON.parse(this.bodyStore.get(requestOptions.bodyStoreId))
+              } catch (parseError) {
+                logger.error("Failed to parse body for signature retry: " + parseError.message)
+                reject(new Error("signature retry body parse failed"))
+                return
+              }
+              this._redactThinkingBlocks(sigRetryBody)
+              // Persist the redacted body back to bodyStore so any subsequent retry branch
+              // (403/401/529/credential) re-reads the redacted version, not the original.
+              try {
+                this.bodyStore.set(requestOptions.bodyStoreId, JSON.stringify(sigRetryBody))
+              } catch (e) {}
+              logger.warn("Retrying with redacted thinking blocks due to Invalid signature error")
+              try {
+                responseStream.removeListener('close', onResponseStreamClose)
+                const retryResult = await this._makeClaudeStreamRequestWithUsageCapture(
+                  sigRetryBody,
+                  accessToken,
+                  proxyAgent,
+                  clientHeaders,
+                  responseStream,
+                  usageCallback,
+                  accountId,
+                  accountType,
+                  sessionHash,
+                  streamTransformer,
+                  requestOptions,
                   isDedicatedOfficialAccount,
                   onResponseStart,
                   retryCount

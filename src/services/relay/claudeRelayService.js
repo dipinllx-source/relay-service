@@ -140,9 +140,14 @@ class ClaudeRelayService {
     const TOOL_STREAMING_BETA = 'fine-grained-tool-streaming-2025-05-14'
 
     const isHaikuModel = modelId && modelId.toLowerCase().includes('haiku')
+    const REDACT_THINKING_BETA = 'redact-thinking-2026-02-12'
+    const THINKING_TOKEN_COUNT_BETA = 'thinking-token-count-2026-05-13'
+    const CONTEXT_MANAGEMENT_BETA = 'context-management-2025-06-27'
+    const PROMPT_CACHING_SCOPE_BETA = 'prompt-caching-scope-2026-01-05'
+
     const baseBetas = isHaikuModel
       ? [OAUTH_BETA, INTERLEAVED_THINKING_BETA]
-      : [CLAUDE_CODE_BETA, OAUTH_BETA, INTERLEAVED_THINKING_BETA, TOOL_STREAMING_BETA]
+      : [CLAUDE_CODE_BETA, OAUTH_BETA, INTERLEAVED_THINKING_BETA, REDACT_THINKING_BETA, THINKING_TOKEN_COUNT_BETA, CONTEXT_MANAGEMENT_BETA, PROMPT_CACHING_SCOPE_BETA, TOOL_STREAMING_BETA]
 
     const betaList = []
     const seen = new Set()
@@ -1443,16 +1448,36 @@ class ClaudeRelayService {
       systemEntries.push(normalized)
     })
 
-    return [claudeCodeEntry, ...systemEntries]
+    // Inject billing header as system[0] (matches real CLI behavior)
+    const billingEntry = {
+      type: 'text',
+      text: 'x-anthropic-billing-header: cc_version=2.1.212.b29; cc_entrypoint=cli;'
+    }
+
+    return [billingEntry, claudeCodeEntry, ...systemEntries]
   }
 
   _applyNonRealClaudeCodeDefaults(body) {
     if (body.max_tokens === undefined || body.max_tokens === null) {
-      body.max_tokens = 32000
+      body.max_tokens = 64000
     }
 
-    if (body.temperature === undefined || body.temperature === null) {
-      body.temperature = 1
+    // Do NOT inject temperature (real CLI never sends it)
+
+    // Inject thinking (adaptive mode, matches real CLI)
+    if (!body.thinking) {
+      body.thinking = { type: 'adaptive' }
+    }
+
+    // context_management: not injected (upstream rejects as Extra inputs not permitted)
+
+    // fallbacks: not injected (upstream rejects as Extra inputs not permitted)
+
+    // diagnostics: not injected (upstream rejects as Extra inputs not permitted)
+
+    // Ensure stream is set
+    if (body.stream === undefined) {
+      body.stream = true
     }
   }
 

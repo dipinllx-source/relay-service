@@ -24,9 +24,7 @@ class ClaudeCodeHeadersService {
       'x-stainless-runtime-version': 'v26.3.0',
       'anthropic-dangerous-direct-browser-access': 'true',
       'x-app': 'cli',
-      'user-agent': 'claude-cli/2.1.212 (external, cli)',
-      'accept-language': '*',
-      'sec-fetch-mode': 'cors'
+      'user-agent': 'claude-cli/2.1.212 (external, cli)'
     }
 
     // 需要捕获的 Claude Code 特定 headers
@@ -42,9 +40,7 @@ class ClaudeCodeHeadersService {
       'anthropic-dangerous-direct-browser-access',
       'x-app',
       'user-agent',
-      'accept-language',
-      'sec-fetch-mode'
-      // 注意：不捕获 accept-encoding，避免存储客户端的 zstd 等不支持的编码
+      // 注意：不捕获 accept-encoding / accept-language / sec-fetch-mode（真 CLI 不带）
     ]
 
     // Headers 缓存 TTL（60秒）

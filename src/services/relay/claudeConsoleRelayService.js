@@ -410,7 +410,7 @@ function transformBodyForClaudeCode(body) {
 
 class ClaudeConsoleRelayService {
   constructor() {
-    this.defaultUserAgent = 'claude-cli/2.0.52 (external, cli)'
+    this.defaultUserAgent = 'claude-cli/2.1.212 (external, cli)'
   }
 
   // 🚀 转发请求到Claude Console API

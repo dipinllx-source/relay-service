@@ -15,16 +15,16 @@ class ClaudeCodeHeadersService {
   constructor() {
     this.defaultHeaders = {
       'x-stainless-retry-count': '0',
-      'x-stainless-timeout': '60',
+      'x-stainless-timeout': '600',
       'x-stainless-lang': 'js',
-      'x-stainless-package-version': '0.55.1',
-      'x-stainless-os': 'Windows',
+      'x-stainless-package-version': '0.94.0',
+      'x-stainless-os': 'Linux',
       'x-stainless-arch': 'x64',
       'x-stainless-runtime': 'node',
-      'x-stainless-runtime-version': 'v20.19.2',
+      'x-stainless-runtime-version': 'v26.3.0',
       'anthropic-dangerous-direct-browser-access': 'true',
       'x-app': 'cli',
-      'user-agent': 'claude-cli/1.0.57 (external, cli)',
+      'user-agent': 'claude-cli/2.1.212 (external, cli)',
       'accept-language': '*',
       'sec-fetch-mode': 'cors'
     }

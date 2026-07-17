@@ -1633,9 +1633,14 @@ class ClaudeRelayService {
       body.diagnostics = { previous_message_id: null }
     }
 
-    // fallbacks：真实 CLI 发送服务端降级模型列表。
+    // fallbacks：真实 CLI 仅对「有更高层可降级」的中低层模型发送服务端降级列表；
+    // 顶层模型（opus）本身不支持 fallbacks 参数，warmup 用的 haiku 也不带。
+    // 抓包实证：model=claude-fable-5 时 fallbacks=[{model:claude-opus-4-8}]；
+    // 若对 opus 请求注入会 400 "'claude-opus-4-8' does not support the `fallbacks` parameter"。
     // 需要 server-side-fallback-2026-06-01 + fallback-credit-2026-06-01 beta（已发送）。
-    if (body.fallbacks === undefined) {
+    const modelName = typeof body.model === 'string' ? body.model.toLowerCase() : ''
+    const modelSupportsFallbacks = modelName && !/opus|haiku/.test(modelName)
+    if (body.fallbacks === undefined && modelSupportsFallbacks) {
       body.fallbacks = [{ model: 'claude-opus-4-8' }]
     }
   }

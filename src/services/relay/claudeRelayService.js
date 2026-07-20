@@ -1542,6 +1542,64 @@ class ClaudeRelayService {
     return [claudeCodeEntry, ...systemEntries]
   }
 
+  // 🔤 提取 messages 中第一条 role=user 消息的首段 text（兼容 string / block[] 两种 content）。
+  _extractFirstUserText(body) {
+    if (!body || !Array.isArray(body.messages)) {
+      return ''
+    }
+    for (const msg of body.messages) {
+      if (!msg || msg.role !== 'user') {
+        continue
+      }
+      const content = msg.content
+      if (typeof content === 'string') {
+        return content
+      }
+      if (Array.isArray(content)) {
+        const textBlock = content.find((b) => b && b.type === 'text' && typeof b.text === 'string')
+        return textBlock ? textBlock.text : ''
+      }
+      return ''
+    }
+    return ''
+  }
+
+  // 🆔 从 account 记录解析 Claude 真实 account_uuid（来自 /api/oauth/profile，存于 subscriptionInfo）。
+  // 支持直接字段 account.accountUuid / account.account_uuid，或 subscriptionInfo(JSON 字符串/对象)。
+  _getAccountUuid(account) {
+    if (!account) {
+      return ''
+    }
+    if (typeof account.accountUuid === 'string' && account.accountUuid.trim()) {
+      return account.accountUuid.trim()
+    }
+    if (typeof account.account_uuid === 'string' && account.account_uuid.trim()) {
+      return account.account_uuid.trim()
+    }
+    const sub = account.subscriptionInfo
+    if (sub) {
+      try {
+        const parsed = typeof sub === 'string' ? JSON.parse(sub) : sub
+        if (parsed && typeof parsed.accountUuid === 'string' && parsed.accountUuid.trim()) {
+          return parsed.accountUuid.trim()
+        }
+      } catch (_e) {
+        // ignore malformed subscriptionInfo
+      }
+    }
+    return ''
+  }
+
+  // 🎲 由种子确定性派生一个格式合法的 UUID v4（同一种子恒定 → 会话稳定）。
+  _deriveStableUuid(seed) {
+    const h = crypto.createHash('sha256').update(String(seed)).digest('hex')
+    const c = h.slice(0, 32).split('')
+    c[12] = '4' // version 4
+    c[16] = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16) // variant 10xx
+    const s = c.join('')
+    return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20, 32)}`
+  }
+
   // 🔢 复刻真实 Claude Code CLI 的 cc_version 指纹后缀（每请求随首条 user 文本变化）。
   //
   // 算法源自 Parrot / sub2api 逆向：取 messages 中第一条 role=user 首段 text 的
@@ -1550,22 +1608,7 @@ class ClaudeRelayService {
   // 核心价值是「fp 随内容变化」——消除固定指纹这一 bot 特征，而非字节级复刻不可验证的值。
   _computeCcFingerprint(body, version) {
     const salt = '59cf53e54c78'
-    let firstText = ''
-    if (body && Array.isArray(body.messages)) {
-      for (const msg of body.messages) {
-        if (!msg || msg.role !== 'user') {
-          continue
-        }
-        const content = msg.content
-        if (typeof content === 'string') {
-          firstText = content
-        } else if (Array.isArray(content)) {
-          const textBlock = content.find((b) => b && b.type === 'text' && typeof b.text === 'string')
-          firstText = textBlock ? textBlock.text : ''
-        }
-        break
-      }
-    }
+    const firstText = this._extractFirstUserText(body)
     const indices = [4, 7, 20]
     const chars = indices.map((i) => (i < firstText.length ? firstText[i] : '0')).join('')
     const digest = crypto.createHash('sha256').update(salt + chars + version).digest('hex')
@@ -1729,20 +1772,33 @@ class ClaudeRelayService {
       this._sanitizeNonRealClaudeCodeToolDescriptions(processedBody)
     }
 
-    // 如果不是真实的 Claude Code 请求且缺少 metadata.user_id，注入合法的 user_id
-    // 非 Claude Code 客户端通常不发送 metadata，补全后避免上游检测到缺失
+    // metadata.user_id：这是 Anthropic 判定「第一方 Claude Code vs 第三方 app」的关键信号。
+    // 真实 CLI 发送 {"device_id":<64hex 机器指纹>,"account_uuid":<账号真实 UUID>,"session_id":<会话稳定 UUID>}，
+    // 其中 account_uuid 必须与 OAuth token 所属账号一致（来自 /api/oauth/profile，存于 account.subscriptionInfo）。
+    // 之前 emulation 注入 account_uuid:''（空）+ 每请求随机 session_id → 被判第三方 → 计费走 extra usage 池。
+    // 修复（对齐 sub2api buildOAuthMetadataUserID）：
+    //   - account_uuid = 账号真实 UUID（从 subscriptionInfo 解析）
+    //   - device_id = 按 account.id 派生的稳定 64hex（模拟单账号单机，避免全量流量共用一个 device）
+    //   - session_id = 按 account.id + 首条 user 文本派生的稳定 UUID（同一会话追加消息保持不变，贴近真实 CLI 进程级 session）
+    //   - emulation 下始终覆盖客户端（非 CLI 客户端）自带的 metadata，因为其 account_uuid 必然不正确
     if (shouldEmulate) {
       if (!processedBody.metadata || typeof processedBody.metadata !== 'object') {
         processedBody.metadata = {}
       }
-      if (!processedBody.metadata.user_id || typeof processedBody.metadata.user_id !== 'string') {
-        const deviceId = crypto.createHash('sha256').update('relay-generated-device').digest('hex')
-        const sessionId = crypto.randomUUID()
-        processedBody.metadata.user_id = JSON.stringify({
-          device_id: deviceId,
-          account_uuid: '',
-          session_id: sessionId
-        })
+      const accountUuid = this._getAccountUuid(account)
+      const accountKey = (account && (account.id || account.name)) || 'relay'
+      const deviceId = crypto.createHash('sha256').update(`cc-device:${accountKey}`).digest('hex')
+      const firstUserText = this._extractFirstUserText(processedBody)
+      const sessionId = this._deriveStableUuid(`cc-session:${accountKey}:${firstUserText}`)
+      processedBody.metadata.user_id = JSON.stringify({
+        device_id: deviceId,
+        account_uuid: accountUuid,
+        session_id: sessionId
+      })
+      if (!accountUuid) {
+        logger.warn(
+          `⚠️ Emulation metadata missing account_uuid for account ${accountKey}; request may be billed as third-party. Run fetchAndUpdateAccountProfile.`
+        )
       }
     }
 

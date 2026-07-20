@@ -3651,14 +3651,28 @@ class ClaudeRelayService {
                   `data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`
                 )
               } else {
-                // 标准错误格式
+                // 标准 Anthropic SSE 错误事件格式：透传上游 error.type/message，
+                // 使 OpenClaw / SDK 等客户端能正确解析并展示真实失败原因
+                // （如 "Third-party apps now draw from your extra usage…"），
+                // 而不是收到非标准包裹后表现为空白/异常。
+                let errorType = 'api_error'
+                let finalMessage = errorMessage
+                try {
+                  const parsed = JSON.parse(errorData)
+                  if (parsed.error?.type) {
+                    errorType = parsed.error.type
+                  }
+                  if (parsed.error?.message) {
+                    finalMessage = parsed.error.message
+                  }
+                } catch {
+                  // 保留默认
+                }
                 responseStream.write('event: error\n')
                 responseStream.write(
                   `data: ${JSON.stringify({
-                    error: 'Claude API error',
-                    status: res.statusCode,
-                    details: errorData,
-                    timestamp: new Date().toISOString()
+                    type: 'error',
+                    error: { type: errorType, message: finalMessage }
                   })}\n\n`
                 )
               }

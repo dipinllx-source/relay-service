@@ -2647,6 +2647,7 @@ class ClaudeRelayService {
     const modelId = requestPayload?.model || body?.model
     const clientBetaHeader = this._getHeaderValueCaseInsensitive(clientHeaders, 'anthropic-beta')
     headers['anthropic-beta'] = this._getBetaHeader(modelId, clientBetaHeader)
+
     return {
       requestPayload,
       bodyString,

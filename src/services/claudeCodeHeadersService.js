@@ -21,10 +21,10 @@ class ClaudeCodeHeadersService {
       'x-stainless-os': 'Linux',
       'x-stainless-arch': 'x64',
       'x-stainless-runtime': 'node',
-      'x-stainless-runtime-version': 'v26.3.0',
+      'x-stainless-runtime-version': 'v24.3.0',
       'anthropic-dangerous-direct-browser-access': 'true',
       'x-app': 'cli',
-      'user-agent': 'claude-cli/2.1.212 (external, cli)'
+      'user-agent': 'claude-cli/2.1.220 (external, cli)'
     }
 
     // 需要捕获的 Claude Code 特定 headers

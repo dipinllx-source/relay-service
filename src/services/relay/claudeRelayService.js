@@ -136,49 +136,21 @@ class ClaudeRelayService {
 
   // 🔧 根据模型ID和客户端传递的 anthropic-beta 获取最终的 header
   //
-  // 全量 beta 集合与真实 Claude Code CLI v2.1.212 抓包字节对齐（见 /tmp/claude-direct-req-*.json）。
-  // 关键：diagnostics / fallbacks / context_management 等 body 字段由对应 beta flag 授权，
-  // 缺失 flag 时上游会以 "Extra inputs are not permitted" 400 拒绝这些字段（header/body 对称约束）。
-  // 因此这里必须发送完整 15 个 flag，body 侧的 _applyNonRealClaudeCodeDefaults 才能安全注入这些字段。
+  // 对齐 sub2api v2.1.220 的 FullClaudeCodeMimicryBetas()：7 个 flag，所有模型统一。
+  // 不含 redact-thinking（避免上游抹除 thinking 内容）、不含 diagnostics/fallbacks 对应 flag
+  // （body 侧也不再注入这些字段，见 _applyNonRealClaudeCodeDefaults）。
+  // context_management 由 context-management-2025-06-27 授权，仍保留注入。
   _getBetaHeader(modelId, clientBetaHeader) {
-    const OAUTH_BETA = 'oauth-2025-04-20'
-    const CLAUDE_CODE_BETA = 'claude-code-20250219'
-    const INTERLEAVED_THINKING_BETA = 'interleaved-thinking-2025-05-14'
-
-    const isHaikuModel = modelId && modelId.toLowerCase().includes('haiku')
-    const REDACT_THINKING_BETA = 'redact-thinking-2026-02-12'
-    const THINKING_TOKEN_COUNT_BETA = 'thinking-token-count-2026-05-13'
-    const CONTEXT_MANAGEMENT_BETA = 'context-management-2025-06-27'
-    const PROMPT_CACHING_SCOPE_BETA = 'prompt-caching-scope-2026-01-05'
-    const MID_CONVERSATION_SYSTEM_BETA = 'mid-conversation-system-2026-04-07'
-    const ADVISOR_TOOL_BETA = 'advisor-tool-2026-03-01'
-    const ADVANCED_TOOL_USE_BETA = 'advanced-tool-use-2025-11-20'
-    const EFFORT_BETA = 'effort-2025-11-24'
-    const SERVER_SIDE_FALLBACK_BETA = 'server-side-fallback-2026-06-01'
-    const FALLBACK_CREDIT_BETA = 'fallback-credit-2026-06-01'
-    const EXTENDED_CACHE_TTL_BETA = 'extended-cache-ttl-2025-04-11'
-    const CACHE_DIAGNOSIS_BETA = 'cache-diagnosis-2026-04-07'
-
-    // 真实 CLI v2.1.212 完整 flag 顺序（haiku 走精简集，与抓包一致）
-    const baseBetas = isHaikuModel
-      ? [OAUTH_BETA, INTERLEAVED_THINKING_BETA]
-      : [
-          CLAUDE_CODE_BETA,
-          OAUTH_BETA,
-          INTERLEAVED_THINKING_BETA,
-          REDACT_THINKING_BETA,
-          THINKING_TOKEN_COUNT_BETA,
-          CONTEXT_MANAGEMENT_BETA,
-          PROMPT_CACHING_SCOPE_BETA,
-          MID_CONVERSATION_SYSTEM_BETA,
-          ADVISOR_TOOL_BETA,
-          ADVANCED_TOOL_USE_BETA,
-          EFFORT_BETA,
-          SERVER_SIDE_FALLBACK_BETA,
-          FALLBACK_CREDIT_BETA,
-          EXTENDED_CACHE_TTL_BETA,
-          CACHE_DIAGNOSIS_BETA
-        ]
+    // sub2api FullClaudeCodeMimicryBetas() — 顺序与真实 CLI 抓包一致
+    const baseBetas = [
+      'claude-code-20250219',
+      'oauth-2025-04-20',
+      'interleaved-thinking-2025-05-14',
+      'prompt-caching-scope-2026-01-05',
+      'effort-2025-11-24',
+      'context-management-2025-06-27',
+      'extended-cache-ttl-2025-04-11'
+    ]
 
     const betaList = []
     const seen = new Set()
@@ -1648,7 +1620,7 @@ class ClaudeRelayService {
   //
   // 算法源自 Parrot / sub2api 逆向：取 messages 中第一条 role=user 首段 text 的
   // 第 4/7/20 字符（不足以 '0' 补齐），SHA256(salt + chars + version) 取 hex 前 3 位。
-  // 注：v2.1.212 抓包的 fp（b29/f9b）无法用该 salt 精确复现（版本相关），但本实现的
+  // 注：v2.1.220 抓包的 fp（b29/f9b）无法用该 salt 精确复现（版本相关），但本实现的
   // 核心价值是「fp 随内容变化」——消除固定指纹这一 bot 特征，而非字节级复刻不可验证的值。
   _computeCcFingerprint(body, version) {
     const salt = '59cf53e54c78'
@@ -1659,14 +1631,14 @@ class ClaudeRelayService {
     return { fp: digest.slice(0, 3), cch: digest.slice(3, 8) }
   }
 
-  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.212 形态）：
+  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.220 形态）：
   //   x-anthropic-billing-header: cc_version=2.1.212.{fp}; cc_entrypoint=cli; cch={cch};
   // 必须在 _removeBillingHeaderFromSystem 之后调用，避免被误剥离。
   _injectDynamicBillingHeader(body) {
     if (!body) {
       return
     }
-    const version = '2.1.212'
+    const version = '2.1.220'
     const { fp } = this._computeCcFingerprint(body, version)
     // P0: removed cch= field (new CLI versions no longer send it)
     const billingEntry = {
@@ -1683,11 +1655,15 @@ class ClaudeRelayService {
   }
 
   _applyNonRealClaudeCodeDefaults(body) {
+    // max_tokens：真实 CLI 默认 128000（对齐 sub2api v2.1.220）
     if (body.max_tokens === undefined || body.max_tokens === null) {
-      body.max_tokens = 64000
+      body.max_tokens = 128000
     }
 
-    // Do NOT inject temperature (real CLI v2.1.212 never sends it — confirmed by capture)
+    // temperature：真实 CLI 总是发送 temperature，默认 1（对齐 sub2api v2.1.220）
+    if (body.temperature === undefined || body.temperature === null) {
+      body.temperature = 1
+    }
 
     // Inject thinking (adaptive mode, matches real CLI)
     if (!body.thinking) {
@@ -1698,10 +1674,6 @@ class ClaudeRelayService {
     if (body.stream === undefined) {
       body.stream = true
     }
-
-    // 以下三个字段是真实 CLI v2.1.212 请求体的固有部分（抓包确认）。
-    // 之前误以为上游拒绝，实则是因为当时 anthropic-beta 缺少对应授权 flag（header/body 对称）。
-    // 现已发送完整 15-flag beta，可安全注入：
 
     // context_management：thinking 为 enabled/adaptive 时，真实 CLI 附带 clear_thinking 策略。
     // 需要 context-management-2025-06-27 beta（已在 _getBetaHeader 中发送）。
@@ -1715,22 +1687,11 @@ class ClaudeRelayService {
       }
     }
 
-    // diagnostics：真实 CLI 发送 {"previous_message_id": null}。
-    // 需要 cache-diagnosis-2026-04-07 beta（已发送）。
-    if (body.diagnostics === undefined) {
-      body.diagnostics = { previous_message_id: null }
-    }
-
-    // fallbacks：真实 CLI 仅对「有更高层可降级」的中低层模型发送服务端降级列表；
-    // 顶层模型（opus）本身不支持 fallbacks 参数，warmup 用的 haiku 也不带。
-    // 抓包实证：model=claude-fable-5 时 fallbacks=[{model:claude-opus-4-8}]；
-    // 若对 opus 请求注入会 400 "'claude-opus-4-8' does not support the `fallbacks` parameter"。
-    // 需要 server-side-fallback-2026-06-01 + fallback-credit-2026-06-01 beta（已发送）。
-    const modelName = typeof body.model === 'string' ? body.model.toLowerCase() : ''
-    const modelSupportsFallbacks = modelName && !/opus|haiku/.test(modelName)
-    if (body.fallbacks === undefined && modelSupportsFallbacks) {
-      body.fallbacks = [{ model: 'claude-opus-4-8' }]
-    }
+    // diagnostics / fallbacks：不再注入。
+    // - diagnostics 需要 cache-diagnosis-2026-04-07 beta（已从 beta 集合中移除）
+    // - fallbacks 需要 server-side-fallback-2026-06-01 beta（已从 beta 集合中移除）
+    //   且 sonnet 模型不支持 fallbacks 参数，注入会导致 400 错误
+    // 对齐 sub2api v2.1.220：body 中不主动注入这两个字段
   }
 
   // 🔄 处理请求体
@@ -1851,7 +1812,7 @@ class ClaudeRelayService {
     this._removeBillingHeaderFromSystem(processedBody)
 
     // 💳 emulation：在剥离客户端 billing 之后，注入本服务动态派生的 billing header 作为 system[0]，
-    // 对齐真实 CLI v2.1.212（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
+    // 对齐真实 CLI v2.1.220（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
     if (shouldEmulate) {
       this._injectDynamicBillingHeader(processedBody)
     }
@@ -2590,7 +2551,7 @@ class ClaudeRelayService {
     if (shouldEmulate) {
       // P2：emulation 只发送精确、版本自洽的 CLI header 集合。
       // 优先使用账号 Redis 缓存中「与当前声明 UA 同版本」的真实抓取 headers；
-      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.212 抓包字节对齐）。
+      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.220 抓包字节对齐）。
       // 关键：不沿用旧版本缓存（避免 x-stainless 与 UA 版本错位），也不保留客户端多余头。
       const declaredVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
         claudeCodeHeadersService.defaultHeaders['user-agent']
@@ -2680,7 +2641,7 @@ class ClaudeRelayService {
     headers['accept-encoding'] = ACCEPT_ENCODING
 
     // 使用统一 User-Agent 或客户端提供的，最后使用默认值
-    const userAgent = unifiedUA || headers['user-agent'] || 'claude-cli/2.1.212 (external, cli)'
+    const userAgent = unifiedUA || headers['user-agent'] || 'claude-cli/2.1.220 (external, cli)'
     const acceptHeader = headers['accept'] || 'application/json'
     delete headers['user-agent']
     delete headers['accept']

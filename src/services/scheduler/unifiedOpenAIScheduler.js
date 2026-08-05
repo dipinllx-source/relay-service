@@ -4,12 +4,84 @@ const openaiCompatibleAccountService = require('../account/openaiCompatibleAccou
 const accountGroupService = require('../accountGroupService')
 const redis = require('../../models/redis')
 const logger = require('../../utils/logger')
-const { isSchedulable, sortAccountsByPriority } = require('../../utils/commonHelper')
+const config = require('../../../config/config')
+const { isSchedulable } = require('../../utils/commonHelper')
 const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 
 class UnifiedOpenAIScheduler {
   constructor() {
     this.SESSION_MAPPING_PREFIX = 'unified_openai_session_mapping:'
+  }
+
+  // 🔧 辅助方法：解析账户周限用量百分比（codexPrimaryUsedPercent），缺失/非数值返回 null
+  _codexUsedPercent(account) {
+    const percent = parseFloat(account?.codexPrimaryUsedPercent)
+    return Number.isFinite(percent) ? percent : null
+  }
+
+  // 🔧 辅助方法：周限用量分档（缺数据不惩罚，按 band 0 处理）
+  _codexUsageBand(account) {
+    const percent = this._codexUsedPercent(account)
+    if (percent === null) {
+      return 0
+    }
+    const bandWidth = config.openai?.usageBandWidth || 30
+    return Math.floor(Math.max(0, percent) / bandWidth)
+  }
+
+  // 📊 OpenAI 专属排序：priority → 周限用量档位 → lastUsedAt → createdAt
+  // 档间引导流量流向低用量账号，档内保留 LRU 避免羊群效应；
+  // 不修改共享的 sortAccountsByPriority（Claude/Gemini 调度在用）
+  _sortAccountsForOpenAI(accounts) {
+    return [...accounts].sort((a, b) => {
+      const priorityA = parseInt(a.priority, 10) || 50
+      const priorityB = parseInt(b.priority, 10) || 50
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB
+      }
+      const bandA = this._codexUsageBand(a)
+      const bandB = this._codexUsageBand(b)
+      if (bandA !== bandB) {
+        return bandA - bandB
+      }
+      const lastUsedA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0
+      const lastUsedB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0
+      if (lastUsedA !== lastUsedB) {
+        return lastUsedA - lastUsedB
+      }
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return createdA - createdB
+    })
+  }
+
+  // 🚧 硬保护：剔除周限用量达到阈值的账号；剔除后池空则放行全部（对齐 429 兜底语义，不引入新的拒绝路径）
+  _applyUsageHardLimit(accounts) {
+    const hardLimit = config.openai?.usageHardLimit || 95
+    if (hardLimit >= 100 || accounts.length === 0) {
+      return accounts
+    }
+    const filtered = accounts.filter((account) => {
+      const percent = this._codexUsedPercent(account)
+      return percent === null || percent < hardLimit
+    })
+    if (filtered.length === 0) {
+      const usageSummary = accounts
+        .map((account) => `${account.name}: ${this._codexUsedPercent(account)}%`)
+        .join(', ')
+      logger.warn(
+        `⚠️ All OpenAI accounts reached usage hard limit (${hardLimit}%), releasing all candidates: ${usageSummary}`
+      )
+      return accounts
+    }
+    if (filtered.length < accounts.length) {
+      const excluded = accounts
+        .filter((account) => !filtered.includes(account))
+        .map((account) => `${account.name} (${this._codexUsedPercent(account)}%)`)
+        .join(', ')
+      logger.info(`🚧 Excluded OpenAI accounts over usage hard limit (${hardLimit}%): ${excluded}`)
+    }
+    return filtered
   }
 
   // 🔧 辅助方法：检查账户是否被限流（兼容字符串和对象格式）
@@ -318,8 +390,11 @@ class UnifiedOpenAIScheduler {
         }
       }
 
-      // 按优先级和最后使用时间排序（与 Claude/Gemini 调度保持一致）
-      const sortedAccounts = sortAccountsByPriority(availableAccounts)
+      // 硬保护：剔除周限用量达到阈值的账号（剔除后池空则放行）
+      const candidateAccounts = this._applyUsageHardLimit(availableAccounts)
+
+      // 按优先级 → 周限用量档位 → 最后使用时间排序（OpenAI 专属，Claude/Gemini 不受影响）
+      const sortedAccounts = this._sortAccountsForOpenAI(candidateAccounts)
 
       // 选择第一个账户
       const selectedAccount = sortedAccounts[0]
@@ -990,8 +1065,11 @@ class UnifiedOpenAIScheduler {
         throw error
       }
 
-      // 按优先级和最后使用时间排序（与 Claude/Gemini 调度保持一致）
-      const sortedAccounts = sortAccountsByPriority(availableAccounts)
+      // 硬保护：剔除周限用量达到阈值的账号（剔除后池空则放行）
+      const candidateAccounts = this._applyUsageHardLimit(availableAccounts)
+
+      // 按优先级 → 周限用量档位 → 最后使用时间排序（OpenAI 专属，Claude/Gemini 不受影响）
+      const sortedAccounts = this._sortAccountsForOpenAI(candidateAccounts)
 
       // 选择第一个账户
       const selectedAccount = sortedAccounts[0]

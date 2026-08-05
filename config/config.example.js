@@ -87,6 +87,26 @@ const config = {
     }
   },
 
+  // 🤖 OpenAI/Codex 调度配置
+  openai: {
+    // 周限用量分档档宽（百分比，1-100）：调度排序时按 codexPrimaryUsedPercent/档宽 分档，低档优先；设 100 等效关闭分档
+    usageBandWidth: (() => {
+      const width = parseInt(process.env.OPENAI_USAGE_BAND_WIDTH)
+      if (!Number.isFinite(width) || width < 1 || width > 100) {
+        return 30
+      }
+      return width
+    })(),
+    // 硬保护阈值（百分比，1-100）：用量达到阈值的账号从候选池剔除（池空时放行）；设 100 关闭硬保护
+    usageHardLimit: (() => {
+      const limit = parseInt(process.env.OPENAI_USAGE_HARD_LIMIT)
+      if (!Number.isFinite(limit) || limit < 1 || limit > 100) {
+        return 95
+      }
+      return limit
+    })()
+  },
+
   // ☁️ Bedrock API配置
   bedrock: {
     enabled: process.env.CLAUDE_CODE_USE_BEDROCK === '1',

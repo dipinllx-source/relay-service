@@ -6,6 +6,11 @@ const fs = require('fs')
 const redis = require('../models/redis')
 const logger = require('../utils/logger')
 const config = require('../../config/config')
+const {
+  loginRateLimit,
+  penalizeLogin,
+  clearLoginLimit
+} = require('../middleware/securityHardening')
 
 const router = express.Router()
 
@@ -18,9 +23,18 @@ router.get('/', (req, res) => {
 })
 
 // 🔐 管理员登录
-router.post('/auth/login', async (req, res) => {
+router.post('/auth/login', loginRateLimit, async (req, res) => {
   try {
     const { username, password } = req.body
+
+    // [SECHARDEN] login-validate: 强制字符串类型，拒绝对象/数组/数字（修复类型混淆 500 与 NoSQL 探测）
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      await penalizeLogin(req)
+      return res.status(400).json({
+        error: 'Invalid input',
+        message: 'Username and password must be strings'
+      })
+    }
 
     if (!username || !password) {
       return res.status(400).json({
@@ -74,6 +88,8 @@ router.post('/auth/login', async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, adminData.passwordHash)
 
     if (!isValidUsername || !isValidPassword) {
+      // [SECHARDEN] login-penalize: 记录失败以触发 IP 限流
+      await penalizeLogin(req)
       logger.security(`Failed login attempt for username: ${username}`)
       return res.status(401).json({
         error: 'Invalid credentials',
@@ -96,6 +112,8 @@ router.post('/auth/login', async (req, res) => {
     // 不再更新 Redis 中的最后登录时间，因为 Redis 只是缓存
     // init.json 是唯一真实数据源
 
+    // [SECHARDEN] login-clear: 成功登录清除该 IP 失败计数
+    await clearLoginLimit(req)
     logger.success(`Admin login successful: ${username}`)
 
     return res.json({

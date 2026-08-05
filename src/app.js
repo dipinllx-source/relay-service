@@ -42,6 +42,11 @@ const {
   requestSizeLimit
 } = require('./middleware/auth')
 const { browserFallbackMiddleware } = require('./middleware/browserFallback')
+const {
+  isTrustedMonitoring,
+  apiKeyBruteforceGuard,
+  normalizeBody
+} = require('./middleware/securityHardening')
 
 class Application {
   constructor() {
@@ -255,6 +260,8 @@ class Application {
         })
       )
       this.app.use(express.urlencoded({ extended: true, limit: '100mb' }))
+      // 🛡️ 归一化非对象 body，避免原始类型 JSON 触发下游 500
+      this.app.use(normalizeBody)
       this.app.use(securityMiddleware)
 
       // 🎯 信任代理
@@ -341,6 +348,9 @@ class Application {
       }
 
       // 🛣️ 路由
+      // 🛡️ API Key 爆破/枚举防护（仅惩罚 chat/completions 等路径的认证失败）
+      this.app.use(apiKeyBruteforceGuard)
+
       this.app.use('/api', apiRoutes)
       this.app.use('/api', unifiedRoutes) // 统一智能路由（支持 /v1/chat/completions 等）
       // Claude Code（Anthropic 格式）→ GPT（OpenAI Chat Completions）适配路由
@@ -441,7 +451,12 @@ class Application {
           }
 
           timer.end('completed')
-          res.json(health)
+          // [SECHARDEN] health-min: 仅可信来源返回完整健康详情，其余仅返回状态
+          if (await isTrustedMonitoring(req)) {
+            res.json(health)
+          } else {
+            res.json({ status: 'healthy', timestamp: health.timestamp })
+          }
         } catch (error) {
           logger.error('❌ Health check failed:', { error: error.message, stack: error.stack })
           res.status(503).json({
@@ -455,6 +470,10 @@ class Application {
       // 📊 指标端点
       this.app.get('/metrics', async (req, res) => {
         try {
+          // [SECHARDEN] metrics-guard: 仅可信来源（admin 会话 / IP 白名单 / 回环）可访问
+          if (!(await isTrustedMonitoring(req))) {
+            return res.status(403).json({ error: 'Forbidden', message: 'Access denied' })
+          }
           const stats = await redis.getSystemStats()
           const metrics = {
             ...stats,

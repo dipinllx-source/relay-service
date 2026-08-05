@@ -8,6 +8,7 @@ const unifiedClaudeScheduler = require('../services/scheduler/unifiedClaudeSched
 const apiKeyService = require('../services/apiKeyService')
 const { authenticateApiKey } = require('../middleware/auth')
 const logger = require('../utils/logger')
+const { isTrustedMonitoring } = require('../middleware/securityHardening')
 const { getEffectiveModel, parseVendorPrefixedModel } = require('../utils/modelHelper')
 const sessionHelper = require('../utils/sessionHelper')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
@@ -1560,6 +1561,13 @@ router.get('/v1/models', authenticateApiKey, async (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     const healthStatus = await claudeRelayService.healthCheck()
+
+    // [SECHARDEN] api-health-min: 仅可信来源返回详情（版本/账户数等），其余仅状态码
+    if (!(await isTrustedMonitoring(req))) {
+      return res
+        .status(healthStatus.healthy ? 200 : 503)
+        .json({ status: healthStatus.healthy ? 'healthy' : 'unhealthy' })
+    }
 
     res.status(healthStatus.healthy ? 200 : 503).json({
       status: healthStatus.healthy ? 'healthy' : 'unhealthy',

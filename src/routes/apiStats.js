@@ -14,7 +14,12 @@ const {
 const modelsConfig = require('../../config/models')
 const { getSafeMessage } = require('../utils/errorSanitizer')
 
+const { apiStatsRateLimit } = require('../middleware/securityHardening')
+
 const router = express.Router()
+
+// 🛡️ [SECHARDEN] 全模块 IP 限流，防枚举/滥用
+router.use(apiStatsRateLimit)
 
 // 📋 获取动态 Claude 模型选项（上游实时列表，失败返回 null 由调用处静态兜底）
 async function getDynamicClaudeModelOptions() {
@@ -88,11 +93,11 @@ router.post('/api/get-key-id', async (req, res) => {
       })
     }
 
-    // 基本API Key格式验证
+    // [SECHARDEN] oracle-unify-getkey: 格式无效与 key 不存在返回一致的 401，消除枚举 oracle
     if (typeof apiKey !== 'string' || apiKey.length < 10 || apiKey.length > 512) {
-      return res.status(400).json({
-        error: 'Invalid API key format',
-        message: 'API key format is invalid'
+      return res.status(401).json({
+        error: 'Invalid API key',
+        message: 'Invalid API key'
       })
     }
 
@@ -100,11 +105,12 @@ router.post('/api/get-key-id', async (req, res) => {
     const validation = await apiKeyService.validateApiKeyForStats(apiKey)
 
     if (!validation.valid) {
+      // [SECHARDEN] oracle-unify-getkey-notfound: 统一错误消息，不回显具体原因
       const clientIP = req.ip || req.connection?.remoteAddress || 'unknown'
       logger.security(`Invalid API key in get-key-id: ${validation.error} from ${clientIP}`)
       return res.status(401).json({
         error: 'Invalid API key',
-        message: validation.error
+        message: 'Invalid API key'
       })
     }
 

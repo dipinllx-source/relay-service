@@ -1980,6 +1980,11 @@ const errorHandler = (error, req, res, _next) => {
 
   // 设置响应头
   res.setHeader('X-Request-ID', requestId)
+  // [SECHARDEN] errorhdr: 统一错误响应的安全头，与正常响应一致
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
 
   // 构建错误响应
   const errorResponse = {

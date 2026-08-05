@@ -43,6 +43,24 @@ export const getHttpsStatusApi = () => request({ url: '/admin/https/status', met
 // 🗄️ 元数据存储健康状态（只读）—— StorageHealthSection 使用
 export const getStorageStatus = () => request({ url: '/admin/storage/status', method: 'GET' })
 
+// 🗄️ 备份：导出摘要（各类条目数）
+export const getBackupSummaryApi = () => request({ url: '/admin/backup/summary', method: 'GET' })
+
+// 🗄️ 备份：导出为 JSON 文件（blob 下载，保留 Authorization 头）
+export const exportBackupApi = async () => {
+  const axios = (await import('axios')).default
+  const token = localStorage.getItem('authToken')
+  const resp = await axios.get(`${APP_CONFIG.apiPrefix}/admin/backup/export`, {
+    responseType: 'blob',
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  })
+  return resp
+}
+
+// 🗄️ 备份：导入（body 为备份 JSON，服务端跳过冲突）
+export const importBackupApi = (backup) =>
+  request({ url: '/admin/backup/import', method: 'POST', data: backup })
+
 // 🌐 本机网络端点（IPv4 / IPv6）—— 用于 API Key 复制配置时切换地址族
 export const getNetworkEndpointsApi = () =>
   request({ url: '/admin/system/network-endpoints', method: 'GET' })

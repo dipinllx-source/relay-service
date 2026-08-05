@@ -237,6 +237,75 @@
           生成新备份（支持热备份，不影响服务运行）
         </p>
       </div>
+
+      <!-- 🗄️ 备份导出 / 导入 -->
+      <div
+        class="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800/40"
+        data-secharden-backup
+      >
+        <div class="mb-3 flex items-center gap-2">
+          <i class="fas fa-file-export text-indigo-500" />
+          <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">备份导出 / 导入</h4>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          导出包含 API Keys、各类账户与管理员凭据（敏感字段以加密形态保留，仅可在相同
+          <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-700">ENCRYPTION_KEY</code>
+          环境下恢复）。导入采用「跳过冲突」策略，不会覆盖已存在的条目。
+        </p>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            :disabled="busy"
+            @click="doExport"
+          >
+            <i class="fas" :class="busy === 'export' ? 'fa-spinner fa-spin' : 'fa-download'" />
+            导出备份
+          </button>
+
+          <button
+            class="inline-flex items-center gap-2 rounded-lg border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
+            :disabled="busy"
+            @click="triggerImport"
+          >
+            <i class="fas" :class="busy === 'import' ? 'fa-spinner fa-spin' : 'fa-upload'" />
+            导入备份
+          </button>
+
+          <input
+            ref="fileInput"
+            accept="application/json,.json"
+            class="hidden"
+            type="file"
+            @change="onFileChange"
+          />
+        </div>
+
+        <!-- 结果提示 -->
+        <div
+          v-if="backupMsg"
+          class="mt-3 rounded-lg px-3 py-2 text-xs"
+          :class="
+            backupMsgType === 'error'
+              ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+              : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+          "
+        >
+          <i
+            class="fas mr-1"
+            :class="backupMsgType === 'error' ? 'fa-exclamation-triangle' : 'fa-check-circle'"
+          />
+          {{ backupMsg }}
+        </div>
+
+        <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+          提示：也可使用 CLI
+          <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-700">npm run data:export</code>
+          /
+          <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-700">data:import</code>
+          进行等价操作。
+        </p>
+      </div>
     </div>
 
     <!-- 错误态 -->
@@ -252,12 +321,101 @@
 
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
-import { getStorageStatus } from '@/utils/http_apis'
+import { getStorageStatus, exportBackupApi, importBackupApi } from '@/utils/http_apis'
 
 const loading = ref(false)
 const status = ref(null)
 const error = ref(null)
 let timer = null
+
+// 🗄️ 备份导出 / 导入
+const busy = ref(null)
+const backupMsg = ref('')
+const backupMsgType = ref('info')
+const fileInput = ref(null)
+
+function setBackupMsg(msg, type = 'info') {
+  backupMsg.value = msg
+  backupMsgType.value = type
+}
+
+async function doExport() {
+  if (busy.value) return
+  busy.value = 'export'
+  setBackupMsg('')
+  try {
+    const resp = await exportBackupApi()
+    const blob = new Blob([resp.data], { type: 'application/json' })
+    let filename = 'relay-backup.json'
+    const cd =
+      resp.headers && (resp.headers['content-disposition'] || resp.headers['Content-Disposition'])
+    if (cd) {
+      const m = /filename="?([^"]+)"?/.exec(cd)
+      if (m) filename = m[1]
+    }
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    setBackupMsg('备份已导出并开始下载', 'info')
+  } catch (err) {
+    setBackupMsg(
+      '导出失败：' + (err?.response?.data?.message || err.message || String(err)),
+      'error'
+    )
+  } finally {
+    busy.value = null
+  }
+}
+
+function triggerImport() {
+  if (busy.value) return
+  setBackupMsg('')
+  if (fileInput.value) fileInput.value.click()
+}
+
+async function onFileChange(e) {
+  const file = e.target.files && e.target.files[0]
+  if (!file) return
+  busy.value = 'import'
+  setBackupMsg('')
+  try {
+    const text = await file.text()
+    let backup
+    try {
+      backup = JSON.parse(text)
+    } catch (_e) {
+      throw new Error('文件不是有效的 JSON')
+    }
+    if (!backup || !backup.metadata || !backup.data) {
+      throw new Error('备份文件格式无效（缺少 metadata/data）')
+    }
+    if (!window.confirm('确认导入该备份？将以「跳过冲突」方式恢复，不覆盖已存在条目。')) {
+      busy.value = null
+      return
+    }
+    const { data } = await importBackupApi(backup)
+    const st = data || {}
+    const parts = []
+    if (st.apiKeys) parts.push('API Keys +' + st.apiKeys.imported + ' / 跳过 ' + st.apiKeys.skipped)
+    if (st.accounts) parts.push('账户 +' + st.accounts.imported + ' / 跳过 ' + st.accounts.skipped)
+    if (st.admins) parts.push('管理员 +' + st.admins.imported + ' / 跳过 ' + st.admins.skipped)
+    setBackupMsg('导入完成：' + parts.join('；'), 'info')
+    refresh()
+  } catch (err) {
+    setBackupMsg(
+      '导入失败：' + (err?.response?.data?.message || err.message || String(err)),
+      'error'
+    )
+  } finally {
+    busy.value = null
+    if (fileInput.value) fileInput.value.value = ''
+  }
+}
 
 const backendDescription = computed(() => {
   if (!status.value) return ''

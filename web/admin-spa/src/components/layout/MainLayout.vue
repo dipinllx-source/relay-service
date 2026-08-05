@@ -195,10 +195,6 @@
             <i class="fas fa-key" />
             <span>修改账户信息</span>
           </button>
-          <button class="admin-dropdown__link" @click="doAndClose(checkForUpdates)">
-            <i class="fas fa-sync-alt" />
-            <span>{{ versionInfo.checkingUpdate ? '检查中...' : '检查更新' }}</span>
-          </button>
           <div class="admin-dropdown__divider"></div>
           <button
             class="admin-dropdown__link admin-dropdown__link--danger"

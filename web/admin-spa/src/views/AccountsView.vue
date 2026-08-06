@@ -4022,6 +4022,8 @@ const resolveAccountDeleteEndpoint = (account) => {
       return `/admin/droid-accounts/${account.id}`
     case 'gemini-api':
       return `/admin/gemini-api-accounts/${account.id}`
+    case 'openai-compatible':
+      return `/admin/openai-compatible-accounts/${account.id}`
     default:
       return null
   }

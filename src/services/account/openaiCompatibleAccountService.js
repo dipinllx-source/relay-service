@@ -109,6 +109,11 @@ class OpenAICompatibleAccountService {
       throw new Error('Account not found')
     }
 
+    // [FIX] 禁止 mass-assignment：不可变字段不允许通过 updates 覆盖（防 id≠key 篡改）
+    delete updates.id
+    delete updates.platform
+    delete updates.createdAt
+
     if (updates.apiKey) {
       updates.apiKey = this._encryptSensitiveData(updates.apiKey)
     }
@@ -173,10 +178,12 @@ class OpenAICompatibleAccountService {
     const results = await pipeline.exec()
 
     const accounts = []
-    results.forEach(([err, accountData]) => {
+    results.forEach(([err, accountData], idx) => {
       if (err || !accountData || !accountData.id) {
         return
       }
+      // [FIX] 以 Redis key 的 UUID 为权威 id，避免被篡改的 id 字段导致删除/编辑打偏
+      accountData.id = accountIds[idx]
       if (!includeInactive && accountData.isActive !== 'true') {
         return
       }

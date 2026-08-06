@@ -208,6 +208,11 @@ async function updateAccount(accountId, updates) {
     throw new Error('Account not found')
   }
 
+  // [FIX] 禁止 mass-assignment：不可变字段不允许通过 updates 覆盖（防 id≠key 篡改）
+  delete updates.id
+  delete updates.platform
+  delete updates.createdAt
+
   updates.updatedAt = new Date().toISOString()
 
   // 加密敏感数据
@@ -336,6 +341,8 @@ async function getAllAccounts() {
 
       accounts.push({
         ...accountData,
+        // [FIX] 以 Redis key 的 UUID 为权威 id
+        id: accountIds[i],
         isActive: accountData.isActive === 'true',
         schedulable: accountData.schedulable !== 'false',
 

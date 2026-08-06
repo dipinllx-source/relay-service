@@ -383,13 +383,14 @@ class BedrockAccountService {
   // 🗑️ 删除账户
   async deleteAccount(accountId) {
     try {
-      const accountResult = await this.getAccount(accountId)
-      if (!accountResult.success) {
-        return accountResult
-      }
-
+      // 删除是纯清理操作，不应依赖凭据可解密：仅校验存在性，避免坏凭据账户无法删除
       const client = redis.getClientSafe()
-      await client.del(`bedrock_account:${accountId}`)
+      const _key = `bedrock_account:${accountId}`
+      const _exists = await client.exists(_key)
+      if (!_exists) {
+        return { success: false, error: 'Account not found' }
+      }
+      await client.del(_key)
       await redis.removeFromIndex('bedrock_account:index', accountId)
 
       logger.info(`✅ 删除Bedrock账户成功 - ID: ${accountId}`)

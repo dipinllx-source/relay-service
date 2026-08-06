@@ -742,18 +742,21 @@ async function updateAccount(accountId, updates) {
 
 // 删除账户
 async function deleteAccount(accountId) {
-  const account = await getAccount(accountId)
-  if (!account) {
+  // 删除是纯清理操作，不应依赖凭据可解密：用原始 hash 判断存在性与 accountType
+  const client = redisClient.getClientSafe()
+  const _gkey = `${GEMINI_ACCOUNT_KEY_PREFIX}${accountId}`
+  const _exists = await client.exists(_gkey)
+  if (!_exists) {
     throw new Error('Account not found')
   }
+  const _accountType = await client.hget(_gkey, 'accountType')
 
   // 从 Redis 删除
-  const client = redisClient.getClientSafe()
-  await client.del(`${GEMINI_ACCOUNT_KEY_PREFIX}${accountId}`)
+  await client.del(_gkey)
   await redisClient.removeFromIndex('gemini_account:index', accountId)
 
   // 从共享账户集合中移除
-  if (account.accountType === 'shared') {
+  if (_accountType === 'shared') {
     await client.srem(SHARED_GEMINI_ACCOUNTS_KEY, accountId)
   }
 

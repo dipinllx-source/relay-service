@@ -872,6 +872,14 @@ class Application {
     const rateLimitCleanupService = require('./services/rateLimitCleanupService')
     const cleanupIntervalMinutes = config.system.rateLimitCleanupInterval || 5 // 默认5分钟
     rateLimitCleanupService.start(cleanupIntervalMinutes)
+
+    // 🔁 启动 Redis→SQLite 元数据同步（账户+APIKey 持久化到 SQLite）
+    try {
+      const metadataSync = require('./storage/metadataSync')
+      metadataSync.start()
+    } catch (e) {
+      logger.error('❌ metadataSync start failed:', e.message)
+    }
     logger.info(
       `🚨 Rate limit cleanup service started (checking every ${cleanupIntervalMinutes} minutes)`
     )

@@ -391,6 +391,11 @@ export const updateAdminServiceRatesApi = (data, config) =>
 
 // 系统
 export const checkUpdatesApi = () => request({ url: '/admin/check-updates', method: 'GET' })
+// ⬆️ 触发一键升级（不指定 targetTag 时由服务端解析远端最新 tag）
+export const triggerUpgradeApi = (targetTag) =>
+  request({ url: '/admin/upgrade', method: 'POST', data: targetTag ? { targetTag } : {} })
+// 📋 查询升级状态（跨进程重启可查）
+export const getUpgradeStatusApi = () => request({ url: '/admin/upgrade/status', method: 'GET' })
 export const getClaudeCodeVersionApi = () =>
   request({ url: '/admin/claude-code-version', method: 'GET' })
 export const clearClaudeCodeVersionApi = () =>

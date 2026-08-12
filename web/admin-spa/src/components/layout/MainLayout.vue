@@ -189,11 +189,23 @@
         <div class="admin-dropdown__section">
           <div class="admin-dropdown__user-head">
             <span class="admin-dropdown__user-name">{{ currentUser.username || 'Admin' }}</span>
-            <span class="admin-dropdown__user-ver">v{{ versionInfo.current || '...' }}</span>
+            <span class="admin-dropdown__user-ver"
+              >v{{ versionInfo.current || '...'
+              }}<span
+                v-if="versionInfo.hasUpdate"
+                class="admin-dropdown__user-ver-dot"
+                title="有新版本"
+              ></span
+            ></span>
           </div>
           <button class="admin-dropdown__link" @click="doAndClose(openChangePasswordModal)">
             <i class="fas fa-key" />
             <span>修改账户信息</span>
+          </button>
+          <button class="admin-dropdown__link" @click="doAndClose(openUpgradeModal)">
+            <i class="fas fa-cloud-download-alt" />
+            <span>{{ versionInfo.checkingUpdate ? '检查中…' : '检查更新' }}</span>
+            <span v-if="versionInfo.hasUpdate" class="admin-dropdown__badge">新</span>
           </button>
           <div class="admin-dropdown__divider"></div>
           <button
@@ -292,6 +304,140 @@
       </div>
     </div>
 
+    <!-- ⬆️ 升级弹窗（L3：版本对比 + 变更清单 + 影响面 + 步骤计划）-->
+    <div v-if="upgradeModal.open" class="admin-modal-overlay" @click.self="closeUpgradeModal">
+      <div class="admin-modal upgrade-modal">
+        <div class="admin-modal__header">
+          <span>系统更新</span>
+          <button class="admin-modal__close" @click="closeUpgradeModal">
+            <i class="fas fa-times" />
+          </button>
+        </div>
+        <div class="admin-modal__body">
+          <!-- 版本对比 -->
+          <div class="upgrade-ver">
+            <span class="upgrade-ver__cur">当前 v{{ versionInfo.current }}</span>
+            <i v-if="versionInfo.hasUpdate" class="fas fa-arrow-right upgrade-ver__arrow" />
+            <span v-if="versionInfo.hasUpdate" class="upgrade-ver__new"
+              >v{{ versionInfo.latest }}</span
+            >
+            <span v-else class="upgrade-ver__latest"
+              ><i class="fas fa-check-circle" /> 已是最新版本</span
+            >
+          </div>
+
+          <div v-if="versionInfo.error" class="upgrade-note upgrade-note--warn">
+            <i class="fas fa-exclamation-triangle" /> {{ versionInfo.error }}
+          </div>
+
+          <template v-if="versionInfo.hasUpdate && upgradeModal.phase === 'idle'">
+            <!-- 变更清单 -->
+            <div v-if="flattenedChangelog.length" class="upgrade-block">
+              <div class="upgrade-block__title">本次变更</div>
+              <ul class="upgrade-changelog">
+                <li v-for="(c, i) in flattenedChangelog" :key="i">
+                  <span class="upgrade-tag" :class="'upgrade-tag--' + c.type">{{
+                    c.typeLabel
+                  }}</span>
+                  {{ c.subject }}
+                </li>
+              </ul>
+            </div>
+
+            <!-- 影响面 -->
+            <div v-if="versionInfo.impact" class="upgrade-impact">
+              影响面：{{ versionInfo.impact.fileCount }} 个文件 · +{{
+                versionInfo.impact.insertions
+              }}
+              / -{{ versionInfo.impact.deletions }}
+            </div>
+
+            <!-- 步骤计划 -->
+            <div v-if="versionInfo.plannedSteps" class="upgrade-block">
+              <div class="upgrade-block__title">升级将执行</div>
+              <ul class="upgrade-steps">
+                <li
+                  v-for="st in versionInfo.plannedSteps"
+                  :key="st.name"
+                  :class="{ 'is-skip': !st.needed }"
+                >
+                  <i class="fas" :class="st.needed ? 'fa-check-square' : 'fa-square'" />
+                  {{ st.label }}
+                  <span class="upgrade-steps__reason">{{ st.reason }}</span>
+                  <span v-if="st.needed && st.warning" class="upgrade-steps__warn"
+                    ><i class="fas fa-exclamation-triangle" /> {{ st.warning }}</span
+                  >
+                </li>
+              </ul>
+            </div>
+          </template>
+
+          <!-- 升级进行中 / 完成 / 失败 -->
+          <div
+            v-if="upgradeModal.phase !== 'idle'"
+            class="upgrade-progress"
+            :class="'upgrade-progress--' + upgradeModal.phase"
+          >
+            <i
+              class="fas"
+              :class="{
+                'fa-spinner fa-spin':
+                  upgradeModal.phase === 'upgrading' || upgradeModal.phase === 'polling',
+                'fa-check-circle': upgradeModal.phase === 'done',
+                'fa-times-circle': upgradeModal.phase === 'failed'
+              }"
+            />
+            <span>{{ upgradeModal.message }}</span>
+          </div>
+
+          <!-- 执行步骤明细（进行中/结束后展示）-->
+          <ul
+            v-if="
+              upgradeModal.lastRun &&
+              upgradeModal.lastRun.steps &&
+              upgradeModal.lastRun.steps.length
+            "
+            class="upgrade-runsteps"
+          >
+            <li v-for="st in upgradeModal.lastRun.steps" :key="st.name" :class="'is-' + st.status">
+              <i
+                class="fas"
+                :class="{
+                  'fa-check': st.status === 'success',
+                  'fa-minus': st.status === 'skipped',
+                  'fa-times': st.status === 'failed',
+                  'fa-undo': st.status === 'reverted',
+                  'fa-clock': st.status === 'pending_restart'
+                }"
+              />
+              {{ st.label || st.name }}
+              <span class="upgrade-runsteps__status">{{ st.status }}</span>
+              <code v-if="st.status === 'failed' && st.tailLog" class="upgrade-runsteps__tail">{{
+                st.tailLog.slice(-400)
+              }}</code>
+            </li>
+          </ul>
+
+          <div class="admin-modal__actions">
+            <button class="admin-btn admin-btn--ghost" type="button" @click="closeUpgradeModal">
+              关闭
+            </button>
+            <button
+              v-if="
+                versionInfo.hasUpdate &&
+                (upgradeModal.phase === 'idle' || upgradeModal.phase === 'failed')
+              "
+              class="admin-btn admin-btn--primary"
+              type="button"
+              @click="confirmUpgrade"
+            >
+              {{ upgradeModal.phase === 'failed' ? '重试升级' : '立即升级' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ConfirmModal
       :cancel-text="confirmModalConfig.cancelText"
       :confirm-text="confirmModalConfig.confirmText"
@@ -310,7 +456,12 @@ import { ref, reactive, watch, computed, nextTick, onMounted, onUnmounted } from
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { showToast } from '@/utils/tools'
-import { checkUpdatesApi, changePasswordApi } from '@/utils/http_apis'
+import {
+  checkUpdatesApi,
+  changePasswordApi,
+  triggerUpgradeApi,
+  getUpgradeStatusApi
+} from '@/utils/http_apis'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
 
@@ -416,8 +567,141 @@ const versionInfo = ref({
   latest: '',
   hasUpdate: false,
   checkingUpdate: false,
-  releaseInfo: null
+  releaseInfo: null,
+  changelog: null,
+  impact: null,
+  plannedSteps: null,
+  latestTag: null,
+  error: null
 })
+
+// ⬆️ 升级 UI 状态
+const upgradeModal = ref({
+  open: false,
+  phase: 'idle', // idle | upgrading | polling | done | failed
+  message: '',
+  lastRun: null
+})
+let upgradePollTimer = null
+
+const flattenedChangelog = computed(() => {
+  const cl = versionInfo.value.changelog
+  if (!cl || !cl.groups) return []
+  const order = ['feat', 'fix', 'security', 'perf', 'refactor', 'other']
+  const label = {
+    feat: '新功能',
+    fix: '修复',
+    security: '安全',
+    perf: '性能',
+    refactor: '重构',
+    chore: '杂项',
+    docs: '文档',
+    other: '其他'
+  }
+  const out = []
+  const keys = Object.keys(cl.groups).sort(
+    (a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99)
+  )
+  for (const k of keys) {
+    for (const item of cl.groups[k]) {
+      out.push({ type: k, typeLabel: label[k] || k, sha: item.sha, subject: item.subject })
+    }
+  }
+  return out
+})
+
+const openUpgradeModal = () => {
+  upgradeModal.value = { open: true, phase: 'idle', message: '', lastRun: null }
+}
+const closeUpgradeModal = () => {
+  upgradeModal.value.open = false
+  if (upgradePollTimer) {
+    clearInterval(upgradePollTimer)
+    upgradePollTimer = null
+  }
+}
+
+// 升级完成判定：轮询 check-updates，current 等于目标版本即完成（基于鉴权端点，非 /health）
+const pollUntilUpgraded = (targetVersion) => {
+  upgradeModal.value.phase = 'polling'
+  upgradeModal.value.message = '服务正在重启，等待新版本生效…'
+  let tries = 0
+  if (upgradePollTimer) clearInterval(upgradePollTimer)
+  upgradePollTimer = setInterval(async () => {
+    tries++
+    try {
+      const r = await checkUpdatesApi()
+      if (r.success && r.data && r.data.current === targetVersion) {
+        clearInterval(upgradePollTimer)
+        upgradePollTimer = null
+        upgradeModal.value.phase = 'done'
+        upgradeModal.value.message = '已升级至 v' + targetVersion
+        versionInfo.value.current = r.data.current
+        versionInfo.value.hasUpdate = false
+        return
+      }
+    } catch (_e) {
+      /* 重启窗口内请求失败属正常 */
+    }
+    // 同时刷新升级状态记录（跨重启可查）
+    try {
+      const s = await getUpgradeStatusApi()
+      if (s.success && s.data) {
+        upgradeModal.value.lastRun = s.data.lastRun
+        if (s.data.lastRun && s.data.lastRun.status === 'failed') {
+          clearInterval(upgradePollTimer)
+          upgradePollTimer = null
+          upgradeModal.value.phase = 'failed'
+          upgradeModal.value.message =
+            '升级失败：' + (s.data.lastRun.error || '未知错误') + '（服务仍运行旧版本）'
+        }
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    if (tries > 40) {
+      clearInterval(upgradePollTimer)
+      upgradePollTimer = null
+      upgradeModal.value.phase = 'failed'
+      upgradeModal.value.message = '等待超时，请检查服务状态或稍后刷新查看升级记录'
+    }
+  }, 3000)
+}
+
+const confirmUpgrade = async () => {
+  const target = (versionInfo.value.latest || '').trim()
+  if (!target) return
+  upgradeModal.value.phase = 'upgrading'
+  upgradeModal.value.message = '正在执行升级步骤…'
+  try {
+    const r = await triggerUpgradeApi(versionInfo.value.latestTag || undefined)
+    if (r.success) {
+      upgradeModal.value.lastRun = { steps: (r.data && r.data.steps) || [], status: 'success' }
+      if (r.data && r.data.restarting) {
+        pollUntilUpgraded(target)
+      } else {
+        upgradeModal.value.phase = 'done'
+        upgradeModal.value.message = r.data ? r.data.message : '升级完成'
+        versionInfo.value.current = target
+        versionInfo.value.hasUpdate = false
+      }
+    } else {
+      upgradeModal.value.phase = 'failed'
+      upgradeModal.value.message = r.message || '升级失败（服务仍运行旧版本）'
+    }
+  } catch (e) {
+    // 若因重启导致连接中断，转入轮询确认（可能已成功）
+    if (e && (e.code === 'ECONNABORTED' || !e.response)) {
+      pollUntilUpgraded(target)
+    } else {
+      upgradeModal.value.phase = 'failed'
+      upgradeModal.value.message =
+        (e.response && e.response.data && e.response.data.message) ||
+        e.message ||
+        '升级失败（服务仍运行旧版本）'
+    }
+  }
+}
 const checkForUpdates = async () => {
   if (versionInfo.value.checkingUpdate) return
   versionInfo.value.checkingUpdate = true
@@ -430,7 +714,12 @@ const checkForUpdates = async () => {
         current: d.current,
         latest: d.latest,
         hasUpdate: d.hasUpdate,
-        releaseInfo: d.releaseInfo
+        releaseInfo: d.releaseInfo,
+        changelog: d.changelog,
+        impact: d.impact,
+        plannedSteps: d.plannedSteps,
+        latestTag: d.latestTag,
+        error: d.error
       }
     }
   } catch (_e) {
@@ -929,6 +1218,163 @@ onUnmounted(() => {
 }
 :root.dark .admin-dropdown__user-name {
   color: #f5f5f7;
+}
+.admin-dropdown__badge {
+  margin-left: auto;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+.admin-dropdown__user-ver-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  background: #ff3b30;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.upgrade-modal {
+  max-width: 560px;
+}
+.upgrade-ver {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.upgrade-ver__cur {
+  color: #86868b;
+}
+.upgrade-ver__arrow {
+  color: #86868b;
+  font-size: 12px;
+}
+.upgrade-ver__new {
+  font-weight: 700;
+  color: #0071e3;
+}
+.upgrade-ver__latest {
+  color: #34c759;
+}
+.upgrade-block {
+  margin: 12px 0;
+}
+.upgrade-block__title {
+  font-size: 12px;
+  color: #86868b;
+  margin-bottom: 6px;
+}
+.upgrade-changelog {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.upgrade-changelog li {
+  font-size: 13px;
+}
+.upgrade-tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-right: 6px;
+  background: #f0f0f0;
+  color: #333;
+}
+.upgrade-tag--feat {
+  background: #e3f6e8;
+  color: #1a7f37;
+}
+.upgrade-tag--fix {
+  background: #fff4e0;
+  color: #b25e00;
+}
+.upgrade-tag--security {
+  background: #ffe3e3;
+  color: #c0392b;
+}
+.upgrade-impact {
+  font-size: 12px;
+  color: #86868b;
+  margin: 8px 0;
+}
+.upgrade-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.upgrade-steps li {
+  font-size: 13px;
+}
+.upgrade-steps li.is-skip {
+  color: #b0b0b5;
+}
+.upgrade-steps__reason {
+  font-size: 11px;
+  color: #86868b;
+  margin-left: 6px;
+}
+.upgrade-steps__warn {
+  color: #ff9500;
+  margin-left: 8px;
+  font-size: 12px;
+}
+.upgrade-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  margin: 12px 0;
+  background: #f5f5f7;
+  font-size: 13px;
+}
+.upgrade-progress--done {
+  background: #e3f6e8;
+  color: #1a7f37;
+}
+.upgrade-progress--failed {
+  background: #ffe3e3;
+  color: #c0392b;
+}
+.upgrade-runsteps {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.upgrade-runsteps__status {
+  color: #86868b;
+  margin-left: 6px;
+}
+.upgrade-runsteps__tail {
+  display: block;
+  margin-top: 4px;
+  padding: 6px;
+  background: #1d1d1f;
+  color: #ff8a80;
+  font-size: 11px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.upgrade-note--warn {
+  color: #b25e00;
+  font-size: 12px;
+  margin: 8px 0;
 }
 .admin-dropdown__user-ver {
   font-size: 12px;

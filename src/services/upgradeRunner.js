@@ -171,8 +171,18 @@ async function performUpgrade(targetTag, meta = {}) {
   }
 
   let state
+  // 流水线原子性：记录起始 ref；checkout 后若后续步骤失败需回退，
+  // 保证「服务继续以旧版本运行」的承诺不被破坏（工作区不会停在坏版本）。
+  let checkedOut = false
+  let originRef = null
   try {
     const { current, target } = await preflight(targetTag)
+
+    try {
+      originRef = (await upgradeService.git(['rev-parse', 'HEAD'])).trim()
+    } catch (_e) {
+      originRef = null
+    }
 
     // 计划步骤（与提示展示同一份数据）
     const fromTag = `v${current}`
@@ -246,6 +256,7 @@ async function performUpgrade(targetTag, meta = {}) {
         durationMs: Date.now() - tc0,
         tailLog: tail(out, 800)
       })
+      checkedOut = true
     } catch (err) {
       await mark('checkout', '拉取代码', {
         status: 'failed',
@@ -288,10 +299,33 @@ async function performUpgrade(targetTag, meta = {}) {
 
     return { ...state }
   } catch (err) {
+    // 流水线原子性回退：若已切到目标 tag 但后续步骤失败，回退工作区到起始 ref，
+    // 确保进程即便之后被 systemd 重启也仍加载旧版本代码（D9 的必要保障）。
+    if (checkedOut && originRef) {
+      try {
+        await upgradeService.git(['checkout', '--detach', originRef], 60000)
+        logger.warn(`⬆️ Upgrade failed: 工作区已回退到 ${originRef.slice(0, 7)}（旧版本）`)
+        if (state) {
+          const idx = state.steps.findIndex((x) => x.name === 'checkout')
+          if (idx >= 0) {
+            state.steps[idx].status = 'reverted'
+          }
+          state.result = 'failed_reverted_to_previous'
+        }
+      } catch (revErr) {
+        logger.error(`❌ Upgrade 回退失败，工作区可能停在坏版本: ${revErr.message}`)
+        if (state) {
+          state.result = 'failed_revert_error'
+          state.revertError = revErr.message
+        }
+      }
+    }
     if (state) {
       state.status = 'failed'
       state.error = err.message
-      state.result = 'failed_service_unchanged'
+      if (!state.result || state.result === 'running') {
+        state.result = 'failed_service_unchanged'
+      }
       state.finishedAt = new Date().toISOString()
       await saveState(state)
     }

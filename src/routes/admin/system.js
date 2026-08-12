@@ -9,6 +9,7 @@ const redis = require('../../models/redis')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const config = require('../../../config/config')
+const upgradeService = require('../../services/upgradeService')
 
 const router = express.Router()
 
@@ -68,52 +69,34 @@ router.delete('/claude-code-headers/:accountId', authenticateAdmin, async (req, 
 
 // ==================== 系统更新检查 ====================
 
-// 版本比较函数
-function compareVersions(current, latest) {
-  const parseVersion = (v) => {
-    const parts = v.split('.').map(Number)
-    return {
-      major: parts[0] || 0,
-      minor: parts[1] || 0,
-      patch: parts[2] || 0
-    }
-  }
-
-  const currentV = parseVersion(current)
-  const latestV = parseVersion(latest)
-
-  if (currentV.major !== latestV.major) {
-    return currentV.major - latestV.major
-  }
-  if (currentV.minor !== latestV.minor) {
-    return currentV.minor - latestV.minor
-  }
-  return currentV.patch - latestV.patch
-}
+// ==================== 系统更新检查 ====================
+// 版本感知实现见 src/services/upgradeService.js
+// （OpenSpec: release-version-awareness）
+//   - 感知源为 git ls-remote --tags origin（零凭据，不请求 GitHub API）
+//   - tag 为发布契约，一律使用全限定 refs/tags/*
+//   - semver 比较含 prerelease 优先级；prerelease 默认不提示
+// 旧实现的 compareVersions 已移除：它按 '.' 分割后 Number('3-alpha') → NaN，
+// 会把 1.2.3-alpha 误判为等于 1.2.3。
 
 router.get('/check-updates', authenticateAdmin, async (req, res) => {
-  // [FORK] check-updates disabled: 私有 fork 不检查上游 GitHub 发布；
-  // 版本统一来自 package.json，hasUpdate 恒为 false。
-  let currentVersion = '1.0.0'
   try {
-    const pkg = require('../../../package.json')
-    if (pkg && pkg.version) {
-      currentVersion = String(pkg.version)
-    }
-  } catch (err) {
-    logger.warn('⚠️ Could not read package.json version:', err.message)
+    const data = await upgradeService.checkForUpdates({
+      allowPrerelease: req.query.allowPrerelease === 'true'
+    })
+    return res.json({ success: true, data })
+  } catch (error) {
+    // 远端不可达等异常不应阻塞管理台加载
+    logger.warn(`⚠️ check-updates failed: ${error.message}`)
+    return res.json({
+      success: true,
+      data: {
+        current: upgradeService.getCurrentVersion(),
+        latest: upgradeService.getCurrentVersion(),
+        hasUpdate: false,
+        error: error.message
+      }
+    })
   }
-
-  return res.json({
-    success: true,
-    data: {
-      current: currentVersion,
-      latest: currentVersion,
-      hasUpdate: false,
-      releaseInfo: null,
-      cached: false
-    }
-  })
 })
 
 // ==================== OEM 设置管理 ====================

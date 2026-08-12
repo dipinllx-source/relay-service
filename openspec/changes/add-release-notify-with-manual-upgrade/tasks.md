@@ -10,17 +10,17 @@
 
 ## 2. 版本感知
 
-- [ ] 2.1 实现远端 tag 枚举（`git ls-remote --tags origin`）+ tag 名白名单校验，统一走全限定 `refs/tags/*`
-- [ ] 2.2 实现正确的 semver 比较（含 prerelease 优先级），替换 `system.js:72` 现有实现；prerelease 默认不提示
-- [ ] 2.3 重写 `/admin/check-updates`：替换写死的 `hasUpdate:false`，返回 current/latest/hasUpdate
-- [ ] 2.4 远端不可达时的降级路径（不抛异常、不阻塞管理台）+ 结果缓存策略
+- [x] 2.1 实现远端 tag 枚举（`git ls-remote --tags origin`）+ tag 名白名单校验，统一走全限定 `refs/tags/*`
+- [x] 2.2 实现正确的 semver 比较（含 prerelease 优先级），替换 `system.js:72` 现有实现；prerelease 默认不提示
+- [x] 2.3 重写 `/admin/check-updates`：替换写死的 `hasUpdate:false`，返回 current/latest/hasUpdate
+- [x] 2.4 远端不可达时的降级路径（不抛异常、不阻塞管理台）+ 结果缓存策略
 
 ## 3. 变更分析（提示与步骤裁剪共用同一份数据）
 
-- [ ] 3.1 实现 commit 区间提取与 conventional commit 分组，过滤纯版本号提交
-- [ ] 3.2 实现影响面统计（文件数、增删行）
-- [ ] 3.3 实现步骤裁剪判据：依赖**内容** diff（非 `package.json` 文件 diff）、前端目录变更、后端变更、纯文档变更
-- [ ] 3.4 用 `v1.2.2..v1.2.3` 作为回归样本校验：应判定「需 build:web、需重启、跳过 npm install」
+- [x] 3.1 实现 commit 区间提取与 conventional commit 分组，过滤纯版本号提交
+- [x] 3.2 实现影响面统计（文件数、增删行）
+- [x] 3.3 实现步骤裁剪判据：依赖**内容** diff（非 `package.json` 文件 diff）、前端目录变更、后端变更、纯文档变更
+- [x] 3.4 用 `v1.2.2..v1.2.3` 作为回归样本校验：应判定「需 build:web、需重启、跳过 npm install」
 
 ## 4. 升级执行
 

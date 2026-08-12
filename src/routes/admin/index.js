@@ -34,6 +34,7 @@ const requestDetailsRoutes = require('./requestDetails')
 const httpsRoutes = require('./https')
 const storageRoutes = require('./storage')
 const backupRoutes = require('./backup')
+const upgradeRoutes = require('./upgrade')
 
 // 挂载所有子路由
 // 使用完整路径的模块（直接挂载到根路径）
@@ -59,6 +60,7 @@ router.use('/', requestDetailsRoutes)
 router.use('/', httpsRoutes)
 router.use('/', storageRoutes)
 router.use('/', backupRoutes)
+router.use('/', upgradeRoutes)
 
 // 使用相对路径的模块（需要指定基础路径前缀）
 router.use('/account-groups', accountGroupsRoutes)

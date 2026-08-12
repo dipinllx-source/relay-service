@@ -11,6 +11,39 @@ const LOG_FILE = path.join(__dirname, '..', 'logs', 'service.log')
 const ERROR_LOG_FILE = path.join(__dirname, '..', 'logs', 'service-error.log')
 const APP_FILE = path.join(__dirname, '..', 'src', 'app.js')
 
+// 🔗 systemd 托管单元（OpenSpec: service-process-supervision）
+// 服务已由 systemd 托管；进程生命周期以 systemd 为唯一真相来源，
+// 本脚本不再并行维护 PID 状态（PID 文件仅用于非 systemd 的前台调试回退）。
+const SYSTEMD_UNIT = 'relay-app.service'
+
+function systemdAvailable() {
+  try {
+    execSync('command -v systemctl', { stdio: 'ignore' })
+    execSync(`systemctl cat ${SYSTEMD_UNIT}`, { stdio: 'ignore' })
+    return true
+  } catch (_e) {
+    return false
+  }
+}
+
+function systemdStatus() {
+  try {
+    const active = execSync(`systemctl is-active ${SYSTEMD_UNIT}`, { encoding: 'utf8' }).trim()
+    const mainPid = parseInt(
+      execSync(`systemctl show ${SYSTEMD_UNIT} -p MainPID --value`, { encoding: 'utf8' }).trim(),
+      10
+    )
+    return { active: active === 'active', pid: Number.isFinite(mainPid) && mainPid > 0 ? mainPid : null }
+  } catch (_e) {
+    return { active: false, pid: null }
+  }
+}
+
+function runSystemctl(action) {
+  console.log(`🔗 委派 systemd: systemctl ${action} ${SYSTEMD_UNIT}`)
+  execSync(`systemctl ${action} ${SYSTEMD_UNIT}`, { stdio: 'inherit' })
+}
+
 class ServiceManager {
   constructor() {
     this.ensureLogDir()
@@ -65,11 +98,16 @@ class ServiceManager {
   }
 
   getStatus() {
+    // systemd 为守护态的唯一真相来源，避免与自有 PID 文件产生双份状态
+    if (systemdAvailable()) {
+      const sd = systemdStatus()
+      return { running: sd.active, pid: sd.pid, managedBy: 'systemd' }
+    }
     const pid = this.getPid()
     if (pid && this.isProcessRunning(pid)) {
-      return { running: true, pid }
+      return { running: true, pid, managedBy: 'pidfile' }
     }
-    return { running: false, pid: null }
+    return { running: false, pid: null, managedBy: 'pidfile' }
   }
 
   start(daemon = false) {
@@ -77,6 +115,12 @@ class ServiceManager {
     if (status.running) {
       console.log(`⚠️  服务已在运行中 (PID: ${status.pid})`)
       return false
+    }
+
+    // 守护态启动委派 systemd（保证与 Restart=always 语义一致）
+    if (daemon && systemdAvailable()) {
+      runSystemctl('start')
+      return true
     }
 
     console.log('🚀 启动 Claude Relay Service...')
@@ -137,6 +181,12 @@ class ServiceManager {
   }
 
   stop() {
+    // 由 systemd 托管时必须走 systemctl，否则 Restart=always 会立即重新拉起
+    if (systemdAvailable()) {
+      runSystemctl('stop')
+      return true
+    }
+
     const status = this.getStatus()
     if (!status.running) {
       console.log('⚠️  服务未在运行')
@@ -186,6 +236,11 @@ class ServiceManager {
 
   restart(daemon = false) {
     console.log('🔄 重启服务...')
+
+    if (systemdAvailable()) {
+      runSystemctl('restart')
+      return true
+    }
     this.stop()
     // 等待停止完成
     setTimeout(() => {

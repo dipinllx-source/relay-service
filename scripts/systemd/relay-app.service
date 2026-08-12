@@ -1,0 +1,50 @@
+[Unit]
+Description=Claude Relay Service (relay app)
+Documentation=https://github.com/dipinllx-source/relay-service
+After=network-online.target relay-redis.service
+Wants=network-online.target
+# Redis 是数据面依赖（6380），但不强制绑定生命周期：
+# relay 启动时若 Redis 未就绪会自行重试，故用 After 而非 Requires。
+After=relay-redis.service
+
+# 避免异常崩溃时无限快速重启耗尽资源。
+# 注意：systemd 239 要求这两项位于 [Unit] 段（放 [Service] 会被忽略）。
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=simple
+
+# 与既有部署保持一致：当前进程以 root 运行，升级流水线需要
+# git / 写 node_modules、web/admin-spa/dist 的权限。
+User=root
+Group=root
+
+# 必需：config/config.js 通过 dotenv 从 cwd 读取 .env
+WorkingDirectory=/opt/relay-service
+
+# node 路径不硬编码具体版本（design D6）。
+# 说明：系统自带 /usr/bin/node 为 v20，而本服务运行于 nvm v24；
+# better-sqlite3 等原生模块的 ABI 与 node 主版本绑定，用 v20 会崩溃。
+# 因此通过 nvm 的 default alias 解析出当前默认版本再启动，
+# node 版本升级（nvm alias default 更新）后本 unit 无需修改。
+ExecStart=/bin/bash -lc 'set -e; NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; exec node src/app.js'
+
+# Restart=always 而非 on-failure：升级流水线以 process.exit(0) 主动退出，
+# 需要 systemd 以新代码重新拉起；on-failure 不会拉起正常退出的进程。
+# systemctl stop 仍能正常停止（systemd 区分显式停止与进程自退）。
+Restart=always
+RestartSec=2
+
+# 与 relay-redis.service 对齐：relay 承载大量并发 SSE 长连接
+LimitNOFILE=65535
+
+# 优雅停机：app 已注册 SIGTERM 处理（关闭 HTTP、断开 Redis）
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+StandardOutput=append:/opt/relay-service/logs/stdout.log
+StandardError=append:/opt/relay-service/logs/stderr.log
+
+[Install]
+WantedBy=multi-user.target

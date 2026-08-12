@@ -250,29 +250,72 @@ class ServiceManager {
     return true
   }
 
-  update() {
+  async update() {
     console.log('⬆️  更新 Claude Relay Service...')
 
-    const steps = [
-      { desc: '拉取最新代码', cmd: 'git pull' },
-      { desc: '安装后端依赖', cmd: 'npm install' },
-      { desc: '安装前端依赖', cmd: 'npm run install:web' },
-      { desc: '构建前端', cmd: 'npm run build:web' }
-    ]
+    // OpenSpec task 4.6：与 Web 端 POST /admin/upgrade 共用同一套「版本感知 + 步骤裁剪」
+    // 逻辑（src/services/upgradeService.js），避免两份编排实现漂移。
+    // 差异仅在于：CLI 是独立于服务进程的外部进程，无法用 process.exit(0) 换代码，
+    // 故最后以 systemctl restart 重启（Web 端由服务进程 exit + systemd 拉起）。
+    // eslint-disable-next-line global-require
+    const upgradeService = require(path.join(ROOT_DIR, 'src', 'services', 'upgradeService'))
 
-    for (const step of steps) {
-      console.log(`\n▶️  ${step.desc}: ${step.cmd}`)
-      try {
-        execSync(step.cmd, { cwd: ROOT_DIR, stdio: 'inherit' })
-      } catch (error) {
-        console.error(`\n❌ ${step.desc}失败，已中断更新。请修复后重试 (${error.message})`)
-        return false
-      }
+    let info
+    try {
+      info = await upgradeService.checkForUpdates()
+    } catch (e) {
+      console.error('❌ 检查更新失败：' + e.message)
+      return false
+    }
+    if (!info.hasUpdate || !info.latestTag) {
+      console.log('✅ 当前已是最新版本 (v' + info.current + ')' + (info.error ? '（' + info.error + '）' : ''))
+      return true
     }
 
-    console.log('\n✅ 代码与前端已更新，正在后台重启服务...')
-    this.restart(true)
+    const fromTag = 'v' + info.current
+    console.log('\n发现新版本：v' + info.current + ' → ' + info.latest)
 
+    try {
+      const porcelain = execSync('git status --porcelain', { cwd: ROOT_DIR, encoding: 'utf8' })
+      if (porcelain.trim()) {
+        console.error('❌ 工作区存在未提交改动，已中止升级：\n' + porcelain)
+        return false
+      }
+    } catch (e) {
+      console.error('❌ 预检失败：' + e.message)
+      return false
+    }
+
+    const plan = (info.plannedSteps || []).reduce((m, st) => ((m[st.name] = st.needed), m), {})
+    const runIf = (need, desc, cmd) => {
+      if (!need) { console.log('⏭️  跳过：' + desc); return }
+      console.log('\n▶️  ' + desc + ': ' + cmd)
+      execSync(cmd, { cwd: ROOT_DIR, stdio: 'inherit' })
+    }
+
+    try {
+      console.log('\n▶️  拉取代码: git checkout --detach refs/tags/' + info.latestTag)
+      execSync('git fetch --tags --quiet origin', { cwd: ROOT_DIR, stdio: 'inherit' })
+      execSync('git checkout --detach refs/tags/' + info.latestTag, { cwd: ROOT_DIR, stdio: 'inherit' })
+      runIf(plan.npmInstall, '安装后端依赖', 'npm install --no-audit --no-fund')
+      runIf(plan.npmInstallWeb, '安装前端依赖', 'npm run install:web')
+      runIf(plan.buildWeb, '重建前端', 'npm run build:web')
+    } catch (error) {
+      console.error('\n❌ 升级失败，正在回退工作区到 ' + fromTag + '（服务仍运行旧版本）')
+      try {
+        execSync('git checkout --detach refs/tags/' + fromTag, { cwd: ROOT_DIR, stdio: 'inherit' })
+      } catch (revErr) {
+        console.error('⚠️  回退失败，请手动处理: ' + revErr.message)
+      }
+      return false
+    }
+
+    if (plan.restart) {
+      console.log('\n✅ 代码已更新，正在重启服务...')
+      this.restart(true)
+    } else {
+      console.log('\n✅ 更新完成（本次变更无需重启）')
+    }
     return true
   }
 
@@ -367,7 +410,7 @@ class ServiceManager {
 }
 
 // 主程序
-function main() {
+async function main() {
   const manager = new ServiceManager()
   const args = process.argv.slice(2)
   const command = args[0]
@@ -388,7 +431,7 @@ function main() {
       break
     case 'update':
     case 'u':
-      manager.update()
+      await manager.update()
       break
     case 'status':
     case 'st':

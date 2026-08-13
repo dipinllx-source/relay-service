@@ -7,7 +7,10 @@
  * 设计：
  *   - 启动时全量回填 + 周期对账（默认 15s，可用 METADATA_SYNC_INTERVAL_MS 调整）。
  *   - 覆盖全部 11 类账户前缀 + apikey:*；账户 id 以 Redis key 的 UUID 为权威。
- *   - 含删除对账：SQLite 中存在、Redis 中已不存在的实体会被移除。
+ *   - 含删除对账：SQLite 中存在、Redis 中已不存在的实体会被移除（两轮确认：
+ *     连续两轮观察到缺失才执行删除，消除对账中途 Redis 被清空的竞态误删）。
+ *   - 空 Redis 护栏：Redis 实体总数为 0 而 SQLite 非空时跳过本轮对账，防止
+ *     Redis 被清空（flushdb/故障）后 15s 内 SQLite 数据被删除对账连带清空。
  *   - bedrock 账户在 Redis 中以 JSON 字符串（client.set）存储，单独走 get+parse。
  *   - 仅在 metadata.backend === 'sqlite' 时启用。
  *   - 单实体错误被隔离，不影响整体同步。读热路径不受影响（Redis 仍为运行时缓存）。
@@ -56,14 +59,44 @@ function getSqliteRepos() {
   const SqliteApiKeyRepository = require('./repositories/SqliteApiKeyRepository')
   const db = getDb()
   _repos = {
+    db,
     accountRepo: new SqliteAccountRepository(db),
     apiKeyRepo: new SqliteApiKeyRepository(db)
   }
   return _repos
 }
 
+/**
+ * 空 Redis 护栏（4.1/4.2/4.3）：统计 Redis 中全部实体 key 总数
+ * （11 类账户前缀 + apikey: 实体，排除 index/empty/hash_map 等非实体 key）。
+ */
+async function countRedisEntities(client) {
+  let total = 0
+  for (const [prefix] of ACCOUNT_GROUPS) {
+    const keys = await client.keys(`${prefix}*`)
+    total += keys.filter((k) => isEntityKey(k, prefix)).length
+  }
+  const apikeyKeys = await client.keys('apikey:*')
+  total += apikeyKeys.filter((k) => k !== 'apikey:hash_map' && isEntityKey(k, 'apikey:')).length
+  return total
+}
+
+function countSqliteEntities(db) {
+  const accounts = db.prepare('SELECT COUNT(*) AS c FROM accounts').get().c
+  const apiKeys = db.prepare('SELECT COUNT(*) AS c FROM api_keys').get().c
+  return accounts + apiKeys
+}
+
+// 删除对账两轮确认（tombstone）：候选删除须连续两轮观察到缺失才执行。
+// 防止 flushdb/故障发生在对账中途时（轮首护栏已通过、分组枚举到空列表）
+// 单轮内误删 SQLite——下一轮全局护栏必然拦截，故误删窗口被完全消除。
+// 内存态、不持久化；重启仅使合法删除多等一轮（约 15s）。
+let _pendingAccountDeletes = new Set() // token: `${platform}/${id}`
+let _pendingApiKeyDeletes = new Set() // token: id
+
 async function reconcileAccounts(client, accountRepo) {
   const stats = { upserted: 0, removed: 0, errors: 0 }
+  const nextPending = new Set()
   for (const [prefix, platform, storageType] of ACCOUNT_GROUPS) {
     let keys = []
     try {
@@ -99,24 +132,31 @@ async function reconcileAccounts(client, accountRepo) {
         logger.warn(`metadataSync: save account ${platform}/${uuid} failed: ${e.message}`)
       }
     }
-    // 删除对账：SQLite 有、Redis 无
+    // 删除对账：SQLite 有、Redis 无（两轮确认后才删）
     try {
       const rows = await accountRepo.getAllByPlatform(platform)
       for (const row of rows) {
         if (row && row.id && !liveIds.has(row.id)) {
-          await accountRepo.delete(platform, row.id)
-          stats.removed++
+          const token = `${platform}/${row.id}`
+          if (_pendingAccountDeletes.has(token)) {
+            await accountRepo.delete(platform, row.id)
+            stats.removed++
+          } else {
+            nextPending.add(token)
+          }
         }
       }
     } catch (e) {
       logger.warn(`metadataSync: reconcile-delete ${platform} failed: ${e.message}`)
     }
   }
+  _pendingAccountDeletes = nextPending
   return stats
 }
 
 async function reconcileApiKeys(client, apiKeyRepo) {
   const stats = { upserted: 0, removed: 0, errors: 0 }
+  const nextPending = new Set()
   let keys = []
   try {
     keys = (await client.keys('apikey:*')).filter(
@@ -147,13 +187,18 @@ async function reconcileApiKeys(client, apiKeyRepo) {
     const rows = await apiKeyRepo.getAll()
     for (const row of rows) {
       if (row && row.id && !liveIds.has(row.id)) {
-        await apiKeyRepo.delete(row.id)
-        stats.removed++
+        if (_pendingApiKeyDeletes.has(row.id)) {
+          await apiKeyRepo.delete(row.id)
+          stats.removed++
+        } else {
+          nextPending.add(row.id)
+        }
       }
     }
   } catch (e) {
     logger.warn(`metadataSync: reconcile-delete apikeys failed: ${e.message}`)
   }
+  _pendingApiKeyDeletes = nextPending
   return stats
 }
 
@@ -168,7 +213,19 @@ async function reconcileAll() {
     if (!client) {
       return null
     }
-    const { accountRepo, apiKeyRepo } = getSqliteRepos()
+    const { accountRepo, apiKeyRepo, db } = getSqliteRepos()
+
+    // 空 Redis 护栏：Redis 实体为 0 但 SQLite 非空 → 疑似 Redis 被清空（flushdb/故障），
+    // 跳过本轮全部对账（upsert 无可做，删除对账会误删 SQLite 全部数据）。
+    // 每轮独立判断，不持久化状态；Redis 恢复数据后自动恢复正常对账。
+    const redisEntityCount = await countRedisEntities(client)
+    if (redisEntityCount === 0 && countSqliteEntities(db) > 0) {
+      logger.error(
+        '🛑 metadataSync: Redis 实体为 0 但 SQLite 非空，疑似 Redis 被清空，本轮跳过删除对账'
+      )
+      return null
+    }
+
     const acc = await reconcileAccounts(client, accountRepo)
     const keys = await reconcileApiKeys(client, apiKeyRepo)
     return { accounts: acc, apiKeys: keys }

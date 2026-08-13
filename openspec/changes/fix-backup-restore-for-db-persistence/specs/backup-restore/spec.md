@@ -38,9 +38,19 @@
 
 metadataSync 的删除对账 SHALL 在以下条件下暂停：本轮 Redis 中全部账户与 API Key 实体 key 总数为 0，且 SQLite 中存在任何账户或 API Key 行。此时 SHALL 记录 error 级告警并跳过本轮删除对账。护栏 MUST 为每轮独立判断，Redis 恢复数据后对账 SHALL 自动恢复正常。
 
+此外，删除对账 SHALL 采用两轮墓碑确认：实体首次被发现「SQLite 有、Redis 无」时 MUST NOT 立即删除，仅记入待删集合；下一轮对账仍缺失时才 SHALL 执行删除；期间 Redis 恢复该实体则 SHALL 撤销待删标记（消除轮初护栏检查与删除执行之间的 TOCTOU 竞态）。
+
 #### Scenario: Redis 被清空不级联删除 SQLite
 - **WHEN** Redis 被 flushdb 而 SQLite 中存在账户与 API Key 数据
 - **THEN** 下一轮对账 MUST NOT 删除 SQLite 中的任何行，且日志 SHALL 出现护栏告警
+
+#### Scenario: 清空发生在护栏检查之后（TOCTOU）
+- **WHEN** flushdb 发生在某轮护栏检查通过之后、删除对账执行之前
+- **THEN** 该轮 MUST NOT 删除任何 SQLite 行（首轮仅记墓碑），下一轮护栏 SHALL 拦截
+
+#### Scenario: 正常删除延迟一轮生效
+- **WHEN** 单个实体在 Redis 中被正常删除
+- **THEN** SQLite 中对应行 SHALL 在其后第二轮对账内被删除
 
 ### Requirement: SQLite 文件级备份与还原闭环
 

@@ -9,6 +9,7 @@ const express = require('express')
 
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
+const config = require('../../../config/config')
 const backupService = require('../../services/backupService')
 
 const router = express.Router()
@@ -68,10 +69,16 @@ router.post('/backup/import', authenticateAdmin, async (req, res) => {
       `📥 Backup imported by admin ${req.admin?.username || 'unknown'}: ` +
         `apiKeys(+${stats.apiKeys.imported}/skip ${stats.apiKeys.skipped}), ` +
         `accounts(+${stats.accounts.imported}/skip ${stats.accounts.skipped}), ` +
+        `tags(+${stats.tags?.imported || 0}/skip ${stats.tags?.skipped || 0}), ` +
         `admins(+${stats.admins.imported}/skip ${stats.admins.skipped})`
     )
 
-    return res.json({ success: true, data: stats })
+    const note =
+      config.metadata?.backend === 'sqlite'
+        ? '导入完成：数据已写入 Redis 并同步落库 SQLite，索引空标记与读缓存已清理；如列表未立即刷新，建议重启服务重建 apikey 索引。'
+        : '导入完成：数据已写入 Redis，索引空标记与读缓存已清理；如列表未立即刷新，建议重启服务重建 apikey 索引。'
+
+    return res.json({ success: true, data: { ...stats, note } })
   } catch (err) {
     logger.error(`/admin/backup/import failed: ${err.stack || err.message}`)
     return res.status(500).json({ success: false, message: err.message })

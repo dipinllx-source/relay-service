@@ -3,6 +3,11 @@
 /**
  * 数据导出/导入工具
  *
+ * ⚠️ DEPRECATED：本脚本只覆盖 claude+gemini 账户且假设全部为 hash 存储，
+ * 不支持 bedrock（string 存储）等其余平台。请改用：
+ *   - 条目级：Web 管理端「备份导出/导入」（/admin/backup/*，覆盖全部 11 类账户 + tags）
+ *   - 文件级：npm run data:backup / data:restore（SQLite 整库灾备）
+ *
  * 使用方法：
  * 导出: node scripts/data-transfer.js export --output=backup.json [options]
  * 导入: node scripts/data-transfer.js import --input=backup.json [options]

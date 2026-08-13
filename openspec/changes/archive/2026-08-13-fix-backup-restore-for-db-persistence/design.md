@@ -107,6 +107,13 @@ IF redis 实体总数 === 0 AND sqlite(accounts+apikeys) > 0:
 - 不做自动禁用/状态持久化：每轮独立判断，Redis 重新有数据即自愈。
 - 已知的合法「删光」运维路径（如主动清库重来）会被告警打扰——可接受，宁可吵也不丢数据。
 
+**实施期补记（2026-08-13，6.5 演练发现）**：仅有轮初护栏存在 TOCTOU 竞态——若 flushdb 发生在
+「护栏检查通过之后、删除对账执行之前」，本轮仍会照删（演练实测 SQLite 5/25 → 1/0）。修复为
+**两轮墓碑确认**：首轮发现「SQLite 有、Redis 无」的实体只记入待删集合（`_pendingAccountDeletes`
+/ `_pendingApiKeyDeletes`，token 分别为 `platform/id` 与 `id`），下一轮（≥15s 后）仍缺失才真正
+删除；期间 Redis 恢复则自动撤销。代价是删除落库延迟一轮，可接受。修复后复测 6.5 通过（护栏 +
+墓碑双保险，SQLite 行数保持 5/25 不变）。
+
 ### D7：SQLite 文件级灾备闭环（入口③）
 
 - 新增 `scripts/restore-metadata.js`（npm: `data:restore`）：

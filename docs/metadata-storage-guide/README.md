@@ -94,7 +94,7 @@ npm run data:cleanup:confirm
 - `usage:*` — 实时 usage 计数
 - `session:*`、`concurrency:*`、`ratelimit:*` — 会话/并发/限流
 
-## 2. 备份与恢复
+## 2. 备份与恢复（灾备与恢复）
 
 ### 2.1 创建备份
 
@@ -104,25 +104,82 @@ npm run data:backup
 ```
 
 使用 SQLite 内置 `.backup` API，**支持热备份**（服务可继续运行）。
+备份成功后自动清理旧文件，仅保留最近 14 份（可用环境变量 `METADATA_BACKUP_KEEP` 调整）。
 
 ### 2.2 恢复备份
 
 ```bash
 # 1) 停服务
-# 2) 替换文件
-cp data/backup/metadata-<timestamp>.db data/metadata.db
+systemctl stop relay-app
+
+# 2) 还原（自动做 integrity_check、备份现库为 metadata.db.pre-restore.<ts>、清理陈旧 WAL/SHM）
+npm run data:restore -- --input=data/backup/metadata-<timestamp>.db
+
 # 3) 启动服务
+systemctl start relay-app
 ```
 
+脚本安全护栏：备份文件先过 `PRAGMA integrity_check`；检测到 relay-app 仍在运行会拒绝执行；
+覆盖前把现库复制为 `data/metadata.db.pre-restore.<ts>` 保留现场。
 SQLite 启动时会做完整性自检；损坏时 fail-fast 退出。
 
-### 2.3 周期性备份（crontab 示例）
+**恢复后动作**：启动后 metadataSync 以 Redis 为准对账。若 Redis 数据仍在，SQLite 会被对账回
+Redis 当前状态；若 Redis 已被清空，空 Redis 护栏会跳过对账保住 SQLite 数据，此时用 Web 端
+「备份导入」（条目级备份 JSON）恢复 Redis，导入完成会自动 reconcile 落库。
 
+### 2.3 周期性备份（systemd timer，已随部署启用）
+
+`relay-backup.timer` 每日 02:00 触发 `relay-backup.service` 跑一次 `npm run data:backup`：
+
+```ini
+# /etc/systemd/system/relay-backup.service
+[Unit]
+Description=Claude Relay Service metadata backup (SQLite file-level)
+# 备份用 SQLite .backup API 热备，不要求停服；relay-app 未运行时同样可备份。
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/relay-service
+# 与 relay-app.service 一致：npm/node 来自 nvm default（better-sqlite3 ABI 绑定 node 主版本）
+ExecStart=/bin/bash -lc 'set -e; NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; exec npm run data:backup'
+StandardOutput=append:/opt/relay-service/logs/backup.log
+StandardError=append:/opt/relay-service/logs/backup.log
 ```
-# 每天凌晨 2 点备份，保留 14 天
-0 2 * * * cd /opt/relay-service && npm run data:backup
-0 3 * * * find /opt/relay-service/data/backup -name 'metadata-*.db' -mtime +14 -delete
+
+```ini
+# /etc/systemd/system/relay-backup.timer
+[Unit]
+Description=Daily metadata backup for Claude Relay Service
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
 ```
+
+```bash
+systemctl daemon-reload && systemctl enable --now relay-backup.timer
+systemctl list-timers relay-backup.timer   # 查看下次执行时间
+systemctl start relay-backup.service       # 手动触发一次
+```
+
+### 2.4 两条恢复路径的取舍
+
+| | 文件级（data:backup / data:restore） | 条目级（Web 导出/导入） |
+|---|---|---|
+| 内容 | 整个 metadata.db 原样回档（含 usage_daily 统计） | API Keys + 11 类账户 + tags + 管理员凭据 |
+| 适用 | 整机灾备、误删全量数据、SQLite 损坏 | 部分恢复、跨实例迁移、误删个别条目 |
+| 要求 | 同版本 schema；须停服执行 | 跨版本兼容（2.0/2.1）；在线执行 |
+| 冲突 | 整库覆盖（现库自动留 pre-restore 副本） | 跳过已存在条目（不覆盖） |
+| 恢复后 | 起服后以 Redis 为准对账（见 2.2 恢复后动作） | 自动 reconcile 落 SQLite、清索引空标记与读缓存 |
+
+遗留 CLI `scripts/data-transfer.js` / `data-transfer-enhanced.js` 已标记 **deprecated**（只覆盖
+claude+gemini 且假设全部 hash 存储），请改用上述两条路径。
 
 ## 3. 数据结构参考
 

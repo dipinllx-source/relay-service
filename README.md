@@ -739,6 +739,28 @@ npm run service:stop
 - **健康检查**: `http://你的域名:3000/health` - 确认服务正常
 - **日志文件**: `logs/` 目录下的各种日志文件
 
+### 灾备与恢复
+
+元数据（API Keys、各平台账户、tags、管理员凭据）有两条互补的备份/恢复路径：
+
+**文件级**（SQLite 整库，适合整机灾备）：
+
+```bash
+npm run data:backup                                        # 热备份 → data/backup/，自动保留最近 14 份
+systemctl stop relay-app                                   # 恢复须先停服
+npm run data:restore -- --input=data/backup/metadata-<ts>.db
+systemctl start relay-app
+```
+
+已部署 `relay-backup.timer` 每日 02:00 自动备份（`systemctl list-timers relay-backup.timer` 查看）。
+
+**条目级**（Web 管理端，适合部分恢复/跨实例迁移，在线执行）：
+
+管理界面「备份导出/导入」（`/admin/backup/export` / `/admin/backup/import`），跳过已存在条目，
+导入后自动同步 SQLite 并清理索引/缓存。
+
+两条路径的取舍与恢复后动作详见 [docs/metadata-storage-guide](docs/metadata-storage-guide/README.md)。
+
 ### 升级指南
 
 当有新版本发布时，按照以下步骤升级服务：

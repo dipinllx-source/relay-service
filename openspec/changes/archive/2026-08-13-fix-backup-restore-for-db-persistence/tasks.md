@@ -50,4 +50,4 @@
 - [x] 7.1 `cd web/admin-spa && npx eslint --fix && npx vite build`（如前端无改动则跳过）；后端 `npx eslint src/services/backupService.js src/storage/metadataSync.js scripts/restore-metadata.js`
 - [x] 7.2 `git commit`（遵循仓库提交风格：`fix(backup): ...`），`systemctl restart relay-app` 换代码
 - [x] 7.3 版本号升级（沿用发布惯例 `chore: 版本号升级为 x.y.z`）——是否发布 tag 由用户决定
-- [ ] 7.4 标记 tasks 完成、归档变更（openspec archive 惯例：移入 openspec/changes/archive/ 并落 specs/backup-restore/spec.md）
+- [x] 7.4 标记 tasks 完成、归档变更（openspec archive 惯例：移入 openspec/changes/archive/ 并落 specs/backup-restore/spec.md）

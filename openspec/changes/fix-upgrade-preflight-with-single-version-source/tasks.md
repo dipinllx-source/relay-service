@@ -44,7 +44,7 @@
 - [x] 4.6 `package.json` 增加 `"version:bump": "node scripts/bump-version.js"`
 - [x] 4.7 一次性提交版本对齐的 `package-lock.json`（`version` 与 `packages[""].version` → 当前 `package.json` 版本）；`git diff --stat` MUST 只显示这两行，依赖树零变更（D8）
 - [x] 4.8 `CLAUDE.md` 补两条：发版必须走 `npm run version:bump`，禁止手工单独编辑 `VERSION` 或 lock 的 version 字段；`package.json.version` 为唯一权威来源
-- [ ] 4.9 4.7 的对齐提交 MUST NOT 单独发布 —— 与第 1~3 组同批次进同一个 tag（D8 的顺序约束，在 PR 描述中写明）
+- [x] 4.9 4.7 的对齐提交 MUST NOT 单独发布 —— 与第 1~3 组同批次进同一个 tag（D8 的顺序约束，在 PR 描述中写明）
 
 ## 5. 验证
 
@@ -57,11 +57,11 @@
 - [x] 5.7 **预检失败可查**：分别构造非法 tag、远端不存在的 tag、工作区脏、已是目标版本四种情形，每次触发后 `redis-cli GET upgrade:last_run` 均为本次记录（`status: 'failed'` + 对应 `error`），且管理台刷新后显示的是本次而非上一次
 - [x] 5.8 **CLI 等价性**：同样用 5.3 与 5.4 两个场景走 `node scripts/manage.js` 升级路径，判定结论与文案与 HTTP 路径一致
 - [x] 5.9 **发版脚本**：`npm run version:bump -- <下一个版本>` 后 `package.json` / `VERSION` / lock 三处一致；再执行一次 `npm install`，`git status --porcelain -uno` 为空（证明噪音源已消除，D7 + D8 生效）
-- [ ] 5.10 **回退演练**：在测试机上 `git revert` 本变更提交后重启，确认服务正常启动，已 stash 的改动仍可 `git stash list` 取回
+- [x] 5.10 **回退演练**：在测试机上 `git revert` 本变更提交后重启，确认服务正常启动，已 stash 的改动仍可 `git stash list` 取回
 
 ## 6. 上线与归档
 
-- [ ] 6.1 解封存量机器（人工、一次性）：47.89.246.67 执行 `cd /opt/relay-service && git checkout -- package-lock.json`，`git status --porcelain -uno` 应为空
+- [x] 6.1 解封存量机器（人工、一次性）：47.89.246.67 执行 `cd /opt/relay-service && git checkout -- package-lock.json`，`git status --porcelain -uno` 应为空
 - [ ] 6.2 发布携带本变更的新 tag；推 tag 用全限定引用 `git push origin refs/tags/vX.Y.Z`
 - [ ] 6.3 存量机器经管理台一键升级到该 tag；`upgrade:last_run.status === 'success'`，`/health` 200，`getCurrentVersion()` 为新版本
 - [ ] 6.4 升级后在该机复跑 5.3（`npm install` → 触发升级），确认自愈已接管，不再需要人工介入

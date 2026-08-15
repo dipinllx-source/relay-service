@@ -28,6 +28,7 @@
     "monitor": "bash scripts/monitor-enhanced.sh",
     "status": "bash scripts/status-unified.sh",
     "status:detail": "bash scripts/status-unified.sh --detail",
+    "version:bump": "node scripts/bump-version.js",
     "test": "jest",
     "lint": "eslint src/**/*.js cli/**/*.js scripts/**/*.js --fix",
     "lint:check": "eslint src/**/*.js cli/**/*.js scripts/**/*.js",

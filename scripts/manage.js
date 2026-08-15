@@ -33,7 +33,10 @@ function systemdStatus() {
       execSync(`systemctl show ${SYSTEMD_UNIT} -p MainPID --value`, { encoding: 'utf8' }).trim(),
       10
     )
-    return { active: active === 'active', pid: Number.isFinite(mainPid) && mainPid > 0 ? mainPid : null }
+    return {
+      active: active === 'active',
+      pid: Number.isFinite(mainPid) && mainPid > 0 ? mainPid : null
+    }
   } catch (_e) {
     return { active: false, pid: null }
   }
@@ -259,53 +262,72 @@ class ServiceManager {
     // 故最后以 systemctl restart 重启（Web 端由服务进程 exit + systemd 拉起）。
     // eslint-disable-next-line global-require
     const upgradeService = require(path.join(ROOT_DIR, 'src', 'services', 'upgradeService'))
+    // fix-upgrade-preflight-with-single-version-source D6：工作区预检（逐文件语义
+    // 判定 + 噪音可逆处置）只有一份实现，CLI 与 HTTP 共用 upgradeRunner.preflight()。
+    // eslint-disable-next-line global-require
+    const upgradeRunner = require(path.join(ROOT_DIR, 'src', 'services', 'upgradeRunner'))
 
     let info
     try {
       info = await upgradeService.checkForUpdates()
     } catch (e) {
-      console.error('❌ 检查更新失败：' + e.message)
+      console.error(`❌ 检查更新失败：${e.message}`)
       return false
     }
     if (!info.hasUpdate || !info.latestTag) {
-      console.log('✅ 当前已是最新版本 (v' + info.current + ')' + (info.error ? '（' + info.error + '）' : ''))
+      console.log(`✅ 当前已是最新版本 (v${info.current})${info.error ? `（${info.error}）` : ''}`)
       return true
     }
 
-    const fromTag = 'v' + info.current
-    console.log('\n发现新版本：v' + info.current + ' → ' + info.latest)
+    const fromTag = `v${info.current}`
+    console.log(`\n发现新版本：v${info.current} → ${info.latest}`)
 
+    // 预检：判定结论与逐文件报错文案与 HTTP 路径一致（同一份实现）
+    let pre
     try {
-      const porcelain = execSync('git status --porcelain', { cwd: ROOT_DIR, encoding: 'utf8' })
-      if (porcelain.trim()) {
-        console.error('❌ 工作区存在未提交改动，已中止升级：\n' + porcelain)
-        return false
-      }
+      pre = await upgradeRunner.preflight(info.latestTag)
     } catch (e) {
-      console.error('❌ 预检失败：' + e.message)
+      console.error(`❌ ${e.message}`)
       return false
+    }
+    const noise = (pre.findings || []).filter((f) => f.verdict === 'noise')
+    if (noise.length > 0) {
+      console.log(
+        `\n🧹 预检自愈：已 stash ${noise.length} 个可再生噪音文件（${noise
+          .map((f) => f.path)
+          .join(', ')}）→ stash ${String(pre.stashRef || '').slice(
+          0,
+          12
+        )}，不会自动恢复（git stash list 可查）`
+      )
     }
 
     const plan = (info.plannedSteps || []).reduce((m, st) => ((m[st.name] = st.needed), m), {})
     const runIf = (need, desc, cmd) => {
-      if (!need) { console.log('⏭️  跳过：' + desc); return }
-      console.log('\n▶️  ' + desc + ': ' + cmd)
+      if (!need) {
+        console.log(`⏭️  跳过：${desc}`)
+        return
+      }
+      console.log(`\n▶️  ${desc}: ${cmd}`)
       execSync(cmd, { cwd: ROOT_DIR, stdio: 'inherit' })
     }
 
     try {
-      console.log('\n▶️  拉取代码: git checkout --detach refs/tags/' + info.latestTag)
+      console.log(`\n▶️  拉取代码: git checkout --detach refs/tags/${info.latestTag}`)
       execSync('git fetch --tags --quiet origin', { cwd: ROOT_DIR, stdio: 'inherit' })
-      execSync('git checkout --detach refs/tags/' + info.latestTag, { cwd: ROOT_DIR, stdio: 'inherit' })
+      execSync(`git checkout --detach refs/tags/${info.latestTag}`, {
+        cwd: ROOT_DIR,
+        stdio: 'inherit'
+      })
       runIf(plan.npmInstall, '安装后端依赖', 'npm install --no-audit --no-fund')
       runIf(plan.npmInstallWeb, '安装前端依赖', 'npm run install:web')
       runIf(plan.buildWeb, '重建前端', 'npm run build:web')
     } catch (error) {
-      console.error('\n❌ 升级失败，正在回退工作区到 ' + fromTag + '（服务仍运行旧版本）')
+      console.error(`\n❌ 升级失败，正在回退工作区到 ${fromTag}（服务仍运行旧版本）`)
       try {
-        execSync('git checkout --detach refs/tags/' + fromTag, { cwd: ROOT_DIR, stdio: 'inherit' })
+        execSync(`git checkout --detach refs/tags/${fromTag}`, { cwd: ROOT_DIR, stdio: 'inherit' })
       } catch (revErr) {
-        console.error('⚠️  回退失败，请手动处理: ' + revErr.message)
+        console.error(`⚠️  回退失败，请手动处理: ${revErr.message}`)
       }
       return false
     }

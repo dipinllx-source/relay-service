@@ -390,6 +390,33 @@
             <span>{{ upgradeModal.message }}</span>
           </div>
 
+          <!-- 预检判定明细（噪音自愈 / 阻断都展示）-->
+          <ul v-if="preflightFindings.length" class="upgrade-findings">
+            <li
+              v-for="f in preflightFindings"
+              :key="f.path"
+              :class="'is-' + (f.verdict || 'blocking')"
+            >
+              <i
+                class="fas"
+                :class="{
+                  'fa-recycle': f.verdict === 'noise',
+                  'fa-exclamation-triangle': f.verdict !== 'noise'
+                }"
+              />
+              <code class="upgrade-findings__path">{{ f.path }}</code>
+              <span class="upgrade-findings__verdict">{{
+                f.verdict === 'noise' ? '可自愈噪音' : '需人介入'
+              }}</span>
+              <span class="upgrade-findings__reason">{{ f.reason }}</span>
+              <span
+                v-if="f.verdict === 'noise' && (f.stashRef || preflightStashRef)"
+                class="upgrade-findings__stash"
+                >已 stash {{ (f.stashRef || preflightStashRef).slice(0, 12) }}</span
+              >
+            </li>
+          </ul>
+
           <!-- 执行步骤明细（进行中/结束后展示）-->
           <ul
             v-if="
@@ -610,6 +637,28 @@ const flattenedChangelog = computed(() => {
   return out
 })
 
+// ⬆️ 预检判定明细（旧记录无 preflightFindings 字段时安全退化为空）
+const preflightFindings = computed(() => {
+  const pf = upgradeModal.value.lastRun && upgradeModal.value.lastRun.preflightFindings
+  return pf && Array.isArray(pf.files) ? pf.files : []
+})
+const preflightStashRef = computed(() => {
+  const pf = upgradeModal.value.lastRun && upgradeModal.value.lastRun.preflightFindings
+  return (pf && pf.stashRef) || ''
+})
+
+// 拉取最新一次升级记录（预检被拒时用于展示逐文件判定结果）
+const refreshLastRun = async () => {
+  try {
+    const s = await getUpgradeStatusApi()
+    if (s.success && s.data) {
+      upgradeModal.value.lastRun = s.data.lastRun || null
+    }
+  } catch (_e) {
+    /* 查询失败不影响主流程提示 */
+  }
+}
+
 const openUpgradeModal = () => {
   upgradeModal.value = { open: true, phase: 'idle', message: '', lastRun: null }
 }
@@ -684,10 +733,12 @@ const confirmUpgrade = async () => {
         upgradeModal.value.message = r.data ? r.data.message : '升级完成'
         versionInfo.value.current = target
         versionInfo.value.hasUpdate = false
+        await refreshLastRun()
       }
     } else {
       upgradeModal.value.phase = 'failed'
       upgradeModal.value.message = r.message || '升级失败（服务仍运行旧版本）'
+      await refreshLastRun()
     }
   } catch (e) {
     // 若因重启导致连接中断，转入轮询确认（可能已成功）
@@ -699,6 +750,7 @@ const confirmUpgrade = async () => {
         (e.response && e.response.data && e.response.data.message) ||
         e.message ||
         '升级失败（服务仍运行旧版本）'
+      await refreshLastRun()
     }
   }
 }
@@ -1346,6 +1398,36 @@ onUnmounted(() => {
 .upgrade-progress--failed {
   background: #ffe3e3;
   color: #c0392b;
+}
+.upgrade-findings {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.upgrade-findings li.is-noise {
+  color: #1a7f37;
+}
+.upgrade-findings li.is-blocking {
+  color: #c0392b;
+}
+.upgrade-findings__path {
+  margin-left: 4px;
+  word-break: break-all;
+}
+.upgrade-findings__verdict {
+  margin-left: 6px;
+}
+.upgrade-findings__reason {
+  color: #86868b;
+  margin-left: 6px;
+}
+.upgrade-findings__stash {
+  color: #86868b;
+  margin-left: 6px;
 }
 .upgrade-runsteps {
   list-style: none;

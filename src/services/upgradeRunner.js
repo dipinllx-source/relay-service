@@ -16,7 +16,7 @@ const redis = require('../models/redis')
 const logger = require('../utils/logger')
 const upgradeService = require('./upgradeService')
 
-const ROOT_DIR = upgradeService.ROOT_DIR
+const { ROOT_DIR } = upgradeService
 const STATE_KEY = 'upgrade:last_run'
 const LOCK_KEY = 'upgrade:lock'
 const LOCK_TTL_SEC = parseInt(process.env.UPGRADE_LOCK_TTL_SEC || '1800', 10)
@@ -115,7 +115,54 @@ async function isLocked() {
   }
 }
 
-// ── 预检（4.2）───────────────────────────────────────────────────
+// ── 预检（4.2 + fix-upgrade-preflight-with-single-version-source 第 2 组）──
+
+/**
+ * 解析 `git status --porcelain` 的一行为 `{ xy, path }`。
+ * 无法可靠解析时返回 null 或标记 unparsable —— 由调用方判 blocking（失败闭合）。
+ */
+function parsePorcelainLine(line) {
+  if (typeof line !== 'string' || line.length < 4 || line[2] !== ' ') {
+    return null
+  }
+  const xy = line.slice(0, 2)
+  let rest = line.slice(3)
+  if (!rest) {
+    return null
+  }
+  // 重命名/复制条目形如 `R  old -> new`：取新路径（旧路径的删除随之发生）
+  if (xy.includes('R') || xy.includes('C')) {
+    const sep = rest.indexOf(' -> ')
+    if (sep < 0) {
+      return null
+    }
+    rest = rest.slice(sep + 4)
+  }
+  // 带引号路径（core.quotepath 开启或路径含空格/非 ASCII）内含 C 风格转义，
+  // 此处不做还原：白名单路径均为纯 ASCII、不会被引号包裹，故一律判不可解析。
+  if (rest.startsWith('"')) {
+    return { xy, path: rest, unparsable: true }
+  }
+  return { xy, path: rest }
+}
+
+/** 回读 stash ref：栈顶 commit 为主，refs/stash 为校验/兜底。 */
+async function readStashRef() {
+  try {
+    const top = (await upgradeService.git(['stash', 'list', '--format=%H', '-1'])).trim()
+    if (top) {
+      return top
+    }
+  } catch (_e) {
+    /* 落到 refs/stash 兜底 */
+  }
+  try {
+    const ref = (await upgradeService.git(['rev-parse', '-q', '--verify', 'refs/stash'])).trim()
+    return ref || null
+  } catch (_e) {
+    return null
+  }
+}
 
 async function preflight(targetTag) {
   // 1. tag 名白名单（拒绝 main / 路径穿越 / 任意 ref）
@@ -133,17 +180,8 @@ async function preflight(targetTag) {
     throw e
   }
 
-  // 3. 工作区必须干净，否则 checkout 会失败或丢改动
-  const porcelain = await upgradeService.git(['status', '--porcelain'])
-  if (porcelain.trim()) {
-    const e = new Error(
-      `工作区存在未提交改动，已中止升级：\n${tail(porcelain, 800)}`
-    )
-    e.statusCode = 409
-    throw e
-  }
-
-  // 4. 目标不能是当前版本
+  // 3. 目标不能是当前版本
+  //    次序说明：该判定前置于工作区判定，避免为一次注定被拒的升级白 stash 一遍。
   const current = upgradeService.getCurrentVersion()
   const target = targetTag.replace(/^v/, '')
   if (upgradeService.compareSemver(current, target) === 0) {
@@ -152,7 +190,106 @@ async function preflight(targetTag) {
     throw e
   }
 
-  return { current, target, tags }
+  // 4. 工作区逐文件语义判定：只有「lock 版本号对齐」这一类工具可再生的噪音才放行，
+  //    其余一律阻断。-uno：未跟踪文件不参与判定（D4，它们不会让 checkout 失败）。
+  const porcelain = await upgradeService.git(['status', '--porcelain', '-uno'])
+  const findings = []
+  for (const rawLine of porcelain.split('\n')) {
+    const line = rawLine.replace(/\r$/, '')
+    if (!line.trim()) {
+      continue
+    }
+    const parsed = parsePorcelainLine(line)
+    if (!parsed) {
+      findings.push({
+        path: line.trim(),
+        xy: '??',
+        verdict: 'blocking',
+        reason: 'unparsable-porcelain-line'
+      })
+      continue
+    }
+    if (parsed.unparsable) {
+      findings.push({
+        path: parsed.path,
+        xy: parsed.xy,
+        verdict: 'blocking',
+        reason: 'unparsable-path'
+      })
+      continue
+    }
+    const { noise, reason } = await upgradeService.isLockVersionOnlyChange(parsed.path)
+    findings.push({
+      path: parsed.path,
+      xy: parsed.xy,
+      verdict: noise ? 'noise' : 'blocking',
+      reason
+    })
+  }
+
+  const blocking = findings.filter((f) => f.verdict === 'blocking')
+  const noiseFindings = findings.filter((f) => f.verdict === 'noise')
+
+  const formatFindings = (list) =>
+    list
+      .map(
+        (f) =>
+          `  ${f.xy} ${f.path} → ${f.verdict === 'noise' ? '可自愈噪音' : '需人介入'}（${f.reason}）`
+      )
+      .join('\n')
+
+  // 4a. 有阻断项 → 409，逐文件给出判定与原因；不提供任何绕过开关（D10）
+  if (blocking.length > 0) {
+    const e = new Error(
+      '工作区存在需人介入的改动，已中止升级' +
+        '（仅 package-lock.json 的「版本号对齐」这一类可再生噪音会被自动处置）：\n' +
+        `${tail(formatFindings(findings), 1600)}\n` +
+        '请逐项确认 `git diff -- <path>`，确认后自行 commit 或 `git stash`，再重试升级。'
+    )
+    e.statusCode = 409
+    e.findings = findings
+    throw e
+  }
+
+  // 4b. 只有噪音 → 在 checkout 之前以可逆方式处置并留痕（D3：只 stash，不 pop）
+  let stashRef = null
+  if (noiseFindings.length > 0) {
+    const paths = noiseFindings.map((f) => f.path)
+    const stashMessage = `<upgrade-preflight> ${targetTag} ${new Date().toISOString()}`
+    try {
+      await upgradeService.git(['stash', 'push', '-m', stashMessage, '--', ...paths], 60000)
+    } catch (err) {
+      const e = new Error(
+        `预检自愈失败：无法 stash 可再生噪音（${paths.join(', ')}）：${err.message}\n` +
+          '已中止升级，未执行 checkout，工作区保持原样。'
+      )
+      e.statusCode = 409
+      e.findings = findings
+      throw e
+    }
+
+    stashRef = await readStashRef()
+    const after = await upgradeService.git(['status', '--porcelain', '-uno'])
+    if (!stashRef || after.trim()) {
+      const e = new Error(
+        '预检自愈未生效：stash 后工作区仍不干净或读不到 stash ref，已中止升级（未执行 checkout）：\n' +
+          `${tail(after, 800)}`
+      )
+      e.statusCode = 409
+      e.findings = findings
+      throw e
+    }
+
+    for (const f of noiseFindings) {
+      f.stashRef = stashRef
+    }
+    logger.info(
+      `⬆️ Upgrade preflight 自愈：已 stash ${paths.length} 个可再生噪音文件（${paths.join(', ')}）` +
+        ` → stash ${stashRef.slice(0, 12)}，目标 ${targetTag}；不会自动恢复（D3）`
+    )
+  }
+
+  return { current, target, tags, findings, stashRef }
 }
 
 // ── 流水线（4.1、4.4）────────────────────────────────────────────
@@ -170,13 +307,33 @@ async function performUpgrade(targetTag, meta = {}) {
     throw e
   }
 
-  let state
+  // 预检可观测性（本变更 D5）：状态在拿到锁之后、预检之前就初始化并落盘，
+  // 使四类预检失败（非法 tag / 远端无此 tag / 工作区需人介入 / 已是该版本）
+  // 都能写进 upgrade:last_run，而不是留着上一次的记录。
+  const state = {
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    fromVersion: null,
+    toVersion: null,
+    targetTag,
+    triggeredBy: meta.admin || 'unknown',
+    status: 'preflight',
+    plannedSteps: [],
+    steps: [],
+    preflightFindings: null,
+    result: null,
+    error: null,
+    willRestart: false
+  }
+  await saveState(state)
+
   // 流水线原子性：记录起始 ref；checkout 后若后续步骤失败需回退，
   // 保证「服务继续以旧版本运行」的承诺不被破坏（工作区不会停在坏版本）。
   let checkedOut = false
   let originRef = null
   try {
-    const { current, target } = await preflight(targetTag)
+    const { current, target, findings, stashRef } = await preflight(targetTag)
+    state.preflightFindings = { files: findings, stashRef }
 
     try {
       originRef = (await upgradeService.git(['rev-parse', 'HEAD'])).trim()
@@ -190,20 +347,11 @@ async function performUpgrade(targetTag, meta = {}) {
     const diffFacts = await upgradeService.getDiffFacts(fromTag, targetTag)
     const { steps: planned } = await upgradeService.planSteps(fromTag, targetTag, diffFacts)
 
-    state = {
-      startedAt: new Date().toISOString(),
-      finishedAt: null,
-      fromVersion: current,
-      toVersion: target,
-      targetTag,
-      triggeredBy: meta.admin || 'unknown',
-      status: 'running',
-      plannedSteps: planned.map((s) => ({ name: s.name, label: s.label, needed: s.needed })),
-      steps: [],
-      result: null,
-      error: null,
-      willRestart: false
-    }
+    state.fromVersion = current
+    state.toVersion = target
+    state.status = 'running'
+    state.plannedSteps = planned.map((s) => ({ name: s.name, label: s.label, needed: s.needed }))
+    state.steps = []
     await saveState(state)
 
     const mark = async (name, label, patch) => {
@@ -250,7 +398,10 @@ async function performUpgrade(targetTag, meta = {}) {
     await mark('checkout', '拉取代码', { status: 'running' })
     const tc0 = Date.now()
     try {
-      const out = await upgradeService.git(['checkout', '--detach', `refs/tags/${targetTag}`], 60000)
+      const out = await upgradeService.git(
+        ['checkout', '--detach', `refs/tags/${targetTag}`],
+        60000
+      )
       await mark('checkout', '拉取代码', {
         status: 'success',
         durationMs: Date.now() - tc0,
@@ -305,30 +456,28 @@ async function performUpgrade(targetTag, meta = {}) {
       try {
         await upgradeService.git(['checkout', '--detach', originRef], 60000)
         logger.warn(`⬆️ Upgrade failed: 工作区已回退到 ${originRef.slice(0, 7)}（旧版本）`)
-        if (state) {
-          const idx = state.steps.findIndex((x) => x.name === 'checkout')
-          if (idx >= 0) {
-            state.steps[idx].status = 'reverted'
-          }
-          state.result = 'failed_reverted_to_previous'
+        const idx = state.steps.findIndex((x) => x.name === 'checkout')
+        if (idx >= 0) {
+          state.steps[idx].status = 'reverted'
         }
+        state.result = 'failed_reverted_to_previous'
       } catch (revErr) {
         logger.error(`❌ Upgrade 回退失败，工作区可能停在坏版本: ${revErr.message}`)
-        if (state) {
-          state.result = 'failed_revert_error'
-          state.revertError = revErr.message
-        }
+        state.result = 'failed_revert_error'
+        state.revertError = revErr.message
       }
     }
-    if (state) {
-      state.status = 'failed'
-      state.error = err.message
-      if (!state.result || state.result === 'running') {
-        state.result = 'failed_service_unchanged'
-      }
-      state.finishedAt = new Date().toISOString()
-      await saveState(state)
+    // 预检阻断时把逐文件判定结果一并落盘（state 在预检前已就位，恒可写）
+    if (err && err.findings && !state.preflightFindings) {
+      state.preflightFindings = { files: err.findings, stashRef: null }
     }
+    state.status = 'failed'
+    state.error = err.message
+    if (!state.result || state.result === 'running') {
+      state.result = 'failed_service_unchanged'
+    }
+    state.finishedAt = new Date().toISOString()
+    await saveState(state)
     await releaseLock(token)
     logger.error(`❌ Upgrade failed (服务仍运行旧版本): ${err.message}`)
     throw err
@@ -340,6 +489,8 @@ module.exports = {
   getState,
   isLocked,
   preflight,
+  // 供测试复用的内部工具
+  parsePorcelainLine,
   STATE_KEY,
   LOCK_KEY
 }

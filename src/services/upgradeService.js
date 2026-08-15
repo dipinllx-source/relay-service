@@ -14,6 +14,7 @@
  */
 
 const { execFile } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 const logger = require('../utils/logger')
 
@@ -181,7 +182,8 @@ function pickLatestTag(tags, allowPrerelease = false) {
 
 // ── 变更分析（提示与步骤裁剪共用）─────────────────────────────────
 
-const CONVENTIONAL_RE = /^(feat|fix|security|perf|refactor|chore|docs|test|build|ci|style|revert)(\([^)]*\))?!?:\s*(.+)$/i
+const CONVENTIONAL_RE =
+  /^(feat|fix|security|perf|refactor|chore|docs|test|build|ci|style|revert)(\([^)]*\))?!?:\s*(.+)$/i
 
 /** 判断是否为"纯版本号提交"（应从变更清单过滤）。 */
 async function isVersionBumpCommit(sha) {
@@ -302,6 +304,136 @@ async function depsChanged(pkgPath, fromTag, toTag) {
   return JSON.stringify(a) !== JSON.stringify(b)
 }
 
+// ── lock 噪音语义判定（fix-upgrade-preflight-with-single-version-source）────
+//
+// 背景：npm install 会把 package-lock.json 的 .version 与 .packages[""].version
+// 对齐到 package.json 的版本，产生一条与依赖树无关的"噪音"改动，卡住升级预检。
+//
+// D1 白名单 + 语义判定 + 失败闭合：只有白名单内的 lock 文件、且两侧除版本字段外
+//    完全一致时才判为噪音；任何读取/解析/未预期异常一律判 blocking。
+// D2 工作区侧 lock 的 version 必须等于 package.json 的 version，否则不是"对齐"
+//    而是人为篡改，必须拦。
+
+/** D1 噪音白名单：唯一定义处，预检不得另行硬编码路径。 */
+const LOCK_NOISE_PATHS = ['package-lock.json', 'web/admin-spa/package-lock.json']
+
+/** 版本字段归一化占位值（仅用于深比较，不落盘）。 */
+const VERSION_PLACEHOLDER = '\u0000<normalized-version>'
+
+/**
+ * 读取指定 ref 下的文件内容。文件不存在（或该 ref 无此路径）返回 null，
+ * 不抛错——由调用方决定是否判 blocking。
+ */
+async function readFileAtRef(ref, relPath) {
+  try {
+    return await git(['show', `${ref}:${relPath}`])
+  } catch (_e) {
+    return null
+  }
+}
+
+/** 不依赖键序的深比较（JSON.stringify 受键序影响，不可靠）。 */
+function deepEqual(a, b) {
+  if (a === b) {
+    return true
+  }
+  if (typeof a !== typeof b || a === null || b === null) {
+    return false
+  }
+  if (typeof a !== 'object') {
+    return false
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false
+    }
+    return a.every((item, i) => deepEqual(item, b[i]))
+  }
+  const ka = Object.keys(a)
+  const kb = Object.keys(b)
+  if (ka.length !== kb.length) {
+    return false
+  }
+  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqual(a[k], b[k]))
+}
+
+/** 深拷贝并把两处 version 归一化为占位值（不原地改动传入对象）。 */
+function normalizeLockVersions(lock) {
+  const copy = JSON.parse(JSON.stringify(lock))
+  copy.version = VERSION_PLACEHOLDER
+  copy.packages[''].version = VERSION_PLACEHOLDER
+  return copy
+}
+
+/**
+ * 判断工作区里某个改动文件是否"仅为 lock 版本号对齐"的噪音。
+ *
+ * @param {string} relPath 相对仓库根的路径（porcelain 输出的路径）
+ * @param {{ headRef?: string }} [opts]
+ * @returns {Promise<{ noise: boolean, reason: string }>}
+ *   reason ∈ path-not-whitelisted | parse-failed | missing-version-field |
+ *            other-fields-differ | version-mismatch-package-json |
+ *            lock-version-alignment | unexpected-error: <msg>
+ */
+async function isLockVersionOnlyChange(relPath, { headRef = 'HEAD' } = {}) {
+  try {
+    if (!LOCK_NOISE_PATHS.includes(relPath)) {
+      return { noise: false, reason: 'path-not-whitelisted' }
+    }
+
+    // HEAD 侧
+    const headRaw = await readFileAtRef(headRef, relPath)
+    if (headRaw === null) {
+      return { noise: false, reason: 'parse-failed' }
+    }
+    // 工作区侧
+    let workRaw
+    try {
+      workRaw = fs.readFileSync(path.join(ROOT_DIR, relPath), 'utf8')
+    } catch (_e) {
+      return { noise: false, reason: 'parse-failed' }
+    }
+
+    let head
+    let work
+    try {
+      head = JSON.parse(headRaw)
+      work = JSON.parse(workRaw)
+    } catch (_e) {
+      return { noise: false, reason: 'parse-failed' }
+    }
+
+    const hasVersionFields = (lock) =>
+      lock &&
+      typeof lock === 'object' &&
+      typeof lock.version === 'string' &&
+      lock.packages &&
+      typeof lock.packages === 'object' &&
+      lock.packages[''] &&
+      typeof lock.packages[''] === 'object' &&
+      typeof lock.packages[''].version === 'string'
+
+    if (!hasVersionFields(head) || !hasVersionFields(work)) {
+      return { noise: false, reason: 'missing-version-field' }
+    }
+
+    if (!deepEqual(normalizeLockVersions(head), normalizeLockVersions(work))) {
+      return { noise: false, reason: 'other-fields-differ' }
+    }
+
+    // D2：工作区侧的版本必须与唯一权威来源 package.json 一致
+    const pkgVersion = getCurrentVersion()
+    if (work.version !== pkgVersion || work.packages[''].version !== pkgVersion) {
+      return { noise: false, reason: 'version-mismatch-package-json' }
+    }
+
+    return { noise: true, reason: 'lock-version-alignment' }
+  } catch (e) {
+    // D1 失败闭合：判定器自身出问题时一律当作 blocking，绝不放行
+    return { noise: false, reason: `unexpected-error: ${e && e.message ? e.message : e}` }
+  }
+}
+
 const WEB_DIR = 'web/admin-spa/'
 const WEB_PKG = 'web/admin-spa/package.json'
 
@@ -310,13 +442,11 @@ const WEB_PKG = 'web/admin-spa/package.json'
  * 返回步骤计划数组，每项 { name, label, needed, reason, warning? }
  */
 async function planSteps(fromTag, toTag, diffFacts) {
-  const files = diffFacts.files
+  const { files } = diffFacts
   const has = (pred) => files.some(pred)
 
   const rootDeps = await depsChanged('package.json', fromTag, toTag)
-  const webDeps = files.includes(WEB_PKG)
-    ? await depsChanged(WEB_PKG, fromTag, toTag)
-    : false
+  const webDeps = files.includes(WEB_PKG) ? await depsChanged(WEB_PKG, fromTag, toTag) : false
 
   // 前端源码变更（排除其 package.json 自身）
   const webSrcChanged = has((f) => f.startsWith(WEB_DIR) && f !== WEB_PKG)
@@ -329,10 +459,8 @@ async function planSteps(fromTag, toTag, diffFacts) {
   // 非运行时变更（文档、规格、工具脚本、systemd 归档等）
   const NON_RUNTIME_RE = /^(openspec\/|scripts\/|docs\/|\.github\/)/
   const onlyNonRuntime =
-    files.length > 0 &&
-    files.every((f) => f.endsWith('.md') || NON_RUNTIME_RE.test(f))
+    files.length > 0 && files.every((f) => f.endsWith('.md') || NON_RUNTIME_RE.test(f))
   // 保留原变量名以兼容返回值语义
-  const backendChanged = runtimeChanged
   const onlyDocs = onlyNonRuntime
 
   const steps = [
@@ -466,6 +594,10 @@ module.exports = {
   getDiffFacts,
   depsChanged,
   planSteps,
+  // 预检语义判定（fix-upgrade-preflight-with-single-version-source）
+  LOCK_NOISE_PATHS,
+  isLockVersionOnlyChange,
+  readFileAtRef,
   // 内部工具（供后续升级执行与测试复用）
   git,
   TAG_RE,

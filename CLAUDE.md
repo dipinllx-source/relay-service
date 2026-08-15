@@ -151,6 +151,11 @@ data/init.json            # 管理员凭据
 - 敏感数据必须加密存储（参考 claudeAccountService.js）
 - 遵循现有的错误处理和日志记录模式
 
+### 版本与发版
+
+- `package.json` 的 `version` 是唯一权威版本来源。`VERSION` 文件、`package-lock.json` 的 `version` 与 `packages[""].version` 都只是它的派生副本，任何读取版本的代码都必须以 `package.json` 为准。
+- 发版改版本号必须走 `npm run version:bump <x.y.z>`（会同步上述三处并回读校验），禁止手工单独编辑 `VERSION` 或 `package-lock.json` 的 version 字段——单独改会让升级预检把 lock 判成「需人介入」而阻断升级。改完把 `package.json`、`package-lock.json`、`VERSION` 一并提交，tag 用 `v<x.y.z>`。
+
 ## 常用命令
 
 ```bash

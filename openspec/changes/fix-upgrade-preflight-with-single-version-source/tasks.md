@@ -62,7 +62,7 @@
 ## 6. 上线与归档
 
 - [x] 6.1 解封存量机器（人工、一次性）：47.89.246.67 执行 `cd /opt/relay-service && git checkout -- package-lock.json`，`git status --porcelain -uno` 应为空
-- [ ] 6.2 发布携带本变更的新 tag；推 tag 用全限定引用 `git push origin refs/tags/vX.Y.Z`
+- [x] 6.2 发布携带本变更的新 tag；推 tag 用全限定引用 `git push origin refs/tags/vX.Y.Z`
 - [ ] 6.3 存量机器经管理台一键升级到该 tag；`upgrade:last_run.status === 'success'`，`/health` 200，`getCurrentVersion()` 为新版本
 - [ ] 6.4 升级后在该机复跑 5.3（`npm install` → 触发升级），确认自愈已接管，不再需要人工介入
 - [ ] 6.5 巡检其余部署机器：`git status --porcelain -uno` 出现 ` M package-lock.json` 即为同一问题，按 6.1 → 6.3 处置

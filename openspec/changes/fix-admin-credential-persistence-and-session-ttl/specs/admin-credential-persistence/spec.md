@@ -1,6 +1,6 @@
 ## ADDED Requirements
 
-### Requirement: 管理员凭据在 Redis 中必须永久存储，不得携带过期时间
+### Requirement: 管理员凭据的写入路径自身不得设置过期时间
 
 `session:admin_credentials` SHALL 以不带 TTL 的方式写入 Redis，所有写入路径 MUST NOT 对该 key 设置任何过期时间。
 
@@ -8,28 +8,30 @@
 
 写入 MUST 收口到专用入口，MUST NOT 复用 `setSession`。给 `setSession` 增加「有时不过期」的分支会使会话语义依赖调用点。
 
+本要求只约束**写入侧**。凭据在 Redis 中的最终存活时长并不由写入侧单方面决定 —— 每小时执行的 `redis.cleanup()` 会把 `session:*` 下 `ttl === -1` 的 key 盖上 86400，详见后文「周期清理会重新施加过期时间」一节。因此下列场景的断言限定为**写入完成的即刻**。
+
 #### Scenario: 服务启动初始化凭据
 
 - **WHEN** 服务启动并从 `data/init.json` 加载管理员凭据写入 Redis
-- **THEN** `session:admin_credentials` SHALL 存在且 `TTL` 为 `-1`
-- **AND** MUST NOT 对该 key 执行 `expire`
+- **THEN** 写入完成的即刻，`session:admin_credentials` SHALL 存在且 `TTL` 为 `-1`
+- **AND** 写入路径 MUST NOT 对该 key 执行 `expire`
 
 #### Scenario: 改密成功后回写凭据
 
 - **WHEN** 管理员成功修改账号信息，新的 `passwordHash` 被写回 Redis
-- **THEN** `session:admin_credentials` 的 `TTL` SHALL 为 `-1`
+- **THEN** 写入完成的即刻，`session:admin_credentials` 的 `TTL` SHALL 为 `-1`
 - **AND** 该 key MUST NOT 因本次写入而获得过期时间
 
 #### Scenario: 登录时发现凭据缓存缺失
 
 - **WHEN** 登录流程发现 `session:admin_credentials` 不存在并从 `init.json` 重建
-- **THEN** 重建后的 key 的 `TTL` SHALL 为 `-1`
+- **THEN** 重建完成的即刻，该 key 的 `TTL` SHALL 为 `-1`
 - **AND** 重建 SHALL 走与其它写入路径相同的专用入口
 
-#### Scenario: 服务重启后凭据仍然永久
+#### Scenario: 服务重启后的写入同样不带过期
 
 - **WHEN** 服务经历一次完整重启
-- **THEN** `session:admin_credentials` 的 `TTL` SHALL 仍为 `-1`
+- **THEN** 启动写入完成的即刻，`session:admin_credentials` 的 `TTL` SHALL 为 `-1`
 - **AND** 该结果 SHALL 被纳入验收核对，MUST NOT 仅以「改密后 TTL 正确」推断启动路径正确
 
 ### Requirement: 凭据写入必须显式清除该 key 上已有的过期时间
@@ -51,6 +53,40 @@ Redis 中 `expire` 是 key 级属性，`HSET` 写入字段**不会**重置或清
 - **WHEN** 目标 key 已存在且 `TTL` 为 `-1`
 - **THEN** 写入与 `PERSIST` SHALL 正常完成且结果仍为 `-1`
 - **AND** MUST NOT 产生错误或告警
+
+### Requirement: 周期清理会重新施加过期时间，凭据缓存允许周期重建
+
+`session:admin_credentials` 被每小时的周期清理盖上 24 小时过期、并因此周期性重建这一行为 SHALL 作为已知限制予以接受，MUST NOT 被当作缺陷修复。
+
+`redis.cleanup()`（每小时由 `app.js` 的 `startCleanupTasks()` 调度，`cleanupInterval` 默认 3600000ms）会扫描 `session:*` 等前缀，对 `ttl === -1` 的 key 一律 `expire(key, 86400)`，其语义是「没有过期时间视为漏设」。这构成本变更最初未识别的**第四条**写入路径 —— 前三条是被动写入者，而它是主动把 `ttl=-1` 转换为 86400 的周期转换器，因此写入侧的 `PERSIST` 无论多正确都只能维持不到一个清理周期。
+
+由此凭据缓存呈以下循环：写入后 `ttl=-1` → 一小时内被盖 86400 → 24 小时后 key 消失 → 下一次访问从 `init.json` 自愈重建 → 复归 `ttl=-1`。
+
+接受而非修正的理由：本变更的自愈要求已使该循环对使用者**完全不可见**。凭据缺失时登录、改密、获取用户信息三条路径均从 `init.json` 重建并正常返回，改密不再返回 5xx。残留代价仅为每轮一次 `bcrypt.hash` 重算，以及 `lastLogin` 等运行时元数据随重建回落到 `init.json` 的值。相比之下，两种修正方案各有其代价：在 `redis.cleanup()` 中排除该 key 会在清理逻辑里引入特例，而把凭据迁出 `session:` 键空间需要现网数据迁移并牵动备份读写的兼容性。
+
+#### Scenario: 清理周期到来时凭据被盖上过期时间
+
+- **WHEN** 凭据 key 的 `ttl` 为 `-1`，且 `redis.cleanup()` 的调度周期到达
+- **THEN** 该 key SHALL 被设置为 86400 秒过期
+- **AND** 该结果 MUST NOT 被判定为写入路径的缺陷
+
+#### Scenario: 凭据因过期消失后自愈
+
+- **WHEN** 凭据 key 因上述过期而消失，随后有登录、改密或获取用户信息的请求到达
+- **THEN** 系统 SHALL 从 `init.json` 重建凭据并正常完成该请求
+- **AND** 改密请求 MUST NOT 因此返回 5xx
+
+#### Scenario: 登录会话不受该清理影响
+
+- **WHEN** 周期清理扫描 `session:*`
+- **THEN** 已带 TTL 的登录会话 key（`ttl !== -1`）SHALL 不被改动
+- **AND** 管理员的登录状态 MUST NOT 因该清理而失效
+
+#### Scenario: 元数据随重建回落
+
+- **WHEN** 凭据经自愈重建
+- **THEN** `lastLogin` 等运行时元数据 SHALL 回落到 `init.json` 所能提供的值
+- **AND** 该损失 SHALL 被视为已接受的代价，MUST NOT 阻塞重建
 
 ### Requirement: 凭据读取必须把 Redis 空对象归一为空值
 

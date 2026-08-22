@@ -534,7 +534,10 @@ class Application {
         updatedAt: initData.updatedAt || null
       }
 
-      await redis.setSession('admin_credentials', adminCredentials)
+      // 走专用入口写入，不带 TTL —— 与下方会话清理处「跳过 admin_credentials（系统凭据）」
+      // 所表达的永久意图保持一致。原先经 setSession 写入会被无条件盖上 24h TTL，
+      // 使凭据在服务启动 24 小时后蒸发；这条路径无人操作也会自行触发，且症状静默。
+      await redis.setAdminCredentials(adminCredentials)
 
       logger.success('Admin credentials loaded from init.json (single source of truth)')
       logger.info(`📋 Admin username: ${adminCredentials.username}`)

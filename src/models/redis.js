@@ -2,6 +2,11 @@ const Redis = require('ioredis')
 const config = require('../../config/config')
 const logger = require('../utils/logger')
 
+// 管理员凭据在 Redis 中的 session id（完整 key 为 `session:admin_credentials`）。
+// 该名称不可轻易更改：app.js 的会话清理逻辑按此 key 名显式跳过它（系统凭据），
+// 备份导入的 key 匹配同样依赖它。
+const ADMIN_CREDENTIALS_SESSION_ID = 'admin_credentials'
+
 // 时区辅助函数
 // 注意：这个函数的目的是获取某个时间点在目标时区的"本地"表示
 // 例如：UTC时间 2025-07-30 01:00:00 在 UTC+8 时区表示为 2025-07-30 09:00:00
@@ -2496,6 +2501,37 @@ class RedisClient {
   async deleteSession(sessionId) {
     const key = `session:${sessionId}`
     return await this.client.del(key)
+  }
+
+  // 🔑 管理员凭据专用读写入口
+  //
+  // 凭据是「配置」而不是「会话」，因此故意不复用上面的 setSession / getSession：
+  //   - setSession 会无条件 expire，凭据一旦经它写入就会在 24h 后蒸发；
+  //   - getSession 直接返回 hgetall 结果，key 缺失时是空对象而非 null，
+  //     调用方的 `if (!adminData)` 守卫会被静默绕过。
+  // 请勿因为「看起来对称」而把这两个方法合回会话入口。
+  async setAdminCredentials(credentials) {
+    const key = `session:${ADMIN_CREDENTIALS_SESSION_ID}`
+    await this.client.hset(key, credentials)
+    // ⚠️ 必须显式 persist，且必须无条件执行：
+    // Redis 的过期时间是 key 级属性，HSET 写入字段【不会】清除该 key 上已有的 TTL。
+    // 历史版本经 setSession 写入时留下的 TTL 会一直有效，只改写入方式并不足以治愈现网
+    // ——凭据仍会在原定到期时刻蒸发，且症状与本次修复看似无关，极难归因。
+    // 不先查 TTL 再决定是否执行：persist 对无 TTL 的 key 是幂等无害操作，
+    // 多一次查询只会扩大竞态窗口。
+    await this.client.persist(key)
+  }
+
+  async getAdminCredentials() {
+    const key = `session:${ADMIN_CREDENTIALS_SESSION_ID}`
+    const credentials = await this.client.hgetall(key)
+    // hgetall 在 key 不存在时返回 {} 而非 null，而 `!{}` 为 false。
+    // 在此归一为 null，使调用方沿用直觉写法 `if (!adminData)` 即可正确判空。
+    // 归一只在本入口内做：改动 getSession 的通用返回语义会波及全部会话读取点。
+    if (!credentials || Object.keys(credentials).length === 0) {
+      return null
+    }
+    return credentials
   }
 
   // 🗝️ API Key哈希索引管理（兼容旧结构 apikey_hash:* 和新结构 apikey:hash_map）

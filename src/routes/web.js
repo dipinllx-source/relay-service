@@ -14,6 +14,45 @@ const {
 
 const router = express.Router()
 
+// 管理员凭据的唯一真实数据源
+const INIT_FILE_PATH = path.join(__dirname, '../../data/init.json')
+
+/**
+ * 从 init.json 重建 Redis 中的管理员凭据缓存。
+ *
+ * `data/init.json` 是管理员凭据的 single source of truth，Redis 中的副本随时可以从它重建。
+ * 因此「凭据缓存缺失」不是错误状态，而是一个可自愈的中间态 —— 登录、改密、获取用户信息
+ * 三条路径都必须调用本函数自愈，而不是各自向调用方报错。
+ *
+ * 本函数是这三条路径共用的唯一实现：历史缺陷的成因正是「同一份数据、两套读取契约」
+ * （登录侧有兜底所以一直正常，改密侧没有所以必然 500），复制实现会保留这个成因。
+ *
+ * @returns {Promise<object|null>} 重建后的凭据对象；init.json 不存在时返回 null
+ */
+async function reloadAdminCredentialsFromInit() {
+  if (!fs.existsSync(INIT_FILE_PATH)) {
+    return null
+  }
+
+  const initData = JSON.parse(fs.readFileSync(INIT_FILE_PATH, 'utf8'))
+  const saltRounds = 10
+  const passwordHash = await bcrypt.hash(initData.adminPassword, saltRounds)
+
+  const adminData = {
+    username: initData.adminUsername,
+    passwordHash,
+    createdAt: initData.initializedAt || new Date().toISOString(),
+    lastLogin: null,
+    updatedAt: initData.updatedAt || null
+  }
+
+  // 走专用入口写入，不带 TTL（凭据是配置不是会话）
+  await redis.setAdminCredentials(adminData)
+  logger.info('✅ Admin credentials reloaded from init.json')
+
+  return adminData
+}
+
 // 🏠 服务静态文件
 router.use('/assets', express.static(path.join(__dirname, '../../web/assets')))
 
@@ -43,39 +82,23 @@ router.post('/auth/login', loginRateLimit, async (req, res) => {
       })
     }
 
-    // 从Redis获取管理员信息
-    let adminData = await redis.getSession('admin_credentials')
+    // 从Redis获取管理员信息（专用入口，key 缺失时返回 null）
+    let adminData = await redis.getAdminCredentials()
 
-    // 如果Redis中没有管理员凭据，尝试从init.json重新加载
-    if (!adminData || Object.keys(adminData).length === 0) {
-      const initFilePath = path.join(__dirname, '../../data/init.json')
+    // 如果Redis中没有管理员凭据，尝试从init.json重新加载（与改密、获取用户信息共用同一实现）
+    if (!adminData) {
+      try {
+        adminData = await reloadAdminCredentialsFromInit()
+      } catch (error) {
+        logger.error('❌ Failed to reload admin credentials:', error)
+        return res.status(401).json({
+          error: 'Invalid credentials',
+          message: 'Invalid username or password'
+        })
+      }
 
-      if (fs.existsSync(initFilePath)) {
-        try {
-          const initData = JSON.parse(fs.readFileSync(initFilePath, 'utf8'))
-          const saltRounds = 10
-          const passwordHash = await bcrypt.hash(initData.adminPassword, saltRounds)
-
-          adminData = {
-            username: initData.adminUsername,
-            passwordHash,
-            createdAt: initData.initializedAt || new Date().toISOString(),
-            lastLogin: null,
-            updatedAt: initData.updatedAt || null
-          }
-
-          // 重新存储到Redis，不设置过期时间
-          await redis.getClient().hset('session:admin_credentials', adminData)
-
-          logger.info('✅ Admin credentials reloaded from init.json')
-        } catch (error) {
-          logger.error('❌ Failed to reload admin credentials:', error)
-          return res.status(401).json({
-            error: 'Invalid credentials',
-            message: 'Invalid username or password'
-          })
-        }
-      } else {
+      // init.json 不存在：此处沿用 401 而非 5xx，避免向未认证方泄露凭据配置状态
+      if (!adminData) {
         return res.status(401).json({
           error: 'Invalid credentials',
           message: 'Invalid username or password'
@@ -203,13 +226,28 @@ router.post('/auth/change-password', async (req, res) => {
       })
     }
 
-    // 获取当前管理员信息
-    const adminData = await redis.getSession('admin_credentials')
+    // 获取当前管理员信息（专用入口，key 缺失时返回 null）
+    let adminData = await redis.getAdminCredentials()
+
+    // 凭据缓存缺失不是故障，而是可自愈的中间态：init.json 是唯一真实数据源，
+    // 随时可以从它重建。与登录路径共用同一实现，不在此复制一份。
     if (!adminData) {
-      return res.status(500).json({
-        error: 'Admin data not found',
-        message: 'Administrator credentials not found'
-      })
+      try {
+        adminData = await reloadAdminCredentialsFromInit()
+      } catch (error) {
+        logger.error('❌ Failed to reload admin credentials:', error)
+        return res.status(500).json({
+          error: 'Configuration unreadable',
+          message: 'Failed to read administrator credentials from init.json'
+        })
+      }
+
+      if (!adminData) {
+        return res.status(500).json({
+          error: 'Configuration file not found',
+          message: 'init.json file is missing'
+        })
+      }
     }
 
     // 验证当前密码
@@ -227,8 +265,7 @@ router.post('/auth/change-password', async (req, res) => {
       newUsername && newUsername.trim() ? newUsername.trim() : adminData.username
 
     // 先更新 init.json（唯一真实数据源）
-    const initFilePath = path.join(__dirname, '../../data/init.json')
-    if (!fs.existsSync(initFilePath)) {
+    if (!fs.existsSync(INIT_FILE_PATH)) {
       return res.status(500).json({
         error: 'Configuration file not found',
         message: 'init.json file is missing'
@@ -236,7 +273,7 @@ router.post('/auth/change-password', async (req, res) => {
     }
 
     try {
-      const initData = JSON.parse(fs.readFileSync(initFilePath, 'utf8'))
+      const initData = JSON.parse(fs.readFileSync(INIT_FILE_PATH, 'utf8'))
       // const oldData = { ...initData }; // 备份旧数据
 
       // 更新 init.json
@@ -245,7 +282,7 @@ router.post('/auth/change-password', async (req, res) => {
       initData.updatedAt = new Date().toISOString()
 
       // 先写入文件（如果失败则不会影响 Redis）
-      fs.writeFileSync(initFilePath, JSON.stringify(initData, null, 2))
+      fs.writeFileSync(INIT_FILE_PATH, JSON.stringify(initData, null, 2))
 
       // 文件写入成功后，更新 Redis 缓存
       const saltRounds = 10
@@ -259,7 +296,9 @@ router.post('/auth/change-password', async (req, res) => {
         updatedAt: new Date().toISOString()
       }
 
-      await redis.setSession('admin_credentials', updatedAdminData)
+      // 走专用入口写入：经 setSession 写入会被盖上 24h TTL，凭据到点蒸发后
+      // 下一次改密必然 500 —— 即「上一次成功的修改正是下一次失败的原因」。
+      await redis.setAdminCredentials(updatedAdminData)
     } catch (fileError) {
       logger.error('❌ Failed to update init.json:', fileError)
       return res.status(500).json({
@@ -320,13 +359,28 @@ router.get('/auth/user', async (req, res) => {
       })
     }
 
-    // 获取管理员信息
-    const adminData = await redis.getSession('admin_credentials')
+    // 获取管理员信息（专用入口，key 缺失时返回 null）
+    let adminData = await redis.getAdminCredentials()
+
+    // 与登录、改密共用同一自愈实现：缓存缺失时从 init.json 重建，
+    // 而不是让响应里的 username 变成 undefined（空对象会通过 `if (!adminData)` 守卫）。
     if (!adminData) {
-      return res.status(500).json({
-        error: 'Admin data not found',
-        message: 'Administrator credentials not found'
-      })
+      try {
+        adminData = await reloadAdminCredentialsFromInit()
+      } catch (error) {
+        logger.error('❌ Failed to reload admin credentials:', error)
+        return res.status(500).json({
+          error: 'Configuration unreadable',
+          message: 'Failed to read administrator credentials from init.json'
+        })
+      }
+
+      if (!adminData) {
+        return res.status(500).json({
+          error: 'Configuration file not found',
+          message: 'init.json file is missing'
+        })
+      }
     }
 
     return res.json({

@@ -10,6 +10,41 @@ const ClaudeCodeValidator = require('../validators/clients/claudeCodeValidator')
 const claudeRelayConfigService = require('../services/claudeRelayConfigService')
 const { calculateWaitTimeStats } = require('../utils/statsHelper')
 const { isClaudeFamilyModel } = require('../utils/modelHelper')
+// 访问日志的请求体脱敏：复用既有实现，勿另写一份 —— 两套敏感字段黑名单必然漂移。
+// SENSITIVE_KEY_PATTERN 为无锚点子串匹配且含 password，currentPassword / newPassword 天然覆盖。
+const { sanitizeRequestBodySnapshot } = require('../utils/requestDetailHelper')
+
+// 密码族字段在访问日志中一律全量遮蔽。
+// requestDetailHelper 的 maskSensitiveValue 会保留首尾各 3 位（为便于排查 token / api key），
+// 但用在密码上等于露出一半字符，会显著缩小暴力破解空间。
+// 这道收紧只作用于访问日志，故意不去改公共 SENSITIVE_KEY_PATTERN ——
+// 收紧共享正则有漏遮真实凭据的风险，代价远大于收益。
+const PASSWORD_FIELD_PATTERN = /password|passwd|pwd/i
+
+function redactPasswordFields(value) {
+  if (Array.isArray(value)) {
+    return value.map(redactPasswordFields)
+  }
+  if (value && typeof value === 'object') {
+    const result = {}
+    for (const [key, nested] of Object.entries(value)) {
+      result[key] = PASSWORD_FIELD_PATTERN.test(key) ? '[REDACTED]' : redactPasswordFields(nested)
+    }
+    return result
+  }
+  return value
+}
+
+/**
+ * 把请求体加工成可安全落盘的形态：先通用脱敏，再对密码族全量遮蔽。
+ * @returns {*} 可落盘的请求体；无内容时返回 undefined（保持「无内容不显示」的原有行为）
+ */
+function buildLoggableRequestBody(body) {
+  if (!body || Object.keys(body).length === 0) {
+    return undefined
+  }
+  return redactPasswordFields(sanitizeRequestBodySnapshot(body))
+}
 
 // 工具函数
 function sleep(ms) {
@@ -1778,7 +1813,7 @@ const requestLogger = (req, res, next) => {
   if (req.originalUrl !== '/health') {
     logger.debug(`▶ [${requestId}] ${req.method} ${req.originalUrl}`, {
       ip: clientIP,
-      body: req.body && Object.keys(req.body).length > 0 ? req.body : undefined
+      body: buildLoggableRequestBody(req.body)
     })
   }
 
@@ -1807,9 +1842,12 @@ const requestLogger = (req, res, next) => {
     // 构建树形 metadata
     const meta = { requestId }
 
-    // 请求体（非 GET 且有内容时显示）
-    if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
-      meta.req = req.body
+    // 请求体（非 GET 且有内容时显示）—— 必须脱敏后再落盘
+    if (req.method !== 'GET') {
+      const loggableBody = buildLoggableRequestBody(req.body)
+      if (loggableBody !== undefined) {
+        meta.req = loggableBody
+      }
     }
 
     // 查询参数（GET 请求且有查询参数时单独显示）

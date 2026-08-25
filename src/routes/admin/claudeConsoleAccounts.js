@@ -14,7 +14,7 @@ const redis = require('../../models/redis')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const webhookNotifier = require('../../utils/webhookNotifier')
-const { formatAccountExpiry, mapExpiryField } = require('./utils')
+const { formatAccountExpiry, mapExpiryField, pruneDanglingGroupRefs } = require('./utils')
 
 // 获取所有Claude Console账户
 router.get('/claude-console-accounts', authenticateAdmin, async (req, res) => {
@@ -264,6 +264,10 @@ router.put('/claude-console-accounts/:accountId', authenticateAdmin, async (req,
         mappedUpdates.disableAutoProtection === true ||
         mappedUpdates.disableAutoProtection === 'true'
     }
+
+    // 悬空 groupId 自动解绑（D3c）：绑定前剔除指向已不存在分组的引用，
+    // 否则 addAccountToGroup 抛「分组不存在」会被下面的 catch 冒泡成 500
+    await pruneDanglingGroupRefs(mappedUpdates, 'claude', accountId)
 
     // 处理分组的变更
     if (mappedUpdates.accountType !== undefined) {

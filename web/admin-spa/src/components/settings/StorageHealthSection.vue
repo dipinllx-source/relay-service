@@ -248,10 +248,39 @@
           <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">备份导出 / 导入</h4>
         </div>
         <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          导出包含 API Keys、各类账户与管理员凭据（敏感字段以加密形态保留，仅可在相同
-          <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-700">ENCRYPTION_KEY</code>
-          环境下恢复）。导入采用「跳过冲突」策略，不会覆盖已存在的条目。
+          导出包含 API
+          Keys、各类账户与管理员凭据，敏感字段以加密形态保留。导入采用「跳过冲突」策略，
+          不会覆盖已存在的条目。
         </p>
+
+        <div
+          class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200"
+        >
+          <p class="mb-1 flex items-center gap-1 font-semibold">
+            <i class="fas fa-exclamation-triangle" />
+            备份文件请按机密文件保管
+          </p>
+          <p class="leading-5">
+            文件内含可解密的账户凭据与明文管理员凭据，不要提交代码仓库，也不要放进公开的对象存储桶。
+          </p>
+          <p class="mt-1 leading-5">
+            恢复到另一台服务器要求该机沿用同一
+            <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-900/40"
+              >ENCRYPTION_KEY</code
+            >
+            ，且必须在该机建立任何数据之前就设好。密钥不一致时导入会「成功」、账户在列表里也照常可见，
+            但每次上游调用都是 401。
+          </p>
+          <p v-if="keyFingerprint" class="mt-1 leading-5" data-secharden-key-fingerprint>
+            本机密钥指纹
+            <code class="rounded bg-amber-100 px-1 py-0.5 font-mono dark:bg-amber-900/40">{{
+              keyFingerprint
+            }}</code>
+            —— 导出的备份会声明它。目标机指纹与之不同时：账户凭据解不开（上游
+            401，可在目标机重新授权或重新录入）；已发放的 API Key 连哈希都算不出来，在中转入口就
+            401，且无法恢复、只能重新发放。
+          </p>
+        </div>
 
         <div class="flex flex-wrap items-center gap-3">
           <button
@@ -298,6 +327,45 @@
           {{ backupMsg }}
         </div>
 
+        <!-- 导入结果明细：四桶汇总 + 分组 / 索引 / 鉴权映射 + 告警（D11） -->
+        <div v-if="importResult" class="mt-3 space-y-2">
+          <div
+            class="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-900/20 dark:text-green-300"
+          >
+            <i class="fas fa-check-circle mr-1" />
+            {{ importSummary }}
+          </div>
+
+          <div
+            v-if="importDetailLines.length"
+            class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-gray-900/40 dark:text-gray-300"
+          >
+            <p v-for="(line, i) in importDetailLines" :key="i" class="leading-5">{{ line }}</p>
+          </div>
+
+          <!-- 告警不能折进「成功」提示里：这几条都改动了数据，需要被看见 -->
+          <div
+            v-if="importWarnings.length"
+            class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700/60 dark:bg-amber-900/20"
+          >
+            <p
+              class="mb-1 flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-300"
+            >
+              <i class="fas fa-exclamation-triangle" />
+              有 {{ importWarnings.length }} 处需要留意的处理（不是失败，但改动了写入的数据）
+            </p>
+            <ul
+              class="list-disc space-y-1 pl-5 text-xs text-amber-800 dark:text-amber-200"
+              data-secharden-import-warnings
+            >
+              <li v-for="(w, i) in importWarnings" :key="i" class="leading-5">
+                {{ w.message || w.type }}
+                <span v-if="w.type" class="ml-1 font-mono opacity-60">[{{ w.type }}]</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
         <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
           提示：也可使用 CLI
           <code class="rounded bg-gray-100 px-1 py-0.5 dark:bg-gray-700">npm run data:export</code>
@@ -328,21 +396,87 @@ const status = ref(null)
 const error = ref(null)
 let timer = null
 
+// 🔑 本机 ENCRYPTION_KEY 的指纹（来自 /admin/storage/status）。老后端不返回该字段时
+// 取空串，模板里那段提示直接 v-if 隐藏，不会渲染出 undefined
+const keyFingerprint = computed(() => status.value?.encryption?.keyFingerprint || '')
+
 // 🗄️ 备份导出 / 导入
 const busy = ref(null)
 const backupMsg = ref('')
 const backupMsgType = ref('info')
 const fileInput = ref(null)
+// 导入结果原样存着，展示逐段派生（老后端缺 groups / indexes / hashMap / warnings
+// 时，下面的 computed 一律返回空，视图少几块而不是报错）
+const importResult = ref(null)
 
 function setBackupMsg(msg, type = 'info') {
   backupMsg.value = msg
   backupMsgType.value = type
 }
 
+function bucketText(label, bucket) {
+  if (!bucket) return null
+  const errors = bucket.errors ? ` / 失败 ${bucket.errors}` : ''
+  return `${label} +${bucket.imported ?? 0} / 跳过 ${bucket.skipped ?? 0}${errors}`
+}
+
+const importSummary = computed(() => {
+  const st = importResult.value
+  if (!st) return ''
+  const parts = [
+    bucketText('API Keys', st.apiKeys),
+    bucketText('账户', st.accounts),
+    bucketText('标签', st.tags),
+    bucketText('管理员', st.admins)
+  ].filter(Boolean)
+  return parts.length ? `导入完成：${parts.join('；')}` : '导入完成'
+})
+
+const importDetailLines = computed(() => {
+  const st = importResult.value
+  if (!st) return []
+  const lines = []
+
+  if (st.groups) {
+    const def = bucketText('定义', st.groups.definitions) || '定义 +0 / 跳过 0'
+    lines.push(
+      `账户分组：${def}，成员 +${st.groups.members?.added ?? 0}，反向索引 +${st.groups.reverse?.added ?? 0}`
+    )
+  }
+
+  const idx = st.indexes
+  if (idx && Object.keys(idx).length > 0) {
+    const items = Object.entries(idx)
+      .map(([key, count]) => `${key} +${count}`)
+      .join('，')
+    lines.push(`索引补写：${items}`)
+  }
+
+  const hm = st.hashMap
+  if (hm) {
+    const extra = []
+    if (hm.skippedDeleted) extra.push(`已删除故未写回 ${hm.skippedDeleted}`)
+    if (hm.errors) extra.push(`失败 ${hm.errors}`)
+    lines.push(
+      `API Key 鉴权映射：+${hm.imported ?? 0} / 跳过 ${hm.skipped ?? 0}${
+        extra.length ? ` / ${extra.join(' / ')}` : ''
+      }`
+    )
+  }
+
+  return lines
+})
+
+const importWarnings = computed(() => {
+  const list = importResult.value?.warnings
+  return Array.isArray(list) ? list : []
+})
+
 async function doExport() {
   if (busy.value) return
   busy.value = 'export'
   setBackupMsg('')
+  importResult.value = null
   try {
     const resp = await exportBackupApi()
     const blob = new Blob([resp.data], { type: 'application/json' })
@@ -361,7 +495,15 @@ async function doExport() {
     a.click()
     document.body.removeChild(a)
     window.URL.revokeObjectURL(url)
-    setBackupMsg('备份已导出并开始下载', 'info')
+    const fp =
+      resp.headers &&
+      (resp.headers['x-backup-key-fingerprint'] || resp.headers['X-Backup-Key-Fingerprint'])
+    setBackupMsg(
+      fp
+        ? `备份已导出并开始下载（密钥指纹 ${fp}）。恢复到指纹不同的机器上：账户凭据解不开，API Key 只能重新发放。`
+        : '备份已导出并开始下载',
+      'info'
+    )
   } catch (err) {
     setBackupMsg(
       '导出失败：' + (err?.response?.data?.message || err.message || String(err)),
@@ -383,6 +525,7 @@ async function onFileChange(e) {
   if (!file) return
   busy.value = 'import'
   setBackupMsg('')
+  importResult.value = null
   try {
     const text = await file.text()
     let backup
@@ -399,14 +542,11 @@ async function onFileChange(e) {
       return
     }
     const { data } = await importBackupApi(backup)
-    const st = data || {}
-    const parts = []
-    if (st.apiKeys) parts.push('API Keys +' + st.apiKeys.imported + ' / 跳过 ' + st.apiKeys.skipped)
-    if (st.accounts) parts.push('账户 +' + st.accounts.imported + ' / 跳过 ' + st.accounts.skipped)
-    if (st.admins) parts.push('管理员 +' + st.admins.imported + ' / 跳过 ' + st.admins.skipped)
-    setBackupMsg('导入完成：' + parts.join('；'), 'info')
+    importResult.value = data || {}
+    setBackupMsg('')
     refresh()
   } catch (err) {
+    importResult.value = null
     setBackupMsg(
       '导入失败：' + (err?.response?.data?.message || err.message || String(err)),
       'error'

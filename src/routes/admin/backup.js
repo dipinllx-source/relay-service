@@ -28,12 +28,19 @@ router.get('/backup/export', authenticateAdmin, async (req, res) => {
     const filename = `relay-backup-${stamp}.json`
 
     logger.security(
-      `📤 Backup exported by admin ${req.admin?.username || 'unknown'}: apiKeys=${summary.apiKeys}, accounts=${summary.accounts}, admins=${summary.admins}`
+      `📤 Backup exported by admin ${req.admin?.username || 'unknown'}: apiKeys=${summary.apiKeys}, accounts=${summary.accounts}, admins=${summary.admins}, keyFingerprint=${summary.encryption?.keyFingerprint || 'n/a'}`
     )
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.setHeader('Cache-Control', 'no-store')
+    // 🔑 密钥指纹也走响应头（D14）：导出是 blob 附件下载，前端拿到的是二进制、不解析
+    // JSON，body 里的 metadata.encryption 对界面不可见。指纹是加盐 KDF 截断值，不是密钥。
+    // 若将来管理台改为跨域部署，MUST 补 Access-Control-Expose-Headers，否则前端只会
+    // 拿到 undefined 而静默少一句提示。
+    if (summary.encryption?.keyFingerprint) {
+      res.setHeader('X-Backup-Key-Fingerprint', summary.encryption.keyFingerprint)
+    }
     return res.status(200).send(JSON.stringify(backup, null, 2))
   } catch (err) {
     logger.error(`/admin/backup/export failed: ${err.stack || err.message}`)

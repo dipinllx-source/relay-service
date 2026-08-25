@@ -6,7 +6,7 @@ const redis = require('../../models/redis')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const webhookNotifier = require('../../utils/webhookNotifier')
-const { formatAccountExpiry, mapExpiryField } = require('./utils')
+const { formatAccountExpiry, mapExpiryField, pruneDanglingGroupRefs } = require('./utils')
 
 const router = express.Router()
 
@@ -327,6 +327,10 @@ router.put('/:accountId', authenticateAdmin, async (req, res) => {
 
     // ✅ 【新增】映射字段名：前端的 expiresAt -> 后端的 subscriptionExpiresAt
     const mappedUpdates = mapExpiryField(updates, 'Gemini', accountId)
+
+    // 悬空 groupId 自动解绑（D3c）：绑定前剔除指向已不存在分组的引用，
+    // 否则 addAccountToGroup 抛「分组不存在」会被下面的 catch 冒泡成 500
+    await pruneDanglingGroupRefs(mappedUpdates, 'gemini', accountId)
 
     // 处理分组的变更
     if (mappedUpdates.accountType !== undefined) {

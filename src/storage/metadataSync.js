@@ -270,4 +270,8 @@ function stop() {
   }
 }
 
-module.exports = { start, stop, reconcileAll }
+// ACCOUNT_GROUPS / isEntityKey 一并导出：账户前缀表在本仓库里已被抄写多份
+// （backupService 的对象数组、各账户服务的 *_KEY_PREFIX 常量），彼此已经漂移过。
+// 此处作为「Redis 中全部账户实体」的权威枚举，供 accountIndexService 等复用，
+// 不再新增副本。
+module.exports = { start, stop, reconcileAll, ACCOUNT_GROUPS, isEntityKey }

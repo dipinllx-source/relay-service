@@ -166,6 +166,21 @@ class Application {
       apiKeyIndexService.init(redis)
       await apiKeyIndexService.checkAndRebuild()
 
+      // 🗂️ 账户索引（`<平台前缀>index`）版本化重建：版本落后时后台异步双向对账，
+      // 收敛「实体存在而索引缺失」导致的账户在管理台不可见（内部不阻塞启动）
+      logger.info('🗂️ Checking account index version...')
+      const accountIndexService = require('./services/accountIndexService')
+      await accountIndexService.checkAndRebuild()
+
+      // 🔑 ENCRYPTION_KEY 一致性自检（D5）：抽样试解已有密文，判定当前密钥能否解开
+      // 库里的东西。只读、异步、不阻断启动——错配时账户「可见但上游全 401」，
+      // 这条日志是全链路唯一指向密钥的线索。MUST 排在账户索引重建之后：
+      // 自检靠 `<前缀>index` 取样，索引先收敛才不会误判成「库中无密文可抽」。
+      const encryptionKeyCheckService = require('./services/encryptionKeyCheckService')
+      encryptionKeyCheckService.check().catch((err) => {
+        logger.warn(`🔑 Encryption key self-check failed to run: ${err.message}`)
+      })
+
       // 📁 确保账户分组反向索引存在（后台执行，不阻塞启动）
       const accountGroupService = require('./services/accountGroupService')
       accountGroupService.ensureReverseIndexes().catch((err) => {

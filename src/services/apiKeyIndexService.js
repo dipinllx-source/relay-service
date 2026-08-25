@@ -67,8 +67,15 @@ class ApiKeyIndexService {
   }
 
   /**
-   * 回填 apikey:hash_map（升级兼容）
-   * 扫描所有 API Key，确保 hash -> keyId 映射存在
+   * 收敛 apikey:hash_map（升级兼容 + 删除持久性）
+   *
+   * 双向收敛，两个方向基于同一轮扫描结果（MUST NOT 跨轮复用）：
+   *   正向回填：实体存在且未被软删除，但映射缺失 → 补写
+   *   反向清理：映射指向的实体已软删除或不存在 → 删除该映射字段
+   *
+   * 为何回填必须查 isDeleted（E1）：deleteApiKey() 是软删除，它显式移除了哈希映射，
+   * 注释写明意图是「这样就不能再使用这个 key 进行 API 调用」；而此处若无条件回填，
+   * 每次服务启动都会把这些映射写回，等于悄悄撤销一层纵深防御。
    */
   async rebuildHashMap() {
     if (!this.redis) {
@@ -81,6 +88,8 @@ class ApiKeyIndexService {
 
       let rebuilt = 0
       const BATCH_SIZE = 100
+      // 本轮扫描到的实体：keyId → { hash, isDeleted }，回填与反向清理共用
+      const scanned = new Map()
 
       for (let i = 0; i < keyIds.length; i += BATCH_SIZE) {
         const batch = keyIds.slice(i, i + BATCH_SIZE)
@@ -98,7 +107,12 @@ class ApiKeyIndexService {
 
         for (let j = 0; j < batch.length; j++) {
           const keyData = results[j]?.[1]
-          if (keyData && keyData.apiKey) {
+          if (!keyData || Object.keys(keyData).length === 0) {
+            continue
+          }
+          const isDeleted = keyData.isDeleted === 'true'
+          scanned.set(batch[j], { hash: keyData.apiKey || null, isDeleted })
+          if (keyData.apiKey && !isDeleted) {
             // keyData.apiKey 存储的是哈希值
             const exists = await client.hexists('apikey:hash_map', keyData.apiKey)
             if (!exists) {
@@ -117,10 +131,53 @@ class ApiKeyIndexService {
       if (rebuilt > 0) {
         logger.info(`🔧 回填了 ${rebuilt} 个 API Key 到 hash_map`)
       }
+
+      await this._pruneHashMap(client, scanned)
     } catch (error) {
       logger.error('❌ 回填 hash_map 失败:', error)
       throw error
     }
+  }
+
+  /**
+   * 反向清理 apikey:hash_map 中的残留映射
+   * @param {Object} client Redis 客户端
+   * @param {Map} scanned 同一轮扫描的结果：keyId → { hash, isDeleted }
+   */
+  async _pruneHashMap(client, scanned) {
+    const mapping = await client.hgetall('apikey:hash_map')
+    if (!mapping || Object.keys(mapping).length === 0) {
+      return
+    }
+
+    const staleHashes = []
+    const staleKeyIds = []
+
+    for (const [hash, keyId] of Object.entries(mapping)) {
+      const info = scanned.get(keyId)
+      if (info) {
+        if (info.isDeleted) {
+          staleHashes.push(hash)
+          staleKeyIds.push(`${keyId}(deleted)`)
+        }
+        continue
+      }
+      // 不在本轮扫描结果内 → 可能实体确实没了，也可能是一次瞬时读失败。
+      // 误删活跃 key 的映射会让线上 key 立即 401，因此必须二次复查后才删。
+      const exists = await client.exists(`apikey:${keyId}`)
+      if (!exists) {
+        staleHashes.push(hash)
+        staleKeyIds.push(`${keyId}(missing)`)
+      }
+    }
+
+    if (staleHashes.length === 0) {
+      return
+    }
+
+    await client.hdel('apikey:hash_map', ...staleHashes)
+    // 这是一个会让线上 key 失效的动作，必须可追溯
+    logger.info(`🧹 清理了 ${staleHashes.length} 条 hash_map 残留映射: ${staleKeyIds.join(', ')}`)
   }
 
   /**

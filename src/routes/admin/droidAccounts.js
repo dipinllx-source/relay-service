@@ -12,7 +12,7 @@ const {
   WorkOSDeviceAuthError
 } = require('../../utils/workosOAuthHelper')
 const webhookNotifier = require('../../utils/webhookNotifier')
-const { formatAccountExpiry, mapExpiryField } = require('./utils')
+const { formatAccountExpiry, mapExpiryField, pruneDanglingGroupRefs } = require('./utils')
 const { extractErrorMessage } = require('../../utils/testPayloadHelper')
 
 const router = express.Router()
@@ -382,6 +382,13 @@ router.put('/droid-accounts/:id', authenticateAdmin, async (req, res) => {
     const hasGroupIdField = Object.prototype.hasOwnProperty.call(mappedUpdates, 'groupId')
     const targetAccountType = rawAccountType || currentAccount.accountType || 'shared'
 
+    // 悬空 groupId 自动解绑（D3c）：本路由的分组绑定读的是上面这些局部变量，
+    // 字段在写库前就从 mappedUpdates 里 delete 了，所以清理要作用在包装对象上。
+    // 不剔除的话 setAccountGroups 抛「分组不存在」会被下面的 catch 转成 500，
+    // 使这个账户在后台永远存不下去
+    const groupRefs = { groupId, groupIds: normalizedGroupIds }
+    await pruneDanglingGroupRefs(groupRefs, 'droid', id)
+
     delete mappedUpdates.groupId
     delete mappedUpdates.groupIds
 
@@ -396,13 +403,17 @@ router.put('/droid-accounts/:id', authenticateAdmin, async (req, res) => {
         await accountGroupService.removeAccountFromAllGroups(id)
       } else if (targetAccountType === 'group') {
         if (hasGroupIdsField) {
-          if (normalizedGroupIds.length > 0) {
-            await accountGroupService.setAccountGroups(id, normalizedGroupIds, 'droid')
+          if (groupRefs.groupIds.length > 0) {
+            await accountGroupService.setAccountGroups(id, groupRefs.groupIds, 'droid')
           } else {
             await accountGroupService.removeAccountFromAllGroups(id)
           }
-        } else if (hasGroupIdField && typeof groupId === 'string' && groupId.trim()) {
-          await accountGroupService.setAccountGroups(id, [groupId], 'droid')
+        } else if (
+          hasGroupIdField &&
+          typeof groupRefs.groupId === 'string' &&
+          groupRefs.groupId.trim()
+        ) {
+          await accountGroupService.setAccountGroups(id, [groupRefs.groupId], 'droid')
         }
       }
     } catch (groupError) {

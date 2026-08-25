@@ -6,6 +6,7 @@ const redis = require('../../models/redis')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const webhookNotifier = require('../../utils/webhookNotifier')
+const { pruneDanglingGroupRefs } = require('./utils')
 
 const router = express.Router()
 
@@ -260,6 +261,11 @@ router.put('/gemini-api-accounts/:id', authenticateAdmin, async (req, res) => {
         error: 'Account not found'
       })
     }
+
+    // 悬空 groupId 自动解绑（D3c）：绑定前剔除指向已不存在分组的引用，否则
+    // addAccountToGroup 抛「分组不存在」会被下面的 catch 冒泡成 500，
+    // 使这个账户在后台永远存不下去
+    await pruneDanglingGroupRefs(updates, 'gemini', id)
 
     // 处理分组的变更
     if (updates.accountType !== undefined) {

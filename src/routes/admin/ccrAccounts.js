@@ -6,7 +6,7 @@ const redis = require('../../models/redis')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const webhookNotifier = require('../../utils/webhookNotifier')
-const { formatAccountExpiry, mapExpiryField } = require('./utils')
+const { formatAccountExpiry, mapExpiryField, pruneDanglingGroupRefs } = require('./utils')
 const { extractErrorMessage } = require('../../utils/testPayloadHelper')
 
 const router = express.Router()
@@ -215,6 +215,11 @@ router.put('/:accountId', authenticateAdmin, async (req, res) => {
     if (!currentAccount) {
       return res.status(404).json({ error: 'Account not found' })
     }
+
+    // 悬空 groupId 自动解绑（D3c）：绑定前剔除指向已不存在分组的引用，
+    // 否则 addAccountToGroup 抛「分组不存在」会被下面的 catch 冒泡成 500，
+    // 使这个账户在后台永远存不下去
+    await pruneDanglingGroupRefs(mappedUpdates, 'claude', accountId)
 
     // 处理分组的变更
     if (mappedUpdates.accountType !== undefined) {

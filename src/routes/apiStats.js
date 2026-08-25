@@ -34,17 +34,37 @@ async function getDynamicClaudeModelOptions() {
   return null
 }
 
+// 📋 获取动态 OpenAI/Codex 模型选项（上游实时列表，失败返回 null 由调用处静态兜底）
+async function getDynamicOpenAIModelOptions() {
+  try {
+    const dynamicModels = await openaiAccountService.fetchAvailableModels()
+    if (dynamicModels && dynamicModels.length > 0) {
+      return dynamicModels.map((m) => ({ value: m.id, label: m.display_name || m.id }))
+    }
+  } catch (error) {
+    logger.warn(`⚠️ Failed to load dynamic OpenAI models, using static list: ${error.message}`)
+  }
+  return null
+}
+
 // 📋 获取可用模型列表（公开接口）
 router.get('/models', async (req, res) => {
   const { service } = req.query
-  const dynamicClaudeModels = await getDynamicClaudeModelOptions()
+  const [dynamicClaudeModels, dynamicOpenAIModels] = await Promise.all([
+    getDynamicClaudeModelOptions(),
+    getDynamicOpenAIModelOptions()
+  ])
 
   if (service) {
     // 返回指定服务的模型（claude 优先用上游动态列表）
-    const models =
-      service === 'claude' && dynamicClaudeModels
-        ? dynamicClaudeModels
-        : modelsConfig.getModelsByService(service)
+    let models
+    if (service === 'claude' && dynamicClaudeModels) {
+      models = dynamicClaudeModels
+    } else if (service === 'openai' && dynamicOpenAIModels) {
+      models = dynamicOpenAIModels
+    } else {
+      models = modelsConfig.getModelsByService(service)
+    }
     return res.json({
       success: true,
       data: models
@@ -52,26 +72,30 @@ router.get('/models', async (req, res) => {
   }
 
   const claudeModels = dynamicClaudeModels || modelsConfig.CLAUDE_MODELS
+  const openaiModels = dynamicOpenAIModels || modelsConfig.OPENAI_MODELS
 
-  // 返回所有模型（按服务分组 + 平台维度）；Claude 段优先使用上游动态列表
+  // 返回所有模型（按服务分组 + 平台维度）；Claude 与 OpenAI 段优先使用上游动态列表
   res.json({
     success: true,
     data: {
       claude: claudeModels,
       gemini: modelsConfig.GEMINI_MODELS,
-      openai: modelsConfig.OPENAI_MODELS,
+      openai: openaiModels,
       other: modelsConfig.OTHER_MODELS,
       all: [
         ...claudeModels,
         ...modelsConfig.GEMINI_MODELS,
-        ...modelsConfig.OPENAI_MODELS,
+        ...openaiModels,
         ...modelsConfig.OTHER_MODELS
       ],
       platforms: {
         ...modelsConfig.PLATFORM_TEST_MODELS,
-        claude: claudeModels
+        claude: claudeModels,
+        openai: openaiModels,
+        'openai-responses': openaiModels
       },
-      claudeSource: dynamicClaudeModels ? 'upstream' : 'fallback'
+      claudeSource: dynamicClaudeModels ? 'upstream' : 'fallback',
+      openaiSource: dynamicOpenAIModels ? 'upstream' : 'fallback'
     }
   })
 })

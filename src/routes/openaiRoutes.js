@@ -12,6 +12,7 @@ const apiKeyService = require('../services/apiKeyService')
 const redis = require('../models/redis')
 const crypto = require('crypto')
 const ProxyHelper = require('../utils/proxyHelper')
+const codexClientVersion = require('../utils/codexClientVersion')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const { IncrementalSSEParser } = require('../utils/sseParser')
 const { getSafeMessage } = require('../utils/errorSanitizer')
@@ -287,6 +288,14 @@ const handleResponses = async (req, res) => {
     const codexCliPattern = /^(codex_vscode|codex_cli_rs|codex_exec)\/[\d.]+/i
     const isCodexCLI = codexCliPattern.test(userAgent)
 
+    // 从真实 Codex 流量学习客户端版本（单调不降），供模型清单拉取使用。
+    // 不阻塞主链路：失败仅记日志。
+    if (isCodexCLI) {
+      codexClientVersion.captureClientVersionFromUserAgent(userAgent).catch((error) => {
+        logger.debug(`ℹ️ Skipped Codex client version capture: ${error.message}`)
+      })
+    }
+
     // 提取 service_tier 用于后续费用计算（在字段被移除前保存）
     req._serviceTier = req.body?.service_tier || null
 
@@ -332,13 +341,7 @@ const handleResponses = async (req, res) => {
     // 基于白名单构造上游所需的请求头，确保键为小写且值受控
     const incoming = req.headers || {}
 
-    const allowedKeys = [
-      'version',
-      'openai-beta',
-      'session_id',
-      'user-agent',
-      'originator'
-    ]
+    const allowedKeys = ['version', 'openai-beta', 'session_id', 'user-agent', 'originator']
 
     const headers = {}
     for (const key of allowedKeys) {
@@ -394,7 +397,6 @@ const handleResponses = async (req, res) => {
     const codexEndpoint = isCompactRoute
       ? 'https://chatgpt.com/backend-api/codex/responses/compact'
       : 'https://chatgpt.com/backend-api/codex/responses'
-
 
     // 根据 stream 参数决定请求类型
     if (isStream) {

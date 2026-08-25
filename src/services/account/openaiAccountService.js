@@ -15,6 +15,7 @@ const {
 } = require('../../utils/tokenRefreshLogger')
 const tokenRefreshService = require('../tokenRefreshService')
 const { createEncryptor } = require('../../utils/commonHelper')
+const codexClientVersion = require('../../utils/codexClientVersion')
 
 // 使用 commonHelper 的加密器
 const encryptor = createEncryptor('openai-account-salt')
@@ -1230,6 +1231,165 @@ async function updateCodexUsageSnapshot(accountId, usageSnapshot) {
   await client.hset(`${OPENAI_ACCOUNT_KEY_PREFIX}${accountId}`, updates)
 }
 
+// ==================== 上游模型清单动态拉取 ====================
+// 对称照搬 claudeAccountService.fetchAvailableModels 的范式：
+// 可用账户 → 有效 token → 上游 GET → 成功/失败双 TTL 缓存 → 失败由调用处兜底静态。
+const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models'
+const MODELS_SUCCESS_TTL_MS = 60 * 60 * 1000
+const MODELS_FAILURE_TTL_MS = 60 * 1000
+const _modelsCache = { data: null, fetchedAt: 0, failedAt: 0, clientVersion: null }
+
+// 选一张可用于拉取清单的账户（可用性判定与调度口径保持一致）
+async function _pickAccountForModelFetch() {
+  const accountIds = await redisClient.getAllIdsByIndex(
+    'openai:account:index',
+    `${OPENAI_ACCOUNT_KEY_PREFIX}*`,
+    /^openai:account:(.+)$/
+  )
+  for (const accountId of accountIds) {
+    const account = await getAccount(accountId)
+    if (!account) {
+      continue
+    }
+    if (
+      account.isActive === 'true' &&
+      account.status !== 'error' &&
+      account.schedulable !== 'false' &&
+      !isSubscriptionExpired(account)
+    ) {
+      return account
+    }
+  }
+  return null
+}
+
+/**
+ * 获取上游可用模型清单
+ * @returns {Promise<Array<{id: string, display_name?: string}>|null>} null 表示应回退静态列表
+ */
+async function fetchAvailableModels() {
+  const now = Date.now()
+
+  if (_modelsCache.data && now - _modelsCache.fetchedAt < MODELS_SUCCESS_TTL_MS) {
+    return _modelsCache.data
+  }
+  if (_modelsCache.failedAt && now - _modelsCache.failedAt < MODELS_FAILURE_TTL_MS) {
+    return null
+  }
+
+  try {
+    let account = await _pickAccountForModelFetch()
+    if (!account) {
+      logger.warn('⚠️ No available OpenAI account for fetching upstream models list')
+      _modelsCache.failedAt = now
+      return null
+    }
+
+    // token 过期先刷新（openaiAccountService 无 getValidAccessToken）
+    if (isTokenExpired(account)) {
+      await refreshAccountToken(account.id)
+      account = await getAccount(account.id)
+    }
+
+    // ⚠️ getAccount 不解密 accessToken，必须显式解密
+    const accessToken = account && account.accessToken ? decrypt(account.accessToken) : null
+    if (!accessToken) {
+      logger.warn('⚠️ Failed to obtain access token for OpenAI models fetch')
+      _modelsCache.failedAt = now
+      return null
+    }
+
+    const { version: clientVersion, source: versionSource } =
+      await codexClientVersion.resolveCodexClientVersion()
+
+    const axiosConfig = {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json'
+      },
+      params: { client_version: clientVersion },
+      timeout: 20000
+    }
+
+    // 拉取同样要走账户代理，否则受限出口环境必然失败
+    if (account.proxy) {
+      try {
+        const proxy = typeof account.proxy === 'string' ? JSON.parse(account.proxy) : account.proxy
+        const agent = ProxyHelper.createProxyAgent(proxy)
+        if (agent) {
+          axiosConfig.httpAgent = agent
+          axiosConfig.httpsAgent = agent
+          axiosConfig.proxy = false
+        }
+      } catch (error) {
+        logger.warn(`⚠️ Failed to build proxy agent for models fetch: ${error.message}`)
+      }
+    }
+
+    const response = await axios.get(CODEX_MODELS_URL, axiosConfig)
+    const rawModels = (response.data && response.data.models) || []
+
+    // 空数组不是"上游没有模型"，而是客户端版本过低被门控裁剪 —— 必须告警，不能静默
+    if (rawModels.length === 0) {
+      logger.warn(
+        `⚠️ Upstream Codex models list is empty (client_version=${clientVersion}, source=${versionSource}). ` +
+          'The resolved client version may be too low; falling back to static list.'
+      )
+      _modelsCache.failedAt = now
+      return null
+    }
+
+    const models = rawModels
+      .filter((m) => m && m.slug)
+      .map((m) => ({
+        id: m.slug,
+        object: 'model',
+        created: Math.floor(now / 1000),
+        owned_by: 'openai',
+        ...(m.display_name ? { display_name: m.display_name } : {})
+      }))
+
+    if (models.length === 0) {
+      logger.warn('⚠️ Upstream Codex models list contained no usable entries')
+      _modelsCache.failedAt = now
+      return null
+    }
+
+    _modelsCache.data = models
+    _modelsCache.fetchedAt = now
+    _modelsCache.failedAt = 0
+    _modelsCache.clientVersion = clientVersion
+
+    // 无法从响应判断清单是否完整，故把版本与条数一并记录，便于事后核对是否缩水
+    logger.info(
+      `📋 Fetched ${models.length} Codex models from upstream ` +
+        `(client_version=${clientVersion}, source=${versionSource}, account=${account.name})`
+    )
+    return models
+  } catch (error) {
+    logger.warn(`⚠️ Failed to load dynamic Codex models, using static list: ${error.message}`)
+    _modelsCache.failedAt = Date.now()
+    return null
+  }
+}
+
+function getModelsCacheInfo() {
+  return {
+    hasData: !!_modelsCache.data,
+    count: _modelsCache.data ? _modelsCache.data.length : 0,
+    fetchedAt: _modelsCache.fetchedAt ? new Date(_modelsCache.fetchedAt).toISOString() : null,
+    failedAt: _modelsCache.failedAt ? new Date(_modelsCache.failedAt).toISOString() : null,
+    clientVersion: _modelsCache.clientVersion
+  }
+}
+
+function clearModelsCache() {
+  _modelsCache.data = null
+  _modelsCache.fetchedAt = 0
+  _modelsCache.failedAt = 0
+  _modelsCache.clientVersion = null
+}
+
 module.exports = {
   createAccount,
   getAccount,
@@ -1250,5 +1410,9 @@ module.exports = {
   updateCodexUsageSnapshot,
   encrypt,
   decrypt,
-  encryptor // 暴露加密器以便测试和监控
+  encryptor, // 暴露加密器以便测试和监控
+  fetchAvailableModels,
+  getModelsCacheInfo,
+  clearModelsCache,
+  isSubscriptionExpired
 }

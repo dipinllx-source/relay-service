@@ -52,16 +52,14 @@ class ModelService {
         provider: 'openai',
         description: 'OpenAI GPT models',
         models: [
-          'gpt-5.1-2025-11-13',
-          'gpt-5.1-codex-mini',
-          'gpt-5.1-codex',
-          'gpt-5.1-codex-max',
-          'gpt-5-2025-08-07',
-          'gpt-5-codex',
-          'gpt-5.3-codex',
-          'gpt-5.3-codex-spark',
+          'gpt-5.6-sol',
+          'gpt-5.6-terra',
+          'gpt-5.6-luna',
+          'gpt-5.5',
           'gpt-5.4',
-          'gpt-5.4-pro'
+          'gpt-5.4-mini',
+          'gpt-5.3-codex-spark',
+          'codex-auto-review'
         ]
       },
       gemini: {
@@ -81,15 +79,20 @@ class ModelService {
    * 获取所有支持的模型（OpenAI API 格式）
    * @param {object} [options]
    * @param {Array|null} [options.claudeModels] - 动态 Claude 模型列表（OpenAI list 条目格式）。
+   * @param {Array|null} [options.openaiModels] - 动态 OpenAI/Codex 模型列表（同上格式）。
    *   传入时替换静态 claude 段（OpenAI / Gemini 段不变）；不传或为 null 时使用静态列表。
    */
-  getAllModels({ claudeModels = null } = {}) {
+  getAllModels({ claudeModels = null, openaiModels = null } = {}) {
     const models = []
     const now = Math.floor(Date.now() / 1000)
 
     for (const [service, config] of Object.entries(this.supportedModels)) {
       if (service === 'claude' && Array.isArray(claudeModels) && claudeModels.length > 0) {
         models.push(...claudeModels)
+        continue
+      }
+      if (service === 'openai' && Array.isArray(openaiModels) && openaiModels.length > 0) {
+        models.push(...openaiModels)
         continue
       }
       for (const modelId of config.models) {

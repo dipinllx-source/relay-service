@@ -2770,6 +2770,7 @@ const supportedTestPlatforms = [
   'bedrock',
   'gemini',
   'gemini-api',
+  'openai',
   'openai-responses',
   'azure-openai',
   'droid',

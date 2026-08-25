@@ -5,6 +5,8 @@ const path = require('path')
 const axios = require('axios')
 const claudeCodeHeadersService = require('../../services/claudeCodeHeadersService')
 const claudeAccountService = require('../../services/account/claudeAccountService')
+const openaiAccountService = require('../../services/account/openaiAccountService')
+const codexClientVersion = require('../../utils/codexClientVersion')
 const redis = require('../../models/redis')
 const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
@@ -344,6 +346,38 @@ router.get('/network-endpoints', authenticateAdmin, async (req, res) => {
   } catch (error) {
     logger.error('Failed to pick network endpoints:', error)
     res.status(500).json({ success: false, error: error.message })
+  }
+})
+
+// ==================== Codex 客户端版本管理 ====================
+// client_version 是上游模型清单接口的能力门控参数，由「流量学习 + npm latest +
+// floor 常量」三源取最大值自动解析。这里提供只读查看与清缓存入口，便于排查
+// 「清单条数偏少」是否由版本解析过低导致。
+
+router.get('/codex-client-version', authenticateAdmin, async (req, res) => {
+  try {
+    const diagnostics = await codexClientVersion.getVersionDiagnostics()
+    const modelsCache = openaiAccountService.getModelsCacheInfo()
+    res.json({ success: true, ...diagnostics, modelsCache })
+  } catch (error) {
+    logger.error('❌ Get Codex client version error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get Codex client version information',
+      error: error.message
+    })
+  }
+})
+
+router.post('/codex-client-version/clear', authenticateAdmin, async (req, res) => {
+  try {
+    await codexClientVersion.clearVersionCache()
+    openaiAccountService.clearModelsCache()
+    logger.info('🗑️ Admin cleared Codex client version and models cache')
+    res.json({ success: true, message: 'Codex client version and models cache cleared' })
+  } catch (error) {
+    logger.error('❌ Clear Codex client version cache error:', error)
+    res.status(500).json({ success: false, message: 'Failed to clear cache', error: error.message })
   }
 })
 

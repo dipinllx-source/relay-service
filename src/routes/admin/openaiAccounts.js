@@ -7,6 +7,7 @@ const express = require('express')
 const crypto = require('crypto')
 const axios = require('axios')
 const openaiAccountService = require('../../services/account/openaiAccountService')
+const openaiRelayService = require('../../services/relay/openaiRelayService')
 const accountGroupService = require('../../services/accountGroupService')
 const apiKeyService = require('../../services/apiKeyService')
 const redis = require('../../models/redis')
@@ -14,7 +15,7 @@ const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const ProxyHelper = require('../../utils/proxyHelper')
 const webhookNotifier = require('../../utils/webhookNotifier')
-const { formatAccountExpiry, mapExpiryField } = require('./utils')
+const { formatAccountExpiry, mapExpiryField, pruneDanglingGroupRefs } = require('./utils')
 
 const router = express.Router()
 
@@ -600,6 +601,10 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       }
     }
 
+    // 悬空 groupId 自动解绑（D3c）：绑定前剔除指向已不存在分组的引用，
+    // 否则 addAccountToGroup 抛「分组不存在」会被下面的 catch 冒泡成 500
+    await pruneDanglingGroupRefs(mappedUpdates, 'openai', id)
+
     // 处理分组的变更
     if (mappedUpdates.accountType !== undefined) {
       // 如果之前是分组类型，移除所有原分组关联
@@ -823,6 +828,20 @@ router.put('/:accountId/toggle-schedulable', authenticateAdmin, async (req, res)
       message: '切换调度状态失败',
       error: error.message
     })
+  }
+})
+
+// 测试 OpenAI (Codex) 账户连通性（流式响应）- 复用 openaiRelayService
+router.post('/:accountId/test', authenticateAdmin, async (req, res) => {
+  const { accountId } = req.params
+  const { model } = req.body || {}
+
+  try {
+    // 直接把 res 透传给服务层，由其输出 SSE
+    await openaiRelayService.testAccountConnection(accountId, res, model)
+  } catch (error) {
+    logger.error('❌ Failed to test OpenAI (Codex) account:', error)
+    // 错误已在服务层写回 SSE，这里仅做日志记录
   }
 })
 

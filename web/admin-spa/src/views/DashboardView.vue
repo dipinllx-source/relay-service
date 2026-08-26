@@ -196,8 +196,11 @@
       </div>
     </div>
 
-    <!-- 账户余额/配额汇总 -->
-    <div class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 md:mb-8 md:gap-6">
+    <!-- 账户余额/配额汇总（仅当存在具备余额语义的账户时渲染） -->
+    <div
+      v-if="hasBalanceData"
+      class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 md:mb-8 md:gap-6"
+    >
       <div class="stat-card">
         <div class="flex items-center justify-between">
           <div>
@@ -890,6 +893,19 @@ const lowBalanceAccounts = computed(() => {
   })
 
   return result
+})
+
+// 是否存在具备余额语义的账户：仅订阅制账户（余额恒为 null）的部署返回 false，
+// 据此对看板余额区块做条件渲染，避免恒零区块占据版面
+const hasBalanceData = computed(() => {
+  const summary = balanceSummary.value || {}
+  if (Number(summary.totalBalance) > 0) return true
+  if (Number(summary.lowBalanceCount) > 0) return true
+  const platforms = summary.platforms || {}
+  return Object.values(platforms).some((data) => {
+    const list = Array.isArray(data?.accounts) ? data.accounts : []
+    return list.some((entry) => typeof entry?.data?.balance?.amount === 'number')
+  })
 })
 
 const formatCurrencyUsd = (amount) => {

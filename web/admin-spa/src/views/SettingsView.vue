@@ -607,14 +607,14 @@
           <!-- 高级设置 -->
           <div class="rounded-lg bg-white/80 p-6 shadow-lg backdrop-blur-sm dark:bg-gray-800/80">
             <h2 class="mb-4 text-lg font-semibold text-gray-800 dark:text-gray-200">高级设置</h2>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div v-if="webhookConfig.retrySettings" class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   最大重试次数
                 </label>
                 <input
                   v-model.number="webhookConfig.retrySettings.maxRetries"
-                  class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  class="mt-1 block w-full rounded-lg border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
                   max="10"
                   min="0"
                   type="number"
@@ -627,7 +627,7 @@
                 </label>
                 <input
                   v-model.number="webhookConfig.retrySettings.retryDelay"
-                  class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  class="mt-1 block w-full rounded-lg border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
                   max="10000"
                   min="100"
                   step="100"
@@ -635,21 +635,10 @@
                   @change="saveWebhookConfig"
                 />
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  超时时间 (毫秒)
-                </label>
-                <input
-                  v-model.number="webhookConfig.retrySettings.timeout"
-                  class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-                  max="30000"
-                  min="1000"
-                  step="1000"
-                  type="number"
-                  @change="saveWebhookConfig"
-                />
-              </div>
             </div>
+            <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              请求超时按各推送平台单独配置，在平台编辑弹窗中设置。
+            </p>
           </div>
 
           <!-- 测试通知按钮 -->
@@ -1229,10 +1218,8 @@
                     服务倍率说明
                   </h3>
                   <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    服务倍率用于计算不同服务的计费费用。以
-                    <strong>{{ serviceRates.baseService || 'claude' }}</strong>
-                    为基准（倍率 1.0），其他服务按倍率换算。例如：Gemini 倍率 0.5 表示消耗 $1 只扣除
-                    $0.5 额度。
+                    服务倍率用于计算不同服务的计费费用，各服务按各自倍率独立换算。例如：Gemini 倍率
+                    0.5 表示消耗 $1 只扣除 $0.5 额度；倍率 1.0 表示按原值扣除。
                   </p>
                 </div>
               </div>
@@ -1274,12 +1261,6 @@
                       </div>
                       <div class="text-xs text-gray-500 dark:text-gray-400">
                         {{ service }}
-                        <span
-                          v-if="service === serviceRates.baseService"
-                          class="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                        >
-                          基准服务
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -2045,11 +2026,11 @@ const testingConnection = ref(false)
 const savingPlatform = ref(false)
 
 // Webhook 配置
+// 与后端 webhookConfigService.getDefaultConfig() 的注册表保持一致：
+// 仅包含存在真实发送调用点的类型，新增发送方时两端同步添加
 const DEFAULT_WEBHOOK_NOTIFICATION_TYPES = {
   accountAnomaly: true,
-  quotaWarning: true,
-  systemError: true,
-  securityAlert: true,
+  accountEvent: true,
   rateLimitRecovery: true
 }
 
@@ -2058,9 +2039,9 @@ const webhookConfig = ref({
   platforms: [],
   notificationTypes: { ...DEFAULT_WEBHOOK_NOTIFICATION_TYPES },
   retrySettings: {
+    // 超时按平台单独配置，此处不再保留全局 timeout
     maxRetries: 3,
-    retryDelay: 1000,
-    timeout: 10000
+    retryDelay: 1000
   }
 })
 
@@ -2187,7 +2168,6 @@ const handleRequestDetailBodyPreviewToggle = async () => {
 const serviceRatesLoading = ref(false)
 const serviceRatesSaving = ref(false)
 const serviceRates = ref({
-  baseService: 'claude',
   rates: {
     claude: 1.0,
     codex: 1.0,
@@ -2413,11 +2393,20 @@ const loadWebhookConfig = async () => {
     })
     if (response.success && isMounted.value) {
       const config = response.config || {}
+      // 逐一兜底嵌套对象：接口返回缺字段时不得让本地状态出现 undefined，
+      // 否则模板读取其属性会抛错并导致整个通知设置段不渲染
       webhookConfig.value = {
         ...config,
+        enabled: config.enabled ?? false,
+        platforms: Array.isArray(config.platforms) ? config.platforms : [],
         notificationTypes: {
           ...DEFAULT_WEBHOOK_NOTIFICATION_TYPES,
           ...(config.notificationTypes || {})
+        },
+        retrySettings: {
+          maxRetries: 3,
+          retryDelay: 1000,
+          ...(config.retrySettings || {})
         }
       }
     }
@@ -2579,7 +2568,6 @@ const loadServiceRates = async () => {
     })
     if (response.success && isMounted.value) {
       serviceRates.value = {
-        baseService: response.data?.baseService || 'claude',
         rates: response.data?.rates || serviceRates.value.rates,
         updatedAt: response.data?.updatedAt,
         updatedBy: response.data?.updatedBy
@@ -2603,8 +2591,7 @@ const saveServiceRates = async () => {
   try {
     const response = await httpApis.updateAdminServiceRatesApi(
       {
-        rates: serviceRates.value.rates,
-        baseService: serviceRates.value.baseService
+        rates: serviceRates.value.rates
       },
       { signal: abortController.value.signal }
     )
@@ -3083,9 +3070,7 @@ const formatTelegramToken = (token) => {
 const getNotificationTypeName = (type) => {
   const names = {
     accountAnomaly: '账号异常',
-    quotaWarning: '配额警告',
-    systemError: '系统错误',
-    securityAlert: '安全警报',
+    accountEvent: '账号事件',
     rateLimitRecovery: '限流恢复',
     test: '测试通知'
   }
@@ -3095,9 +3080,7 @@ const getNotificationTypeName = (type) => {
 const getNotificationTypeDescription = (type) => {
   const descriptions = {
     accountAnomaly: '账号状态异常、认证失败等',
-    quotaWarning: 'API调用配额不足警告',
-    systemError: '系统运行错误和故障',
-    securityAlert: '安全相关的警报通知',
+    accountEvent: '账号被创建、更新、删除或调度状态变更',
     rateLimitRecovery: '限流状态恢复时发送提醒',
     test: '用于测试Webhook连接是否正常'
   }

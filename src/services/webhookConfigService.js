@@ -9,6 +9,51 @@ class WebhookConfigService {
   }
 
   /**
+   * 将持久化配置与默认配置做键级合并
+   *
+   * 仅对 notificationTypes 与 retrySettings 两个嵌套对象补齐缺失键，
+   * 已存在的键一律保留持久化值；platforms 等数组字段整体取持久化值，
+   * 不做元素级合并，避免默认空数组误清空已配置内容。
+   */
+  mergeWithDefaults(config) {
+    const defaultConfig = this.getDefaultConfig()
+    const source = config && typeof config === 'object' ? config : {}
+
+    // 注册表是权威的：只保留默认注册表中登记的类型，
+    // 持久化中已被移除类型的遗留键一律丢弃，避免前端继续渲染出无触发源的开关
+    const notificationTypes = {}
+    for (const type of Object.keys(defaultConfig.notificationTypes)) {
+      notificationTypes[type] = Object.prototype.hasOwnProperty.call(
+        source.notificationTypes || {},
+        type
+      )
+        ? source.notificationTypes[type]
+        : defaultConfig.notificationTypes[type]
+    }
+
+    const merged = {
+      ...defaultConfig,
+      ...source,
+      notificationTypes,
+      retrySettings: {
+        ...defaultConfig.retrySettings,
+        ...(source.retrySettings || {})
+      }
+    }
+
+    // 默认配置中的 createdAt/updatedAt 是调用时刻的新时间戳，
+    // 若持久化配置本身没有这两个字段，不应让其漏入返回值造成读取结果不稳定
+    if (!source.createdAt) {
+      delete merged.createdAt
+    }
+    if (!source.updatedAt) {
+      delete merged.updatedAt
+    }
+
+    return merged
+  }
+
+  /**
    * 获取webhook配置
    */
   async getConfig() {
@@ -20,15 +65,9 @@ class WebhookConfigService {
       }
 
       const storedConfig = JSON.parse(configStr)
-      const defaultConfig = this.getDefaultConfig()
 
-      // 合并默认通知类型，确保新增类型有默认值
-      storedConfig.notificationTypes = {
-        ...defaultConfig.notificationTypes,
-        ...(storedConfig.notificationTypes || {})
-      }
-
-      return storedConfig
+      // 与默认配置键级合并，确保嵌套对象始终存在且键完整
+      return this.mergeWithDefaults(storedConfig)
     } catch (error) {
       logger.error('获取webhook配置失败:', error)
       return this.getDefaultConfig()
@@ -40,23 +79,18 @@ class WebhookConfigService {
    */
   async saveConfig(config) {
     try {
-      const defaultConfig = this.getDefaultConfig()
-
-      config.notificationTypes = {
-        ...defaultConfig.notificationTypes,
-        ...(config.notificationTypes || {})
-      }
+      const merged = this.mergeWithDefaults(config)
 
       // 验证配置
-      this.validateConfig(config)
+      this.validateConfig(merged)
 
       // 添加更新时间
-      config.updatedAt = new Date().toISOString()
+      merged.updatedAt = new Date().toISOString()
 
-      await redis.client.set(this.DEFAULT_CONFIG_KEY, JSON.stringify(config))
+      await redis.client.set(this.DEFAULT_CONFIG_KEY, JSON.stringify(merged))
       logger.info('✅ Webhook配置已保存')
 
-      return config
+      return merged
     } catch (error) {
       logger.error('保存webhook配置失败:', error)
       throw error
@@ -325,17 +359,17 @@ class WebhookConfigService {
       enabled: false,
       platforms: [],
       notificationTypes: {
-        accountAnomaly: true, // 账号异常
-        quotaWarning: true, // 配额警告
-        systemError: true, // 系统错误
-        securityAlert: true, // 安全警报
-        rateLimitRecovery: true, // 限流恢复
-        test: true // 测试通知
+        // 各类型必须与实际发送调用点一一对应，新增发送方时同步在此注册
+        accountAnomaly: true, // 账号异常，来自 utils/webhookNotifier.js
+        accountEvent: true, // 账号事件，来自 utils/webhookNotifier.js
+        rateLimitRecovery: true, // 限流恢复，来自 services/rateLimitCleanupService.js
+        test: true // 测试通知，来自 routes/webhook.js 测试端点
       },
       retrySettings: {
+        // 超时不在此处配置：实际发送一律使用平台级 platform.timeout，
+        // 故此处仅保留真正被 sendToPlatform 读取的两项
         maxRetries: 3,
-        retryDelay: 1000, // 毫秒
-        timeout: 10000 // 毫秒
+        retryDelay: 1000 // 毫秒
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

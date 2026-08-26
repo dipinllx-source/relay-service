@@ -38,9 +38,21 @@ class WebhookService {
       }
 
       // 检查通知类型是否启用（test类型始终允许发送）
-      if (type !== 'test' && config.notificationTypes && !config.notificationTypes[type]) {
-        logger.debug(`通知类型 ${type} 已禁用`)
-        return
+      if (type !== 'test' && config.notificationTypes) {
+        const isRegistered = Object.prototype.hasOwnProperty.call(config.notificationTypes, type)
+
+        if (!isRegistered) {
+          // 发送方使用了未注册的类型：属代码与默认注册表失配，需显式暴露而非静默丢弃
+          logger.warn(
+            `⚠️ 通知类型 ${type} 未在通知类型注册表中登记，本次发送被丢弃；请在 webhookConfigService.getDefaultConfig() 中补充该类型`
+          )
+          return
+        }
+
+        if (!config.notificationTypes[type]) {
+          logger.debug(`通知类型 ${type} 已被关闭，跳过发送`)
+          return
+        }
       }
 
       // 获取启用的平台

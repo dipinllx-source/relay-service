@@ -19,9 +19,9 @@ class ServiceRatesService {
    */
   getDefaultRates() {
     return {
-      baseService: 'claude',
       rates: {
-        claude: 1.0, // 基准：1 USD = 1 CC额度
+        // 各服务倍率相互独立，计费按各自倍率换算；此处 1.0 仅为默认值，不构成强制基准
+        claude: 1.0,
         codex: 1.0,
         gemini: 1.0,
         droid: 1.0,
@@ -80,7 +80,7 @@ class ServiceRatesService {
       this.validateRates(config)
 
       const newConfig = {
-        baseService: config.baseService || defaultRates.baseService,
+        // 不再存储 baseService：计费只依据 rates[service]，该字段无任何读取方
         rates: {
           ...defaultRates.rates,
           ...config.rates

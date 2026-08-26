@@ -27,7 +27,8 @@ router.get('/service-rates', authenticateAdmin, async (req, res) => {
 // 更新服务倍率配置
 router.put('/service-rates', authenticateAdmin, async (req, res) => {
   try {
-    const { rates, baseService } = req.body
+    // baseService 不参与计费计算（getServiceRate 仅读取 rates[service]），故不再接收
+    const { rates } = req.body
 
     if (!rates || typeof rates !== 'object') {
       return res.status(400).json({
@@ -37,7 +38,7 @@ router.put('/service-rates', authenticateAdmin, async (req, res) => {
     }
 
     const updatedBy = req.session?.username || 'admin'
-    const result = await serviceRatesService.saveRates({ rates, baseService }, updatedBy)
+    const result = await serviceRatesService.saveRates({ rates }, updatedBy)
 
     res.json({
       success: true,

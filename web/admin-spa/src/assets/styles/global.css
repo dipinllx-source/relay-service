@@ -255,6 +255,96 @@ body::before {
   letter-spacing: 0.025em;
 }
 
+/* ==========================================================================
+   管理台控件尺寸基线
+   --------------------------------------------------------------------------
+   .btn 基类只定义观感（字重/圆角/过渡），不含 padding、height、font-size，
+   因此每个调用点都得自补内边距，全站高度必然发散。以下变量与变体类提供
+   统一档位，调用点只需声明 `btn btn-md` 即可获得正确尺寸，无需手写内边距。
+
+   档位约定：
+     sm — 行内小按钮（表格行内操作等）
+     md — 默认档，与输入框、下拉、分段器同高，构成工具条的统一基线
+     lg — 强调档，用于页面级主操作
+
+   注意：基类既有属性一律不动，未采用变体的调用点视觉保持不变。
+   ========================================================================== */
+:root {
+  --ctl-h-sm: 26px;
+  --ctl-h-md: 32px;
+  --ctl-h-lg: 40px;
+  --ctl-px-sm: 9px;
+  --ctl-px-md: 12px;
+  --ctl-px-lg: 16px;
+  --ctl-fs-sm: 12px;
+  --ctl-fs-md: 13px;
+  --ctl-fs-lg: 14px;
+  --ctl-radius: 8px;
+  --ctl-radius-sm: 6px;
+}
+
+.btn-sm,
+.btn-md,
+.btn-lg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.btn-sm {
+  height: var(--ctl-h-sm);
+  padding: 0 var(--ctl-px-sm);
+  font-size: var(--ctl-fs-sm);
+  border-radius: var(--ctl-radius-sm);
+}
+
+.btn-md {
+  height: var(--ctl-h-md);
+  padding: 0 var(--ctl-px-md);
+  font-size: var(--ctl-fs-md);
+  border-radius: var(--ctl-radius);
+}
+
+.btn-lg {
+  height: var(--ctl-h-lg);
+  padding: 0 var(--ctl-px-lg);
+  font-size: var(--ctl-fs-lg);
+  border-radius: var(--ctl-radius);
+}
+
+/* 输入框同档尺寸，使其可与按钮对齐到同一基线 */
+.form-input-sm,
+.form-input-md,
+.form-input-lg {
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.form-input-sm {
+  height: var(--ctl-h-sm);
+  padding: 0 var(--ctl-px-sm);
+  font-size: var(--ctl-fs-sm);
+  border-radius: var(--ctl-radius-sm);
+}
+
+.form-input-md {
+  height: var(--ctl-h-md);
+  padding: 0 var(--ctl-px-md);
+  font-size: var(--ctl-fs-md);
+  border-radius: var(--ctl-radius);
+}
+
+.form-input-lg {
+  height: var(--ctl-h-lg);
+  padding: 0 var(--ctl-px-lg);
+  font-size: var(--ctl-fs-lg);
+  border-radius: var(--ctl-radius);
+}
+
 .btn::before {
   content: '';
   position: absolute;
@@ -420,113 +510,6 @@ body::before {
     0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-.btn {
-  font-weight: 500;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  letter-spacing: 0.025em;
-}
-
-.btn::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition:
-    width 0.3s ease,
-    height 0.3s ease;
-}
-
-.btn:active::before {
-  width: 300px;
-  height: 300px;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
-  box-shadow:
-    0 10px 15px -3px rgba(var(--primary-rgb), 0.3),
-    0 4px 6px -2px rgba(var(--primary-rgb), 0.05);
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 20px 25px -5px rgba(var(--primary-rgb), 0.3),
-    0 10px 10px -5px rgba(var(--primary-rgb), 0.1);
-}
-
-.btn-success {
-  background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
-  color: white;
-  box-shadow:
-    0 10px 15px -3px rgba(16, 185, 129, 0.3),
-    0 4px 6px -2px rgba(16, 185, 129, 0.05);
-}
-
-.btn-success:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 20px 25px -5px rgba(16, 185, 129, 0.3),
-    0 10px 10px -5px rgba(16, 185, 129, 0.1);
-}
-
-.btn-danger {
-  background: linear-gradient(135deg, var(--error-color) 0%, #dc2626 100%);
-  color: white;
-  box-shadow:
-    0 10px 15px -3px rgba(239, 68, 68, 0.3),
-    0 4px 6px -2px rgba(239, 68, 68, 0.05);
-}
-
-.btn-danger:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 20px 25px -5px rgba(239, 68, 68, 0.3),
-    0 10px 10px -5px rgba(239, 68, 68, 0.1);
-}
-
-.form-input {
-  background: var(--input-bg);
-  border: 2px solid var(--input-border);
-  border-radius: 12px;
-  padding: 16px;
-  font-size: 16px;
-  color: var(--text-primary);
-  transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease,
-    box-shadow 0.3s ease;
-  /* 移除模糊效果 */
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow:
-    0 0 0 3px rgba(var(--primary-rgb), 0.1),
-    0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.95);
-  color: #1f2937;
-}
-
-.dark .form-input:focus {
-  box-shadow:
-    0 0 0 3px rgba(var(--primary-rgb), 0.2),
-    0 10px 15px -3px rgba(0, 0, 0, 0.2);
-  background: var(--glass-strong-color);
-  color: #f3f4f6;
-}
 
 .table-container {
   background: var(--table-bg);

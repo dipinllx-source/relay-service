@@ -255,7 +255,7 @@
                   </div>
                 </th>
                 <th
-                  class="name-column sticky z-20 min-w-[180px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="name-column sticky z-20 min-w-[200px] max-w-[240px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
                   :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                   @click="sortAccounts('name')"
                 >
@@ -286,7 +286,7 @@
                   <i v-else class="fas fa-sort ml-1 text-gray-400" />
                 </th>
                 <th
-                  class="w-[120px] min-w-[180px] max-w-[200px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="min-w-[160px] max-w-[160px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
                   @click="sortAccounts('status')"
                 >
                   状态
@@ -436,41 +436,6 @@
                   最后使用
                 </th>
                 <th
-                  class="min-w-[80px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  @click="sortAccounts('priority')"
-                >
-                  优先级
-                  <i
-                    v-if="accountsSortBy === 'priority'"
-                    :class="[
-                      'fas',
-                      accountsSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
-                      'ml-1'
-                    ]"
-                  />
-                  <i v-else class="fas fa-sort ml-1 text-gray-400" />
-                </th>
-                <th
-                  class="min-w-[150px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
-                >
-                  代理
-                </th>
-                <th
-                  class="min-w-[110px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  @click="sortAccounts('expiresAt')"
-                >
-                  到期时间
-                  <i
-                    v-if="accountsSortBy === 'expiresAt'"
-                    :class="[
-                      'fas',
-                      accountsSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
-                      'ml-1'
-                    ]"
-                  />
-                  <i v-else class="fas fa-sort ml-1 text-gray-400" />
-                </th>
-                <th
                   class="operations-column sticky right-0 z-20 px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   :class="needsHorizontalScroll ? 'min-w-[170px]' : 'min-w-[200px]'"
                 >
@@ -495,7 +460,7 @@
                   </div>
                 </td>
                 <td
-                  class="name-column sticky z-10 px-3 py-4"
+                  class="name-column sticky z-10 min-w-[200px] max-w-[240px] px-3 py-4"
                   :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                 >
                   <div class="flex items-center">
@@ -551,6 +516,36 @@
                         :title="account.id"
                       >
                         {{ account.id }}
+                      </div>
+                      <!-- 次要信息摘要：优先级 / 代理 / 到期时间（原独立列已降级至此） -->
+                      <div class="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs">
+                        <span
+                          :class="
+                            (account.priority || 50) !== 50
+                              ? 'font-medium text-blue-600 dark:text-blue-400'
+                              : 'text-gray-400 dark:text-gray-500'
+                          "
+                        >
+                          {{ accountPrioritySummary(account) }}
+                        </span>
+                        <template v-if="formatProxyDisplay(account.proxy)">
+                          <span class="text-gray-300 dark:text-gray-600">·</span>
+                          <span
+                            class="max-w-[110px] truncate font-medium text-blue-600 dark:text-blue-400"
+                            :title="`代理: ${formatProxyDisplay(account.proxy)}`"
+                          >
+                            {{ formatProxyDisplay(account.proxy) }}
+                          </span>
+                        </template>
+                        <span class="text-gray-300 dark:text-gray-600">·</span>
+                        <span
+                          class="cursor-pointer hover:underline"
+                          :class="accountExpiryClass(account)"
+                          title="点击编辑到期时间"
+                          @click.stop="startEditAccountExpiry(account)"
+                        >
+                          {{ accountExpirySummary(account) }}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -694,7 +689,7 @@
                     </div>
                   </div>
                 </td>
-                <td class="w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap px-3 py-4">
+                <td class="min-w-[160px] max-w-[160px] whitespace-nowrap px-3 py-4">
                   <div class="flex flex-col gap-1">
                     <span
                       :class="[
@@ -1233,89 +1228,6 @@
                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
                   {{ formatLastUsed(account.lastUsedAt) }}
                 </td>
-                <td class="whitespace-nowrap px-3 py-4">
-                  <div
-                    v-if="
-                      account.platform === 'claude' ||
-                      account.platform === 'claude-console' ||
-                      account.platform === 'bedrock' ||
-                      account.platform === 'gemini' ||
-                      account.platform === 'openai' ||
-                      account.platform === 'openai-responses' ||
-                      account.platform === 'azure_openai' ||
-                      account.platform === 'ccr' ||
-                      account.platform === 'droid' ||
-                      account.platform === 'gemini-api'
-                    "
-                    class="flex items-center gap-2"
-                  >
-                    <div class="h-2 w-16 rounded-full bg-gray-200">
-                      <div
-                        class="h-2 rounded-full bg-gradient-to-r from-green-500 to-blue-600 transition-all duration-300"
-                        :style="{ width: 101 - (account.priority || 50) + '%' }"
-                      />
-                    </div>
-                    <span class="min-w-[20px] text-xs font-medium text-gray-700 dark:text-gray-200">
-                      {{ account.priority || 50 }}
-                    </span>
-                  </div>
-                  <div v-else class="text-sm text-gray-400">
-                    <span class="text-xs">N/A</span>
-                  </div>
-                </td>
-                <td class="px-3 py-4 text-sm text-gray-600">
-                  <div
-                    v-if="formatProxyDisplay(account.proxy)"
-                    class="break-all rounded bg-blue-50 px-2 py-1 font-mono text-xs"
-                    :title="formatProxyDisplay(account.proxy)"
-                  >
-                    {{ formatProxyDisplay(account.proxy) }}
-                  </div>
-                  <div v-else class="text-gray-400">无代理</div>
-                </td>
-                <td class="whitespace-nowrap px-3 py-4">
-                  <div class="flex flex-col gap-1">
-                    <!-- 已设置过期时间 -->
-                    <span v-if="account.expiresAt">
-                      <span
-                        v-if="isExpired(account.expiresAt)"
-                        class="inline-flex cursor-pointer items-center text-red-600 hover:underline"
-                        style="font-size: 13px"
-                        @click.stop="startEditAccountExpiry(account)"
-                      >
-                        <i class="fas fa-exclamation-circle mr-1 text-xs" />
-                        已过期
-                      </span>
-                      <span
-                        v-else-if="isExpiringSoon(account.expiresAt)"
-                        class="inline-flex cursor-pointer items-center text-orange-600 hover:underline"
-                        style="font-size: 13px"
-                        @click.stop="startEditAccountExpiry(account)"
-                      >
-                        <i class="fas fa-clock mr-1 text-xs" />
-                        {{ formatExpireDate(account.expiresAt) }}
-                      </span>
-                      <span
-                        v-else
-                        class="cursor-pointer text-gray-600 hover:underline dark:text-gray-400"
-                        style="font-size: 13px"
-                        @click.stop="startEditAccountExpiry(account)"
-                      >
-                        {{ formatExpireDate(account.expiresAt) }}
-                      </span>
-                    </span>
-                    <!-- 永不过期 -->
-                    <span
-                      v-else
-                      class="inline-flex cursor-pointer items-center text-gray-400 hover:underline dark:text-gray-500"
-                      style="font-size: 13px"
-                      @click.stop="startEditAccountExpiry(account)"
-                    >
-                      <i class="fas fa-infinity mr-1 text-xs" />
-                      永不过期
-                    </span>
-                  </div>
-                </td>
                 <td
                   class="operations-column sticky right-0 z-10 whitespace-nowrap px-3 py-4 text-sm font-medium"
                 >
@@ -1849,10 +1761,13 @@
               </span>
             </div>
 
-            <!-- 调度优先级 -->
-            <div class="flex items-center justify-between text-xs">
+            <!-- 调度优先级：仅在偏离默认值 50 时显示，与桌面端判定保持一致 -->
+            <div
+              v-if="(account.priority || 50) !== 50"
+              class="flex items-center justify-between text-xs"
+            >
               <span class="text-gray-500 dark:text-gray-400">优先级</span>
-              <span class="font-medium text-gray-700 dark:text-gray-200">
+              <span class="font-medium text-blue-600 dark:text-blue-400">
                 {{ account.priority || 50 }}
               </span>
             </div>
@@ -5207,6 +5122,30 @@ const isExpiringSoon = (expiresAt) => {
   return daysUntilExpire > 0 && daysUntilExpire <= 7
 }
 
+// —— 以下三个函数支撑名称列内的降级信息 ——
+// 优先级 / 代理 / 到期时间三列在真实数据下恒为默认值（50 / 无代理 / 永不过期），
+// 已从表格移除并降级为名称列下的次要信息，仅在偏离默认时以强调色呈现。
+
+// 优先级摘要：默认 50 时不单独强调
+const accountPrioritySummary = (account) => `优先级 ${account?.priority || 50}`
+
+// 到期摘要
+const accountExpirySummary = (account) => {
+  if (!account?.expiresAt) return '永不过期'
+  if (isExpired(account.expiresAt)) return '已过期'
+  return formatExpireDate(account.expiresAt)
+}
+
+// 到期文案的强调色：偏离默认（永不过期）时才着色
+const accountExpiryClass = (account) => {
+  if (!account?.expiresAt) return 'text-gray-400 dark:text-gray-500'
+  if (isExpired(account.expiresAt)) return 'font-medium text-red-600 dark:text-red-400'
+  if (isExpiringSoon(account.expiresAt)) {
+    return 'font-medium text-orange-600 dark:text-orange-400'
+  }
+  return 'text-gray-500 dark:text-gray-400'
+}
+
 // 开始编辑账户过期时间
 const startEditAccountExpiry = (account) => {
   editingExpiryAccount.value = account
@@ -5378,7 +5317,9 @@ onUnmounted(() => {
 
 /* 防止表格内容溢出，保证横向滚动 */
 .table-container table {
-  min-width: 1400px;
+  /* 列数由 12 降为 9 后同步下调：移除优先级/代理/到期时间三列（约 340px），
+     1400 - 340 = 1060px，避免列数减少后仍触发横向滚动 */
+  min-width: 1060px;
   border-collapse: collapse;
   table-layout: auto;
 }

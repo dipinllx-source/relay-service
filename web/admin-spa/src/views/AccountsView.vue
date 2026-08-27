@@ -255,7 +255,7 @@
                   </div>
                 </th>
                 <th
-                  class="name-column sticky z-20 min-w-[200px] max-w-[240px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="name-column sticky z-20 min-w-[200px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
                   :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                   @click="sortAccounts('name')"
                 >
@@ -460,7 +460,7 @@
                   </div>
                 </td>
                 <td
-                  class="name-column sticky z-10 min-w-[200px] max-w-[240px] px-3 py-4"
+                  class="name-column sticky z-10 min-w-[200px] px-3 py-4"
                   :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                 >
                   <div class="flex items-center">

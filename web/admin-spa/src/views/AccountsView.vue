@@ -12,7 +12,9 @@
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <!-- 筛选器组 -->
-          <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <div
+            class="flex flex-col gap-3 sm:min-w-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3"
+          >
             <!-- 排序选择器 -->
             <div class="group relative min-w-[160px]">
               <div
@@ -96,12 +98,14 @@
             </div>
           </div>
 
-          <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
+          <div
+            class="flex w-full flex-col gap-2 sm:w-auto sm:flex-shrink-0 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2"
+          >
             <!-- 账户统计按钮 -->
             <div class="relative">
               <el-tooltip content="查看账户统计汇总" effect="dark" placement="bottom">
                 <button
-                  class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:w-auto"
+                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   @click="showAccountStatsModal = true"
                 >
                   <div
@@ -121,7 +125,7 @@
                 placement="bottom"
               >
                 <button
-                  class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:w-auto"
+                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   :disabled="accountsLoading"
                   @click.ctrl.exact="loadAccounts(true)"
                   @click.exact="loadAccounts(false)"
@@ -145,7 +149,7 @@
             <div class="relative">
               <el-tooltip :content="refreshBalanceTooltip" effect="dark" placement="bottom">
                 <button
-                  class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:w-auto"
+                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   :disabled="accountsLoading || refreshingBalances || !canRefreshVisibleBalances"
                   @click="refreshVisibleBalances"
                 >
@@ -165,7 +169,7 @@
 
             <!-- 选择/取消选择按钮 -->
             <button
-              class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               @click="toggleSelectionMode"
             >
               <i :class="showCheckboxes ? 'fas fa-times' : 'fas fa-check-square'"></i>
@@ -176,7 +180,7 @@
             <div class="relative">
               <el-tooltip content="管理账户分组" effect="dark" placement="bottom">
                 <button
-                  class="group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:w-auto"
+                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   @click="showGroupManagementModal = true"
                 >
                   <div
@@ -191,7 +195,7 @@
             <!-- 批量删除按钮 -->
             <button
               v-if="selectedAccounts.length > 0"
-              class="group relative flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 shadow-sm transition-all duration-200 hover:border-red-300 hover:bg-red-100 hover:shadow-md dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50 sm:w-auto"
+              class="btn-md group relative border border-red-200 bg-red-50 font-medium text-red-700 shadow-sm transition-all duration-200 hover:border-red-300 hover:bg-red-100 hover:shadow-md dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
               @click="batchDeleteAccounts"
             >
               <div
@@ -203,7 +207,7 @@
 
             <!-- 添加账户按钮 -->
             <button
-              class="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-green-500 to-green-600 px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:from-green-600 hover:to-green-700 hover:shadow-lg sm:w-auto"
+              class="btn-md w-full bg-gradient-to-r from-green-500 to-green-600 font-medium text-white shadow-md transition-all duration-200 hover:from-green-600 hover:to-green-700 hover:shadow-lg sm:w-auto"
               @click.stop="openCreateAccountModal"
             >
               <i class="fas fa-plus"></i>
@@ -1837,14 +1841,11 @@
               </span>
             </div>
 
-            <!-- 代理配置 -->
-            <div
-              v-if="account.proxyConfig && account.proxyConfig.type !== 'none'"
-              class="flex items-center justify-between text-xs"
-            >
+            <!-- 代理配置（与桌面端一致使用 account.proxy，后端不返回 proxyConfig） -->
+            <div v-if="account.proxy" class="flex items-center justify-between text-xs">
               <span class="text-gray-500 dark:text-gray-400">代理</span>
               <span class="text-gray-700 dark:text-gray-200">
-                {{ account.proxyConfig.type.toUpperCase() }}
+                {{ formatProxyDisplay(account.proxy) }}
               </span>
             </div>
 

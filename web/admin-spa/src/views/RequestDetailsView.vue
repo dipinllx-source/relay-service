@@ -366,72 +366,72 @@
               >
                 <tr>
                   <th
-                    class="min-w-[170px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[170px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     统计时间
                   </th>
                   <th
-                    class="min-w-[170px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[170px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     API Key
                   </th>
                   <th
-                    class="min-w-[170px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[170px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     使用账户
                   </th>
                   <th
-                    class="min-w-[140px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[140px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     模型
                   </th>
                   <th
-                    class="min-w-[110px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[110px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     推理
                   </th>
                   <th
-                    class="min-w-[180px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[180px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     接口
                   </th>
                   <th
-                    class="min-w-[96px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[96px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     输入
                   </th>
                   <th
-                    class="min-w-[96px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[96px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     输出
                   </th>
                   <th
-                    class="min-w-[110px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[110px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     缓存读取
                   </th>
                   <th
-                    class="min-w-[110px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[110px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     缓存创建
                   </th>
                   <th
-                    class="min-w-[110px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[110px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     缓存命中率
                   </th>
                   <th
-                    class="min-w-[100px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[100px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     费用
                   </th>
                   <th
-                    class="min-w-[100px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[100px] px-4 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     耗时
                   </th>
                   <th
-                    class="min-w-[96px] px-3 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
+                    class="min-w-[96px] px-4 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                   >
                     操作
                   </th>
@@ -1236,6 +1236,8 @@ onMounted(() => {
   .request-toolbar-actions {
     flex-direction: row;
     flex-wrap: wrap;
+    /* 横排后交叉轴为纵向：显式居中，避免子按钮被默认的 stretch 拉满容器高度 */
+    align-items: center;
   }
 }
 
@@ -1256,7 +1258,8 @@ onMounted(() => {
   }
 
   .request-toolbar-actions {
-    align-self: stretch;
+    /* 不再 stretch：否则该网格项会被撑到与左侧两行筛选器等高，连带拉伸按钮 */
+    align-self: center;
     justify-content: flex-end;
     flex-wrap: nowrap;
   }

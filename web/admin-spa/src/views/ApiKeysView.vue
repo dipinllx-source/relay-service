@@ -291,26 +291,6 @@
                       所属账号
                     </th>
                     <th
-                      class="min-w-[100px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
-                    >
-                      标签
-                    </th>
-                    <th
-                      class="min-w-[80px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                      @click="sortApiKeys('status')"
-                    >
-                      状态
-                      <i
-                        v-if="apiKeysSortBy === 'status'"
-                        :class="[
-                          'fas',
-                          apiKeysSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
-                          'ml-1'
-                        ]"
-                      />
-                      <i v-else class="fas fa-sort ml-1 text-gray-400" />
-                    </th>
-                    <th
                       class="min-w-[70px] px-3 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                       :class="{
                         'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600': canSortByCost,
@@ -330,11 +310,6 @@
                       />
                       <i v-else-if="canSortByCost" class="fas fa-sort ml-1 text-gray-400" />
                       <i v-else class="fas fa-clock ml-1 text-gray-400" title="索引更新中" />
-                    </th>
-                    <th
-                      class="min-w-[180px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
-                    >
-                      限制
                     </th>
                     <th
                       class="min-w-[80px] px-3 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
@@ -368,21 +343,6 @@
                       创建时间
                       <i
                         v-if="apiKeysSortBy === 'createdAt'"
-                        :class="[
-                          'fas',
-                          apiKeysSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
-                          'ml-1'
-                        ]"
-                      />
-                      <i v-else class="fas fa-sort ml-1 text-gray-400" />
-                    </th>
-                    <th
-                      class="min-w-[100px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                      @click="sortApiKeys('expiresAt')"
-                    >
-                      过期时间
-                      <i
-                        v-if="apiKeysSortBy === 'expiresAt'"
                         :class="[
                           'fas',
                           apiKeysSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
@@ -427,13 +387,59 @@
                         :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                       >
                         <div class="min-w-0">
-                          <!-- 名称 -->
+                          <!-- 名称（状态以前置圆点呈现，取代独立状态列） -->
+                          <div class="flex items-center gap-1.5">
+                            <span
+                              class="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                              :class="key.isActive ? 'bg-green-500' : 'bg-gray-400'"
+                              :title="key.isActive ? '活跃' : '已停用'"
+                            />
+                            <span
+                              class="cursor-pointer truncate text-sm font-semibold text-gray-900 hover:text-blue-600 dark:text-gray-100 dark:hover:text-blue-400"
+                              title="点击复制"
+                              @click.stop="copyText(key.name)"
+                            >
+                              {{ key.name }}
+                            </span>
+                            <span
+                              v-if="!key.isActive"
+                              class="flex-shrink-0 text-xs font-medium text-red-600 dark:text-red-400"
+                            >
+                              已停用
+                            </span>
+                          </div>
+                          <!-- 标签：仅在有值时呈现 -->
                           <div
-                            class="cursor-pointer truncate text-sm font-semibold text-gray-900 hover:text-blue-600 dark:text-gray-100 dark:hover:text-blue-400"
-                            title="点击复制"
-                            @click.stop="copyText(key.name)"
+                            v-if="(key.tags || []).length"
+                            class="mt-1 flex flex-wrap items-center gap-1"
                           >
-                            {{ key.name }}
+                            <span
+                              v-for="tag in key.tags"
+                              :key="tag"
+                              class="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            >
+                              {{ tag }}
+                            </span>
+                          </div>
+                          <!-- 限制与过期时间：默认值为灰字，偏离默认时强调 -->
+                          <div class="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
+                            <span
+                              :class="
+                                hasAnyLimit(key)
+                                  ? 'font-medium text-blue-600 dark:text-blue-400'
+                                  : 'text-gray-400 dark:text-gray-500'
+                              "
+                            >
+                              {{ limitSummary(key) }}
+                            </span>
+                            <span class="text-gray-300 dark:text-gray-600">·</span>
+                            <span
+                              class="cursor-pointer hover:underline"
+                              :class="expiryTextClass(key)"
+                              @click.stop="startEditExpiry(key)"
+                            >
+                              {{ expirySummary(key) }}
+                            </span>
                           </div>
                           <!-- 显示所有者信息 -->
                           <div
@@ -543,40 +549,6 @@
                         </div>
                       </td>
                       <!-- 标签列 -->
-                      <td class="px-3 py-3">
-                        <div class="flex flex-wrap gap-1">
-                          <span
-                            v-for="tag in key.tags || []"
-                            :key="tag"
-                            class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                          >
-                            {{ tag }}
-                          </span>
-                          <span
-                            v-if="!key.tags || key.tags.length === 0"
-                            class="text-xs text-gray-400"
-                            >无标签</span
-                          >
-                        </div>
-                      </td>
-                      <td class="whitespace-nowrap px-3 py-3">
-                        <span
-                          :class="[
-                            'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
-                            key.isActive
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                          ]"
-                        >
-                          <div
-                            :class="[
-                              'mr-2 h-2 w-2 rounded-full',
-                              key.isActive ? 'bg-green-500' : 'bg-red-500'
-                            ]"
-                          />
-                          {{ key.isActive ? '活跃' : '禁用' }}
-                        </span>
-                      </td>
                       <!-- 费用 -->
                       <td class="whitespace-nowrap px-3 py-3 text-right" style="font-size: 13px">
                         <!-- 加载中状态 - 骨架屏 -->
@@ -602,118 +574,6 @@
                         </template>
                       </td>
                       <!-- 限制 -->
-                      <td class="px-2 py-2" style="font-size: 12px">
-                        <div class="flex flex-col gap-2">
-                          <!-- 加载中状态 - 骨架屏（仅在有费用限制配置时显示） -->
-                          <template
-                            v-if="
-                              isStatsLoading(key.id) &&
-                              (key.weeklyOpusCostLimit > 0 ||
-                                key.dailyCostLimit > 0 ||
-                                key.totalCostLimit > 0 ||
-                                (key.rateLimitWindow > 0 && key.rateLimitCost > 0))
-                            "
-                          >
-                            <div class="space-y-2">
-                              <div
-                                class="h-4 w-full animate-pulse rounded bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700"
-                              />
-                              <div
-                                class="h-3 w-2/3 animate-pulse rounded bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700"
-                              />
-                            </div>
-                          </template>
-                          <!-- 已加载状态 -->
-                          <template v-else>
-                            <!-- Claude 周额度限制 - 独立显示 -->
-                            <LimitProgressBar
-                              v-if="key.weeklyOpusCostLimit > 0"
-                              :current="getCachedStats(key.id)?.weeklyOpusCost || 0"
-                              label="Claude 周限制"
-                              :limit="key.weeklyOpusCostLimit"
-                              type="opus"
-                              variant="compact"
-                            />
-
-                            <!-- 每日费用限制进度条 -->
-                            <LimitProgressBar
-                              v-if="key.dailyCostLimit > 0"
-                              :current="getCachedStats(key.id)?.dailyCost || 0"
-                              label="每日限制"
-                              :limit="key.dailyCostLimit"
-                              type="daily"
-                              variant="compact"
-                            />
-
-                            <!-- 总费用限制进度条（无每日限制时展示） -->
-                            <LimitProgressBar
-                              v-else-if="key.totalCostLimit > 0"
-                              :current="getCachedStats(key.id)?.allTimeCost || 0"
-                              label="总费用限制"
-                              :limit="key.totalCostLimit"
-                              type="total"
-                              variant="compact"
-                            />
-
-                            <!-- 时间窗口费用限制（无每日和总费用限制时展示） -->
-                            <div
-                              v-else-if="
-                                key.rateLimitWindow > 0 &&
-                                key.rateLimitCost > 0 &&
-                                (!key.dailyCostLimit || key.dailyCostLimit === 0) &&
-                                (!key.totalCostLimit || key.totalCostLimit === 0)
-                              "
-                              class="space-y-1.5"
-                            >
-                              <!-- 费用进度条 -->
-                              <LimitProgressBar
-                                :current="getCachedStats(key.id)?.currentWindowCost || 0"
-                                label="窗口费用"
-                                :limit="key.rateLimitCost"
-                                type="window"
-                                variant="compact"
-                              />
-                              <!-- 重置倒计时 -->
-                              <div class="flex items-center justify-between text-[10px]">
-                                <div class="flex items-center gap-1 text-sky-600 dark:text-sky-300">
-                                  <i class="fas fa-clock text-[10px]" />
-                                  <span class="font-medium">{{ key.rateLimitWindow }}分钟窗口</span>
-                                </div>
-                                <span
-                                  class="font-bold"
-                                  :class="
-                                    (getCachedStats(key.id)?.windowRemainingSeconds || 0) > 0
-                                      ? 'text-sky-700 dark:text-sky-300'
-                                      : 'text-gray-400 dark:text-gray-500'
-                                  "
-                                >
-                                  {{
-                                    (getCachedStats(key.id)?.windowRemainingSeconds || 0) > 0
-                                      ? formatWindowTime(
-                                          getCachedStats(key.id)?.windowRemainingSeconds || 0
-                                        )
-                                      : '未激活'
-                                  }}
-                                </span>
-                              </div>
-                            </div>
-
-                            <!-- 如果没有任何限制 -->
-                            <div
-                              v-if="
-                                !(key.weeklyOpusCostLimit > 0) &&
-                                !(key.dailyCostLimit > 0) &&
-                                !(key.totalCostLimit > 0) &&
-                                !(key.rateLimitWindow > 0 && key.rateLimitCost > 0)
-                              "
-                              class="flex items-center justify-center gap-1.5 py-2 text-gray-500 dark:text-gray-400"
-                            >
-                              <i class="fas fa-infinity text-base" />
-                              <span class="text-xs font-medium">无限制</span>
-                            </div>
-                          </template>
-                        </div>
-                      </td>
                       <!-- Token数量 -->
                       <td class="whitespace-nowrap px-3 py-3 text-right" style="font-size: 13px">
                         <!-- 加载中状态 - 骨架屏 -->
@@ -814,62 +674,6 @@
                         style="font-size: 13px"
                       >
                         {{ new Date(key.createdAt).toLocaleDateString() }}
-                      </td>
-                      <td
-                        class="whitespace-nowrap px-3 py-3 text-sm text-gray-700 dark:text-gray-300"
-                      >
-                        <div class="inline-flex items-center gap-1.5">
-                          <!-- 未激活状态 -->
-                          <span
-                            v-if="key.expirationMode === 'activation' && !key.isActivated"
-                            class="inline-flex items-center text-blue-600 dark:text-blue-400"
-                            style="font-size: 13px"
-                          >
-                            <i class="fas fa-pause-circle mr-1 text-xs" />
-                            未激活 (
-                            {{ key.activationDays || (key.activationUnit === 'hours' ? 24 : 30)
-                            }}{{ key.activationUnit === 'hours' ? '小时' : '天' }})
-                          </span>
-                          <!-- 已设置过期时间 -->
-                          <span v-else-if="key.expiresAt">
-                            <span
-                              v-if="isApiKeyExpired(key.expiresAt)"
-                              class="inline-flex cursor-pointer items-center text-red-600 hover:underline"
-                              style="font-size: 13px"
-                              @click.stop="startEditExpiry(key)"
-                            >
-                              <i class="fas fa-exclamation-circle mr-1 text-xs" />
-                              已过期
-                            </span>
-                            <span
-                              v-else-if="isApiKeyExpiringSoon(key.expiresAt)"
-                              class="inline-flex cursor-pointer items-center text-orange-600 hover:underline"
-                              style="font-size: 13px"
-                              @click.stop="startEditExpiry(key)"
-                            >
-                              <i class="fas fa-clock mr-1 text-xs" />
-                              {{ formatExpireDate(key.expiresAt) }}
-                            </span>
-                            <span
-                              v-else
-                              class="cursor-pointer text-gray-600 hover:underline dark:text-gray-400"
-                              style="font-size: 13px"
-                              @click.stop="startEditExpiry(key)"
-                            >
-                              {{ formatExpireDate(key.expiresAt) }}
-                            </span>
-                          </span>
-                          <!-- 永不过期 -->
-                          <span
-                            v-else
-                            class="inline-flex cursor-pointer items-center text-gray-400 hover:underline dark:text-gray-500"
-                            style="font-size: 13px"
-                            @click.stop="startEditExpiry(key)"
-                          >
-                            <i class="fas fa-infinity mr-1 text-xs" />
-                            永不过期
-                          </span>
-                        </div>
                       </td>
                       <td
                         class="operations-column operations-cell whitespace-nowrap px-3 py-3"
@@ -973,7 +777,10 @@
 
                     <!-- 模型统计展开区域 -->
                     <tr v-if="key && key.id && expandedApiKeys[key.id]">
-                      <td class="bg-gray-50 px-3 py-3 dark:bg-gray-700" colspan="13">
+                      <td
+                        class="bg-gray-50 px-3 py-3 dark:bg-gray-700"
+                        :colspan="shouldShowCheckboxes ? 9 : 8"
+                      >
                         <div v-if="!apiKeyModelStats[key.id]" class="py-4 text-center">
                           <div class="loading-spinner mx-auto" />
                           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -3197,6 +3004,57 @@ const formatExpireDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('zh-CN')
 }
 
+// —— 以下四个函数支撑名称列内的降级信息（原独立的限制/过期时间列已并入名称列） ——
+
+const toNum = (v) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+// 是否设置了任一限制项
+const hasAnyLimit = (key) =>
+  toNum(key?.tokenLimit) > 0 ||
+  toNum(key?.rateLimitRequests) > 0 ||
+  toNum(key?.rateLimitCost) > 0 ||
+  toNum(key?.concurrencyLimit) > 0 ||
+  toNum(key?.dailyCostLimit) > 0 ||
+  toNum(key?.totalCostLimit) > 0 ||
+  toNum(key?.weeklyOpusCostLimit) > 0
+
+// 限制摘要：未设置任何限制时为「无限制」，否则列出已设置项
+const limitSummary = (key) => {
+  const parts = []
+  if (toNum(key?.tokenLimit) > 0) parts.push(`Token ${formatNumber(toNum(key.tokenLimit))}`)
+  if (toNum(key?.concurrencyLimit) > 0) parts.push(`并发 ${toNum(key.concurrencyLimit)}`)
+  if (toNum(key?.rateLimitRequests) > 0) parts.push(`速率 ${toNum(key.rateLimitRequests)}`)
+  if (toNum(key?.dailyCostLimit) > 0) parts.push(`日 $${toNum(key.dailyCostLimit)}`)
+  if (toNum(key?.totalCostLimit) > 0) parts.push(`总 $${toNum(key.totalCostLimit)}`)
+  if (toNum(key?.weeklyOpusCostLimit) > 0) parts.push(`周Opus $${toNum(key.weeklyOpusCostLimit)}`)
+  return parts.length ? parts.join(' / ') : '无限制'
+}
+
+// 过期摘要
+const expirySummary = (key) => {
+  if (key?.expirationMode === 'activation' && !key?.isActivated) {
+    const n = key.activationDays || (key.activationUnit === 'hours' ? 24 : 30)
+    return `未激活 (${n}${key.activationUnit === 'hours' ? '小时' : '天'})`
+  }
+  if (!key?.expiresAt) return '永不过期'
+  if (isApiKeyExpired(key.expiresAt)) return '已过期'
+  return formatExpireDate(key.expiresAt)
+}
+
+// 过期文案的强调色：偏离默认（永不过期）时才着色
+const expiryTextClass = (key) => {
+  if (key?.expirationMode === 'activation' && !key?.isActivated) {
+    return 'font-medium text-blue-600 dark:text-blue-400'
+  }
+  if (!key?.expiresAt) return 'text-gray-400 dark:text-gray-500'
+  if (isApiKeyExpired(key.expiresAt)) return 'font-medium text-red-600 dark:text-red-400'
+  if (isApiKeyExpiringSoon(key.expiresAt)) return 'font-medium text-orange-600 dark:text-orange-400'
+  return 'text-gray-500 dark:text-gray-400'
+}
+
 // 切换模型统计展开状态
 const toggleApiKeyModelStats = async (keyId) => {
   if (!expandedApiKeys.value[keyId]) {
@@ -4852,8 +4710,10 @@ onUnmounted(() => {
 }
 
 /* 防止表格内容溢出，保证横向滚动 */
+/* 列数由 12 降为 8 后同步下调：8 列 min-w 合计约 830px，此处留余量至 980px，
+   使常规宽度视口无需横向滚动，窄屏仍可滚动 */
 .table-container table {
-  min-width: 1400px;
+  min-width: 980px;
   border-collapse: collapse;
   table-layout: auto;
 }

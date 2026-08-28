@@ -998,6 +998,18 @@ button.switch-track:disabled {
     'Microsoft YaHei',
     sans-serif;
 }
+
+/*
+ * 标题、次要文字与卡片均已走 --tutorial-* 变量，因此暗色只需重定义变量，
+ * 无需逐条复制规则。品牌蓝保持不变。
+ */
+.dark .tutorial-section,
+.dark .tutorial-content {
+  --tutorial-text: #f3f4f6;
+  --tutorial-muted: #9ca3af;
+  --tutorial-card: rgba(31, 41, 55, 0.82);
+  --tutorial-card-border: rgba(255, 255, 255, 0.1);
+}
 .tutorial-section *,
 .tutorial-content * {
   -webkit-font-smoothing: antialiased;
@@ -1013,6 +1025,17 @@ button.switch-track:disabled {
   font-size: 15px !important;
   line-height: 1.66 !important;
   letter-spacing: -0.003em;
+}
+
+/*
+ * 上面的正文色写了 !important，会压掉调用点的 dark:text-gray-400，
+ * 导致教程正文在深色底上几乎不可读，故此处补同权重的暗色对应规则。
+ */
+.dark .tutorial-section p,
+.dark .tutorial-section li,
+.dark .tutorial-content p,
+.dark .tutorial-content li {
+  color: #9ca3af !important;
 }
 .tutorial-section h1,
 .tutorial-section h2,

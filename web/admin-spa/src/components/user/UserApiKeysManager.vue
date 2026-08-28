@@ -2,8 +2,8 @@
   <div class="space-y-6">
     <div class="sm:flex sm:items-center">
       <div class="sm:flex-auto">
-        <h1 class="text-2xl font-semibold text-gray-900">My API Keys</h1>
-        <p class="mt-2 text-sm text-gray-700">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">My API Keys</h1>
+        <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">
           Manage your API keys to access Claude Relay services
         </p>
       </div>
@@ -72,12 +72,15 @@
           fill="currentColor"
         ></path>
       </svg>
-      <p class="mt-2 text-sm text-gray-500">Loading API keys...</p>
+      <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading API keys...</p>
     </div>
 
     <!-- API Keys List -->
-    <div v-else-if="sortedApiKeys.length > 0" class="overflow-hidden bg-white shadow sm:rounded-md">
-      <ul class="divide-y divide-gray-200" role="list">
+    <div
+      v-else-if="sortedApiKeys.length > 0"
+      class="overflow-hidden bg-white shadow dark:bg-gray-800 sm:rounded-md"
+    >
+      <ul class="divide-y divide-gray-200 dark:divide-gray-700" role="list">
         <li v-for="apiKey in sortedApiKeys" :key="apiKey.id" class="px-6 py-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center">
@@ -95,10 +98,12 @@
               </div>
               <div class="ml-4">
                 <div class="flex items-center">
-                  <p class="text-sm font-medium text-gray-900">{{ apiKey.name }}</p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ apiKey.name }}
+                  </p>
                   <span
                     v-if="apiKey.isDeleted === true || apiKey.deletedAt"
-                    class="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800"
+                    class="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-200"
                   >
                     Deleted
                   </span>
@@ -110,8 +115,12 @@
                   </span>
                 </div>
                 <div class="mt-1">
-                  <p class="text-sm text-gray-500">{{ apiKey.description || 'No description' }}</p>
-                  <div class="mt-1 flex items-center space-x-4 text-xs text-gray-400">
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ apiKey.description || 'No description' }}
+                  </p>
+                  <div
+                    class="mt-1 flex items-center space-x-4 text-xs text-gray-400 dark:text-gray-500"
+                  >
                     <span>Created: {{ formatDate(apiKey.createdAt) }}</span>
                     <span v-if="apiKey.isDeleted === 'true' || apiKey.deletedAt"
                       >Deleted: {{ formatDate(apiKey.deletedAt) }}</span
@@ -130,7 +139,7 @@
             </div>
             <div class="flex items-center space-x-2">
               <!-- Usage Stats -->
-              <div class="text-right text-xs text-gray-500">
+              <div class="text-right text-xs text-gray-500 dark:text-gray-400">
                 <div>{{ formatNumber(apiKey.usage?.requests || 0) }} requests</div>
                 <div v-if="apiKey.usage?.totalCost">${{ apiKey.usage.totalCost.toFixed(4) }}</div>
               </div>
@@ -138,7 +147,7 @@
               <!-- Actions -->
               <div class="flex items-center space-x-1">
                 <button
-                  class="inline-flex items-center rounded border border-transparent p-1 text-gray-400 hover:text-gray-600"
+                  class="inline-flex items-center rounded border border-transparent p-1 text-gray-400 hover:text-gray-600 dark:text-gray-500"
                   title="View API Key"
                   @click="showApiKey(apiKey)"
                 >
@@ -187,7 +196,7 @@
     <!-- Empty State -->
     <div v-else class="py-12 text-center">
       <svg
-        class="mx-auto h-12 w-12 text-gray-400"
+        class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -199,8 +208,10 @@
           stroke-width="2"
         />
       </svg>
-      <h3 class="mt-2 text-sm font-medium text-gray-900">No API keys</h3>
-      <p class="mt-1 text-sm text-gray-500">Get started by creating your first API key.</p>
+      <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No API keys</h3>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        Get started by creating your first API key.
+      </p>
       <div class="mt-6">
         <button
           class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"

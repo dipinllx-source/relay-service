@@ -1070,4 +1070,86 @@ onBeforeUnmount(() => {
 .foot__sep {
   opacity: 0.5;
 }
+/* ---------- 暗色变体 ----------
+ * 本页原无任何暗色规则，深色模式下整页为浅底。仅覆盖表面、文字与边框；
+ * .step__number 与 .btn--primary 为刻意的深色/品牌色块，保持不变。
+ */
+.dark .start-page {
+  background: #0b1220;
+  color: #f3f4f6;
+}
+.dark .apple-nav--scrolled {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dark .apple-nav__brand,
+.dark .apple-nav__links a,
+.dark .apple-nav__dropdown-trigger {
+  color: #e5e7eb;
+}
+.dark .dropdown-panel {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dark .dropdown-panel__label,
+.dark .dropdown-panel__link i,
+.dark .dropdown-panel__section--aside .dropdown-panel__link {
+  color: #9ca3af;
+}
+.dark .dropdown-panel__section--aside {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dark .start-hero__title {
+  background: linear-gradient(180deg, #f9fafb 0%, #d1d5db 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.dark .start-hero__sub,
+.dark .step__desc,
+.dark .ops__sub,
+.dark .ops__card-desc,
+.dark .ops__tab,
+.dark .gpt-note,
+.dark .start-cta__inner p,
+.dark .foot__inner {
+  color: #9ca3af;
+}
+.dark .step,
+.dark .ops__card {
+  background: #1f2937;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dark .step__title,
+.dark .ops__title,
+.dark .ops__card-title,
+.dark .gpt-steps,
+.dark .ops__tab--active {
+  color: #f3f4f6;
+}
+.dark .step__code,
+.dark .ops__code,
+.dark .ops__sub code,
+.dark .gpt-note code,
+.dark .ops__tabs {
+  background: #111827;
+}
+.dark .step__code code,
+.dark .ops__code code {
+  color: #e5e7eb;
+}
+.dark .ops__tab--active {
+  background: #1f2937;
+}
+.dark .ops__copy {
+  background: rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+}
+.dark .ops__copy:hover {
+  color: #f3f4f6;
+}
+.dark .start-cta {
+  background: linear-gradient(180deg, #0b1220 0%, #111827 100%);
+}
+.dark .foot {
+  background: #0b1220;
+  border-top: 1px solid #374151;
+}
 </style>

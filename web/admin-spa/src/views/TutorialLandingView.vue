@@ -771,4 +771,74 @@ onBeforeUnmount(() => {
 .foot__sep {
   opacity: 0.5;
 }
+
+/* ---------- 暗色变体 ----------
+ * 原实现把页面底色与嵌套演示区底色都硬编码为浅色，深色模式下演示区
+ * 会变成大块白底压在暗色页面上。此处让这些表面随主题变化。
+ * 演示区标题栏本身就是刻意的深色拟物，保持不变；品牌蓝强调色不变。
+ */
+.dark .tutorial-page {
+  background: #0b1220;
+  color: #f3f4f6;
+}
+
+.dark .demo__body {
+  background: #111827;
+  color: #f3f4f6;
+}
+
+.dark .demo__frame {
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6);
+}
+
+.dark .os-menu__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark .os-menu__item--active {
+  background: #1f2937;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+}
+
+.dark .foot {
+  background: #0b1220;
+  border-top: 1px solid #374151;
+}
+
+/* 表面转暗后，原先硬编码的浅色模式文字色对比度不足，需一并覆盖。
+ * 主标题是深色渐变裁剪到文字（color: transparent），只改 color 无效，
+ * 必须反转渐变本身。 */
+.dark .tut-hero__title {
+  background: linear-gradient(180deg, #f9fafb 0%, #d1d5db 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.dark .tut-hero__sub {
+  color: #9ca3af;
+}
+
+.dark .apple-nav__brand,
+.dark .apple-nav__links a,
+.dark .apple-nav__dropdown-trigger {
+  color: #e5e7eb;
+}
+
+.dark .dropdown-panel__label,
+.dark .dropdown-panel__link i,
+.dark .dropdown-panel__section--aside .dropdown-panel__link {
+  color: #9ca3af;
+}
+
+.dark .os-menu__item {
+  color: #d1d5db;
+}
+
+.dark .demo__crumbs-sep {
+  color: #9ca3af;
+}
+
+.dark .foot__inner {
+  color: #9ca3af;
+}
 </style>

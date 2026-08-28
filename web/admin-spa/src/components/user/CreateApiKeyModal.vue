@@ -4,12 +4,15 @@
     class="fixed inset-0 z-50 h-full w-full overflow-y-auto bg-gray-600 bg-opacity-50"
   >
     <div
-      class="relative top-20 mx-auto w-[768px] max-w-4xl rounded-md border bg-white p-5 shadow-lg"
+      class="relative top-20 mx-auto w-[768px] max-w-4xl rounded-md border bg-white p-5 shadow-lg dark:bg-gray-800"
     >
       <div class="mt-3">
         <div class="mb-4 flex items-center justify-between">
-          <h3 class="text-lg font-medium text-gray-900">Create New API Key</h3>
-          <button class="text-gray-400 hover:text-gray-600" @click="$emit('close')">
+          <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Create New API Key</h3>
+          <button
+            class="text-gray-400 hover:text-gray-600 dark:text-gray-500"
+            @click="$emit('close')"
+          >
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 d="M6 18L18 6M6 6l12 12"
@@ -23,11 +26,13 @@
 
         <form class="space-y-4" @submit.prevent="handleSubmit">
           <div>
-            <label class="block text-sm font-medium text-gray-700" for="name"> Name * </label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300" for="name">
+              Name *
+            </label>
             <input
               id="name"
               v-model="form.name"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 sm:text-sm"
               :disabled="loading"
               placeholder="Enter API key name"
               required
@@ -36,13 +41,16 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700" for="description">
+            <label
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              for="description"
+            >
               Description
             </label>
             <textarea
               id="description"
               v-model="form.description"
-              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 sm:text-sm"
               :disabled="loading"
               placeholder="Optional description"
               rows="3"
@@ -68,7 +76,7 @@
 
           <div class="flex justify-end space-x-3 pt-4">
             <button
-              class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50"
               :disabled="loading"
               type="button"
               @click="$emit('close')"
@@ -127,9 +135,9 @@
                   <strong>Important:</strong> Copy your API key now. You won't be able to see it
                   again!
                 </p>
-                <div class="rounded-md border border-green-300 bg-white p-3">
+                <div class="rounded-md border border-green-300 bg-white p-3 dark:bg-gray-800">
                   <div class="flex items-center justify-between">
-                    <code class="break-all font-mono text-sm text-gray-900">{{
+                    <code class="break-all font-mono text-sm text-gray-900 dark:text-gray-100">{{
                       newApiKey.key
                     }}</code>
                     <button

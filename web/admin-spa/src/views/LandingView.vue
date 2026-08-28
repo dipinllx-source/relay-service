@@ -1360,4 +1360,67 @@ onBeforeUnmount(() => {
 .foot__sep {
   opacity: 0.5;
 }
+/* ---------- 暗色变体 ----------
+ * 本页原无任何暗色规则，深色模式下整页为浅底。仅覆盖表面、文字与边框；
+ * .feat--dark 与 .stats 本就是刻意的深色区块，.btn--primary 为品牌色，均不改。
+ */
+.dark .apple-landing {
+  background: #0b1220;
+  color: #f3f4f6;
+}
+.dark .apple-nav--scrolled {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dark .apple-nav__brand,
+.dark .apple-nav__links a,
+.dark .apple-nav__dropdown-trigger {
+  color: #e5e7eb;
+}
+.dark .dropdown-panel {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dark .dropdown-panel__label,
+.dark .dropdown-panel__link i,
+.dark .dropdown-panel__section--aside .dropdown-panel__link {
+  color: #9ca3af;
+}
+.dark .dropdown-panel__section--aside {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dark .hero__eyebrow,
+.dark .hero__sub,
+.dark .section-sub,
+.dark .cta__inner p,
+.dark .foot__inner {
+  color: #9ca3af;
+}
+.dark .hero__title {
+  background: linear-gradient(180deg, #f9fafb 0%, #d1d5db 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.dark .hero__card {
+  background: rgba(31, 41, 55, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dark .hero__card-bar {
+  background: rgba(255, 255, 255, 0.06);
+}
+.dark .platforms__item {
+  background: #1f2937;
+}
+.dark .platforms__item span {
+  color: #f3f4f6;
+}
+.dark .feat--light {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  color: #f3f4f6;
+}
+.dark .cta {
+  background: linear-gradient(180deg, #0b1220 0%, #111827 100%);
+}
+.dark .foot {
+  background: #0b1220;
+  border-top: 1px solid #374151;
+}
 </style>

@@ -547,4 +547,53 @@ const handleLogin = async () => {
   color: #86868b;
   text-align: center;
 }
+
+/* ---------- 暗色变体 ----------
+ * 本页原先完全没有暗色变体，深色模式下会渲染成一整块白底。
+ * .dark 挂在 documentElement 上，是本组件根节点的祖先，
+ * scoped 编译后形成 .dark .xxx[data-v-*]，故祖先选择器可正常命中。
+ * 仅覆盖表面色、文字色与边框，品牌蓝强调色保持不变。
+ */
+.dark .apple-login {
+  background: #111827;
+  color: #f3f4f6;
+}
+
+.dark .apple-nav {
+  background: rgba(17, 24, 39, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dark .apple-nav__brand {
+  color: #f3f4f6;
+}
+
+.dark .al-field {
+  border-color: #4b5563;
+  background: #1f2937;
+}
+
+.dark .al-input {
+  color: #f3f4f6;
+}
+
+.dark .al-clear {
+  background: #374151;
+  color: #9ca3af;
+}
+
+.dark .al-remember__box {
+  background: #1f2937;
+  border-color: #6b7280;
+}
+
+.dark .al-error {
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+}
+
+.dark .al-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0b1220;
+}
 </style>

@@ -17,7 +17,7 @@
         <div class="flex items-center gap-2 md:gap-4">
           <!-- 主题切换按钮 -->
           <div class="flex items-center">
-            <ThemeToggle mode="dropdown" />
+            <ThemeToggle />
           </div>
 
           <!-- 分隔线 -->
@@ -454,9 +454,6 @@ const handleKeyDown = (event) => {
 // 初始化
 onMounted(async () => {
   // API Stats Page loaded
-
-  // 初始化主题（因为该页面不在 MainLayout 内）
-  themeStore.initTheme()
 
   // 加载 OEM 设置和服务倍率
   await Promise.all([loadOemSettings(), loadServiceRates()])

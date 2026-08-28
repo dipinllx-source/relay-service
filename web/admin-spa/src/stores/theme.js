@@ -295,27 +295,11 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  // 循环切换主题模式
-  const cycleThemeMode = () => {
-    const modes = [ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.AUTO]
-    const currentIndex = modes.indexOf(themeMode.value)
-    const nextIndex = (currentIndex + 1) % modes.length
-    themeMode.value = modes[nextIndex]
-  }
-
   // 设置色系
   const setColorScheme = (scheme) => {
     if (ColorSchemes[scheme]) {
       colorScheme.value = scheme
     }
-  }
-
-  // 循环切换色系
-  const cycleColorScheme = () => {
-    const schemes = Object.keys(ColorSchemes)
-    const currentIndex = schemes.indexOf(colorScheme.value)
-    const nextIndex = (currentIndex + 1) % schemes.length
-    colorScheme.value = schemes[nextIndex]
   }
 
   // 监听主题模式变化，自动保存到 localStorage 并应用
@@ -358,19 +342,6 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  // 兼容旧版 API
-  const toggleTheme = () => {
-    cycleThemeMode()
-  }
-
-  const setTheme = (theme) => {
-    if (theme === 'dark') {
-      setThemeMode(ThemeMode.DARK)
-    } else if (theme === 'light') {
-      setThemeMode(ThemeMode.LIGHT)
-    }
-  }
-
   return {
     // State
     themeMode,
@@ -387,13 +358,7 @@ export const useThemeStore = defineStore('theme', () => {
     // Actions
     initTheme,
     setThemeMode,
-    cycleThemeMode,
     watchSystemTheme,
-    setColorScheme,
-    cycleColorScheme,
-
-    // 兼容旧版 API
-    toggleTheme,
-    setTheme
+    setColorScheme
   }
 })

@@ -76,7 +76,7 @@
             </div>
 
             <!-- 主题切换按钮 -->
-            <ThemeToggle mode="icon" />
+            <ThemeToggle />
 
             <button
               class="rounded-md px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
@@ -339,7 +339,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { useThemeStore } from '@/stores/theme'
 import { showToast, formatNumber, formatDate } from '@/utils/tools'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import UserApiKeysManager from '@/components/user/UserApiKeysManager.vue'
@@ -348,7 +347,6 @@ import TutorialView from '@/views/TutorialView.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
-const themeStore = useThemeStore()
 
 const activeTab = ref('overview')
 const userProfile = ref(null)
@@ -404,8 +402,6 @@ const loadApiKeysStats = async () => {
 }
 
 onMounted(() => {
-  // 初始化主题
-  themeStore.initTheme()
   loadUserProfile()
   loadApiKeysStats()
 })

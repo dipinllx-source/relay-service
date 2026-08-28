@@ -174,10 +174,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useThemeStore } from '@/stores/theme'
 
 const authStore = useAuthStore()
-const themeStore = useThemeStore()
 
 const loginForm = ref({ username: '', password: '' })
 const userFocus = ref(false)
@@ -186,7 +184,6 @@ const showPassword = ref(false)
 const remember = ref(true)
 
 onMounted(() => {
-  themeStore.initTheme()
   authStore.loadOemSettings()
 })
 

@@ -4,7 +4,7 @@
   >
     <!-- 主题切换按钮 -->
     <div class="fixed right-4 top-4 z-10">
-      <ThemeToggle mode="dropdown" />
+      <ThemeToggle />
     </div>
 
     <div class="w-full max-w-md space-y-8">
@@ -149,13 +149,11 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { useThemeStore } from '@/stores/theme'
 import { showToast } from '@/utils/tools'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
-const themeStore = useThemeStore()
 
 const loading = ref(false)
 const error = ref('')
@@ -191,7 +189,7 @@ const handleLogin = async () => {
 }
 
 onMounted(() => {
-  // 初始化主题（因为该页面不在 MainLayout 内）
-  themeStore.initTheme()
+  // 主题初始化统一由 App.vue 承担：App.vue 直接包裹 router-view，
+  // 覆盖包括本页在内的所有路由，无需各页重复初始化
 })
 </script>

@@ -85,7 +85,7 @@
         </div>
 
         <div class="admin-nav__right">
-          <ThemeToggle mode="dropdown" />
+          <ThemeToggle />
           <button class="admin-nav__user-btn" @click="toggleDropdown('user')">
             <i class="fas fa-user-circle" />
             <span class="admin-nav__user-name">{{ currentUser.username || 'Admin' }}</span>

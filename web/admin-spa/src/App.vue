@@ -18,11 +18,10 @@ const themeStore = useThemeStore()
 const toastRef = ref()
 
 onMounted(() => {
-  // 初始化主题
+  // 初始化主题：应用根层是唯一的主题初始化点。
+  // initTheme 内部已调用 watchSystemTheme，此处不可重复调用，
+  // 否则会重复注册 matchMedia 监听且无从清理
   themeStore.initTheme()
-
-  // 监听系统主题变化
-  themeStore.watchSystemTheme()
 
   // 检查本地存储的认证状态
   authStore.checkAuth()

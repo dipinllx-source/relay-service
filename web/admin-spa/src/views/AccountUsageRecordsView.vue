@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <button
-          class="rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
           @click="goBack"
         >
           ← 返回
@@ -26,38 +26,36 @@
       </div>
     </div>
 
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <div
-        class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-      >
-        <p class="text-xs uppercase text-gray-500 dark:text-gray-400">总请求</p>
-        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+    <!-- 汇总摘要：原为四张独立统计卡各占一格，压为单行摘要以让记录表格进首屏 -->
+    <div
+      class="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+    >
+      <div class="flex items-baseline gap-2">
+        <span class="text-xs text-gray-500 dark:text-gray-400">总请求</span>
+        <span class="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
           {{ formatNumber(summary.totalRequests) }}
-        </p>
+        </span>
       </div>
-      <div
-        class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-      >
-        <p class="text-xs uppercase text-gray-500 dark:text-gray-400">总 Token</p>
-        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <span class="hidden h-4 w-px bg-gray-200 dark:bg-gray-700 sm:block" />
+      <div class="flex items-baseline gap-2">
+        <span class="text-xs text-gray-500 dark:text-gray-400">总 Token</span>
+        <span class="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
           {{ formatNumber(summary.totalTokens) }}
-        </p>
+        </span>
       </div>
-      <div
-        class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-      >
-        <p class="text-xs uppercase text-gray-500 dark:text-gray-400">总费用</p>
-        <p class="mt-1 text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+      <span class="hidden h-4 w-px bg-gray-200 dark:bg-gray-700 sm:block" />
+      <div class="flex items-baseline gap-2">
+        <span class="text-xs text-gray-500 dark:text-gray-400">总费用</span>
+        <span class="text-lg font-bold tabular-nums text-yellow-600 dark:text-yellow-400">
           {{ formatCost(summary.totalCost) }}
-        </p>
+        </span>
       </div>
-      <div
-        class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-      >
-        <p class="text-xs uppercase text-gray-500 dark:text-gray-400">平均费用/次</p>
-        <p class="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <span class="hidden h-4 w-px bg-gray-200 dark:bg-gray-700 sm:block" />
+      <div class="flex items-baseline gap-2">
+        <span class="text-xs text-gray-500 dark:text-gray-400">平均费用/次</span>
+        <span class="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
           {{ formatCost(summary.avgCost) }}
-        </p>
+        </span>
       </div>
     </div>
 
@@ -157,27 +155,27 @@
                     模型
                   </th>
                   <th
-                    class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                    class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                   >
                     输入
                   </th>
                   <th
-                    class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                    class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                   >
                     输出
                   </th>
                   <th
-                    class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                    class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                   >
                     缓存(创/读)
                   </th>
                   <th
-                    class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                    class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                   >
                     总 Token
                   </th>
                   <th
-                    class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
+                    class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300"
                   >
                     费用
                   </th>
@@ -208,25 +206,29 @@
                   <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-800 dark:text-gray-100">
                     {{ record.model }}
                   </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-sm text-blue-600 dark:text-blue-400">
+                  <td
+                    class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-blue-600 dark:text-blue-400"
+                  >
                     {{ formatNumber(record.inputTokens) }}
                   </td>
                   <td
-                    class="whitespace-nowrap px-4 py-3 text-sm text-green-600 dark:text-green-400"
+                    class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-green-600 dark:text-green-400"
                   >
                     {{ formatNumber(record.outputTokens) }}
                   </td>
                   <td
-                    class="whitespace-nowrap px-4 py-3 text-sm text-purple-600 dark:text-purple-400"
+                    class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-purple-600 dark:text-purple-400"
                   >
                     {{ formatNumber(record.cacheCreateTokens) }} /
                     {{ formatNumber(record.cacheReadTokens) }}
                   </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-800 dark:text-gray-100">
+                  <td
+                    class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-gray-800 dark:text-gray-100"
+                  >
                     {{ formatNumber(record.totalTokens) }}
                   </td>
                   <td
-                    class="whitespace-nowrap px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400"
+                    class="whitespace-nowrap px-4 py-3 text-right text-sm tabular-nums text-yellow-600 dark:text-yellow-400"
                   >
                     {{ record.costFormatted || formatCost(record.cost) }}
                   </td>

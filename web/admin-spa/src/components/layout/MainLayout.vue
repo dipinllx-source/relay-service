@@ -565,20 +565,26 @@ const initActiveTab = () => {
       (key) => p === tabRouteMap.value[key] || p.startsWith(tabRouteMap.value[key] + '/')
     )
   }
-  if (k) activeTab.value = k
+  // 无匹配项时必须清空：否则停留在没有导航项的页面时，
+  // 会继续高亮上一次的导航项（或初始默认值 dashboard）
+  activeTab.value = k || ''
 }
 initActiveTab()
 
 watch(
-  () => route.path,
+  // tabRouteMap 需一并监听：用户体系开关来自异步取数，映射表在取数返回后才
+  // 补上用户管理项，而此时 route.path 并未变化，仅监听路径会漏掉这次重算
+  [() => route.path, () => tabRouteMap.value],
   () => initActiveTab()
 )
 
 const handleTabChange = async (tabKey) => {
-  if (tabRouteMap.value[tabKey] === route.path) return
+  // 映射表随特性开关变化，键可能不存在；否则会 push(undefined) 抛错
+  const target = tabRouteMap.value[tabKey]
+  if (!target || target === route.path) return
   activeTab.value = tabKey
   try {
-    await router.push(tabRouteMap.value[tabKey])
+    await router.push(target)
     await nextTick()
   } catch (err) {
     if (err.name !== 'NavigationDuplicated') initActiveTab()

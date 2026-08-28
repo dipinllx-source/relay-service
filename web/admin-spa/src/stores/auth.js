@@ -15,7 +15,10 @@ export const useAuthStore = defineStore('auth', () => {
     siteName: 'Relay Service',
     siteIcon: '',
     siteIconData: '',
-    faviconData: ''
+    faviconData: '',
+    // 显式声明，避免取数返回前为 undefined 而使基于该标志的门禁出现竞态；
+    // 默认关闭，取数后由服务端值覆盖
+    ldapEnabled: false
   })
   const oemLoading = ref(true)
 
@@ -104,6 +107,27 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  // 已完成一次取数的标记与在途 Promise：
+  // loadOemSettings 在 App.vue 等处是即发即忘调用，路由守卫无法依赖其时序，
+  // 故提供可 await 且天然幂等的入口，并让并发调用共享同一请求
+  let oemSettingsLoaded = false
+  let oemSettingsPromise = null
+
+  async function ensureOemSettings() {
+    if (oemSettingsLoaded) return oemSettings.value
+    if (!oemSettingsPromise) {
+      oemSettingsPromise = loadOemSettings()
+        .then(() => {
+          oemSettingsLoaded = true
+          return oemSettings.value
+        })
+        .finally(() => {
+          oemSettingsPromise = null
+        })
+    }
+    return oemSettingsPromise
+  }
+
   return {
     // 状态
     isLoggedIn,
@@ -123,6 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     checkAuth,
-    loadOemSettings
+    loadOemSettings,
+    ensureOemSettings
   }
 })

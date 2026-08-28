@@ -21,6 +21,7 @@ const SettingsView = () => import('@/views/SettingsView.vue')
 const ApiStatsView = () => import('@/views/ApiStatsView.vue')
 
 const RequestDetailsView = () => import('@/views/RequestDetailsView.vue')
+const NotFoundView = () => import('@/views/NotFoundView.vue')
 
 const routes = [
   {
@@ -179,7 +180,9 @@ const routes = [
   {
     path: '/user-management',
     component: MainLayout,
-    meta: { requiresAuth: true },
+    // requiresLdap 与顶栏导航注入引用同一个 authStore.oemSettings.ldapEnabled，
+    // 用户体系未启用时由守卫拦截，使该页不可达
+    meta: { requiresAuth: true, requiresLdap: true },
     children: [
       {
         path: '',
@@ -199,6 +202,12 @@ const routes = [
         component: RequestDetailsView
       }
     ]
+  },
+  {
+    path: '/not-found',
+    name: 'NotFound',
+    component: NotFoundView,
+    meta: { requiresAuth: false }
   },
   // 捕获所有未匹配的路由
   {
@@ -271,6 +280,19 @@ router.beforeEach(async (to, from, next) => {
     next('/login')
   } else if (to.path === '/login' && authStore.isAuthenticated) {
     next('/dashboard')
+  } else if (to.meta.requiresLdap) {
+    // 特性门禁：必须先确保 OEM 设置已取回再判定，否则首屏 ldapEnabled 尚为默认值，
+    // 会把已启用用户体系的部署误判为未启用
+    try {
+      await authStore.ensureOemSettings()
+    } catch (error) {
+      console.error('校验用户体系开关失败:', error)
+    }
+    if (authStore.oemSettings?.ldapEnabled) {
+      next()
+    } else {
+      next({ path: '/not-found', query: { reason: 'feature-disabled' }, replace: true })
+    }
   } else {
     next()
   }

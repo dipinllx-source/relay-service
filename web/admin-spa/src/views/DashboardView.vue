@@ -300,7 +300,7 @@
 
     <!-- Token统计和性能指标 -->
     <div
-      class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 md:mb-8 md:gap-6 lg:grid-cols-4"
+      class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 md:mb-8 md:gap-6 lg:grid-cols-3"
     >
       <div class="stat-card">
         <div class="flex items-center justify-between">
@@ -323,33 +323,28 @@
                 >/ {{ costsData.todayCosts.formatted.totalCost }}</span
               >
             </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              <div class="flex flex-wrap items-center justify-between gap-x-4">
-                <span
-                  >输入:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.todayInputTokens || 0)
-                  }}</span></span
+            <div
+              class="flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
+            >
+              <span
+                >入
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.todayInputTokens || 0)
+                }}</span></span
+              >
+              <span class="text-gray-300 dark:text-gray-600">·</span>
+              <span
+                >出
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.todayOutputTokens || 0)
+                }}</span></span
+              >
+              <template v-if="todayCacheTokens > 0">
+                <span class="text-gray-300 dark:text-gray-600">·</span>
+                <span class="truncate text-purple-600"
+                  >缓存 <span class="font-medium">{{ formatNumber(todayCacheTokens) }}</span></span
                 >
-                <span
-                  >输出:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.todayOutputTokens || 0)
-                  }}</span></span
-                >
-                <span v-if="(dashboardData.todayCacheCreateTokens || 0) > 0" class="text-purple-600"
-                  >缓存创建:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.todayCacheCreateTokens || 0)
-                  }}</span></span
-                >
-                <span v-if="(dashboardData.todayCacheReadTokens || 0) > 0" class="text-purple-600"
-                  >缓存读取:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.todayCacheReadTokens || 0)
-                  }}</span></span
-                >
-              </div>
+              </template>
             </div>
           </div>
           <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-indigo-500 to-indigo-600">
@@ -379,33 +374,28 @@
                 >/ {{ costsData.totalCosts.formatted.totalCost }}</span
               >
             </div>
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-              <div class="flex flex-wrap items-center justify-between gap-x-4">
-                <span
-                  >输入:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.totalInputTokens || 0)
-                  }}</span></span
+            <div
+              class="flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
+            >
+              <span
+                >入
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.totalInputTokens || 0)
+                }}</span></span
+              >
+              <span class="text-gray-300 dark:text-gray-600">·</span>
+              <span
+                >出
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.totalOutputTokens || 0)
+                }}</span></span
+              >
+              <template v-if="totalCacheTokens > 0">
+                <span class="text-gray-300 dark:text-gray-600">·</span>
+                <span class="truncate text-purple-600"
+                  >缓存 <span class="font-medium">{{ formatNumber(totalCacheTokens) }}</span></span
                 >
-                <span
-                  >输出:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.totalOutputTokens || 0)
-                  }}</span></span
-                >
-                <span v-if="(dashboardData.totalCacheCreateTokens || 0) > 0" class="text-purple-600"
-                  >缓存创建:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.totalCacheCreateTokens || 0)
-                  }}</span></span
-                >
-                <span v-if="(dashboardData.totalCacheReadTokens || 0) > 0" class="text-purple-600"
-                  >缓存读取:
-                  <span class="font-medium">{{
-                    formatNumber(dashboardData.totalCacheReadTokens || 0)
-                  }}</span></span
-                >
-              </div>
+              </template>
             </div>
           </div>
           <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-600">
@@ -416,46 +406,33 @@
 
       <div class="stat-card">
         <div class="flex items-center justify-between">
-          <div>
+          <div class="mr-4 min-w-0 flex-1">
             <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              实时RPM
-              <span class="text-xs text-gray-400">({{ dashboardData.metricsWindow }}分钟)</span>
+              实时吞吐
+              <span class="font-normal text-gray-400">({{ dashboardData.metricsWindow }}分钟)</span>
             </p>
-            <p class="text-2xl font-bold text-orange-600 sm:text-3xl">
-              {{ dashboardData.realtimeRPM || 0 }}
-            </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              每分钟请求数
-              <span v-if="dashboardData.isHistoricalMetrics" class="text-yellow-600">
-                <i class="fas fa-exclamation-circle" /> 历史数据
-              </span>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="min-w-0">
+                <p class="text-2xl font-bold text-orange-600 sm:text-3xl">
+                  {{ dashboardData.realtimeRPM || 0 }}
+                </p>
+                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">RPM 每分钟请求</p>
+              </div>
+              <div class="min-w-0 border-l border-gray-100 pl-3 dark:border-gray-700/60">
+                <p class="text-2xl font-bold text-rose-600 sm:text-3xl">
+                  {{ formatNumber(dashboardData.realtimeTPM || 0) }}
+                </p>
+                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                  TPM 每分钟Token
+                </p>
+              </div>
+            </div>
+            <p v-if="dashboardData.isHistoricalMetrics" class="mt-2 text-xs text-yellow-600">
+              <i class="fas fa-exclamation-circle" /> 历史数据
             </p>
           </div>
-          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-orange-500 to-orange-600">
+          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-orange-500 to-rose-500">
             <i class="fas fa-tachometer-alt" />
-          </div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              实时TPM
-              <span class="text-xs text-gray-400">({{ dashboardData.metricsWindow }}分钟)</span>
-            </p>
-            <p class="text-2xl font-bold text-rose-600 sm:text-3xl">
-              {{ formatNumber(dashboardData.realtimeTPM || 0) }}
-            </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              每分钟Token数
-              <span v-if="dashboardData.isHistoricalMetrics" class="text-yellow-600">
-                <i class="fas fa-exclamation-circle" /> 历史数据
-              </span>
-            </p>
-          </div>
-          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-rose-500 to-rose-600">
-            <i class="fas fa-rocket" />
           </div>
         </div>
       </div>
@@ -463,20 +440,20 @@
 
     <!-- 模型消费统计 -->
     <div class="mb-8">
-      <div class="mb-4 flex flex-col gap-4 sm:mb-6">
-        <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 sm:text-xl">
-          模型使用分布与Token使用趋势
+      <div
+        class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+      >
+        <h3 class="flex-shrink-0 text-lg font-bold text-gray-900 dark:text-gray-100 sm:text-xl">
+          模型分布与 Token 趋势
         </h3>
-        <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
+        <div class="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
           <!-- 快捷日期选择 -->
-          <div
-            class="flex flex-shrink-0 gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1 dark:bg-gray-700"
-          >
+          <div class="seg flex-shrink-0 overflow-x-auto bg-gray-100 dark:bg-gray-700">
             <button
               v-for="option in dateFilter.presetOptions"
               :key="option.value"
               :class="[
-                'rounded-md px-3 py-1 text-sm font-medium transition-colors',
+                'seg-item',
                 dateFilter.preset === option.value && dateFilter.type === 'preset'
                   ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
@@ -488,28 +465,28 @@
           </div>
 
           <!-- 粒度切换按钮 -->
-          <div class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
+          <div class="seg bg-gray-100 dark:bg-gray-700">
             <button
               :class="[
-                'rounded-md px-3 py-1 text-sm font-medium transition-colors',
+                'seg-item',
                 trendGranularity === 'day'
                   ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
               ]"
               @click="setTrendGranularity('day')"
             >
-              <i class="fas fa-calendar-day mr-1" />按天
+              <i class="fas fa-calendar-day" />按天
             </button>
             <button
               :class="[
-                'rounded-md px-3 py-1 text-sm font-medium transition-colors',
+                'seg-item',
                 trendGranularity === 'hour'
                   ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
               ]"
               @click="setTrendGranularity('hour')"
             >
-              <i class="fas fa-clock mr-1" />按小时
+              <i class="fas fa-clock" />按小时
             </button>
           </div>
 
@@ -538,7 +515,7 @@
           <!-- 刷新控制 -->
           <div class="flex items-center gap-2">
             <!-- 自动刷新控制 -->
-            <div class="flex items-center rounded-lg bg-gray-100 px-3 py-1 dark:bg-gray-700">
+            <div class="flex h-8 items-center rounded-lg bg-gray-100 px-3 dark:bg-gray-700">
               <label class="relative inline-flex cursor-pointer items-center">
                 <input v-model="autoRefreshEnabled" class="peer sr-only" type="checkbox" />
                 <!-- 更小的开关 -->
@@ -563,7 +540,7 @@
 
             <!-- 刷新按钮 -->
             <button
-              class="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-blue-600 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 sm:gap-2"
+              class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
               :disabled="isRefreshing"
               title="立即刷新数据"
               @click="refreshAllData()"
@@ -578,9 +555,14 @@
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <!-- 饼图 -->
         <div class="card p-4 sm:p-6">
-          <h4 class="mb-4 text-base font-semibold text-gray-800 dark:text-gray-200 sm:text-lg">
-            Token使用分布
-          </h4>
+          <div class="mb-4 flex items-baseline justify-between gap-3">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
+              Token 使用分布
+            </h3>
+            <span class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+              共 {{ dashboardModelStats.length }} 个模型
+            </span>
+          </div>
           <div class="relative" style="height: 250px">
             <canvas ref="modelUsageChart" />
           </div>
@@ -588,9 +570,14 @@
 
         <!-- 详细数据表格 -->
         <div class="card p-4 sm:p-6">
-          <h4 class="mb-4 text-base font-semibold text-gray-800 dark:text-gray-200 sm:text-lg">
-            详细统计数据
-          </h4>
+          <div class="mb-4 flex items-baseline justify-between gap-3">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
+              详细统计数据
+            </h3>
+            <span class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+              按 Token 降序
+            </span>
+          </div>
           <div v-if="dashboardModelStats.length === 0" class="py-8 text-center">
             <p class="text-sm text-gray-500 sm:text-base">暂无模型使用数据</p>
           </div>
@@ -671,6 +658,14 @@
     <!-- Token使用趋势图 -->
     <div class="mb-4 sm:mb-6 md:mb-8">
       <div class="card p-4 sm:p-6">
+        <div class="mb-4 flex items-baseline justify-between gap-3">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
+            Token 使用趋势
+          </h3>
+          <span class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+            {{ effectiveGranularityLabel }}
+          </span>
+        </div>
         <div class="sm:h-[300px]" style="height: 250px">
           <canvas ref="usageTrendChart" />
         </div>
@@ -681,42 +676,44 @@
     <div class="mb-4 sm:mb-6 md:mb-8">
       <div class="card p-4 sm:p-6">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
-            API Keys 使用趋势
-          </h3>
+          <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
+              API Keys 使用趋势
+            </h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              <template v-if="apiKeysTrendData.totalApiKeys > 10">
+                区间内 {{ apiKeysTrendData.totalApiKeys }} 个有用量，显示前 10
+              </template>
+              <template v-else> 区间内 {{ apiKeysTrendData.totalApiKeys }} 个有用量 </template>
+            </span>
+          </div>
           <!-- 维度切换按钮 -->
-          <div class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
+          <div class="seg flex-shrink-0 bg-gray-100 dark:bg-gray-700">
             <button
               :class="[
-                'rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:text-sm',
+                'seg-item',
                 apiKeysTrendMetric === 'requests'
                   ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
               ]"
               @click="((apiKeysTrendMetric = 'requests'), updateApiKeysUsageTrendChart())"
             >
-              <i class="fas fa-exchange-alt mr-1" /><span class="hidden sm:inline">请求次数</span
+              <i class="fas fa-exchange-alt" /><span class="hidden sm:inline">请求次数</span
               ><span class="sm:hidden">请求</span>
             </button>
             <button
               :class="[
-                'rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:text-sm',
+                'seg-item',
                 apiKeysTrendMetric === 'tokens'
                   ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
                   : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
               ]"
               @click="((apiKeysTrendMetric = 'tokens'), updateApiKeysUsageTrendChart())"
             >
-              <i class="fas fa-coins mr-1" /><span class="hidden sm:inline">Token 数量</span
+              <i class="fas fa-coins" /><span class="hidden sm:inline">Token 数量</span
               ><span class="sm:hidden">Token</span>
             </button>
           </div>
-        </div>
-        <div class="mb-4 text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
-          <span v-if="apiKeysTrendData.totalApiKeys > 10">
-            共 {{ apiKeysTrendData.totalApiKeys }} 个 API Key，显示使用量前 10 个
-          </span>
-          <span v-else> 共 {{ apiKeysTrendData.totalApiKeys }} 个 API Key </span>
         </div>
         <div class="sm:h-[350px]" style="height: 300px">
           <canvas ref="apiKeysUsageTrendChart" />
@@ -728,41 +725,33 @@
     <div class="mb-4 sm:mb-6 md:mb-8">
       <div class="card p-4 sm:p-6">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
               账号使用趋势
             </h3>
-            <span class="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
-              当前分组：{{ accountUsageTrendData.groupLabel || '未选择' }}
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              分组 {{ accountUsageTrendData.groupLabel || '未选择' }} · 区间内
+              {{ accountUsageTrendData.totalAccounts || 0 }} 个有用量<template
+                v-if="accountUsageTrendData.topAccounts && accountUsageTrendData.topAccounts.length"
+                >，显示前 {{ accountUsageTrendData.topAccounts.length }}</template
+              >
             </span>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
-              <button
-                v-for="option in accountGroupOptions"
-                :key="option.value"
-                :class="[
-                  'rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 sm:text-sm',
-                  accountUsageGroup === option.value
-                    ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
-                ]"
-                @click="handleAccountUsageGroupChange(option.value)"
-              >
-                {{ option.label }}
-              </button>
-            </div>
+          <div class="seg flex-shrink-0 bg-gray-100 dark:bg-gray-700">
+            <button
+              v-for="option in accountGroupOptions"
+              :key="option.value"
+              :class="[
+                'seg-item',
+                accountUsageGroup === option.value
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+              ]"
+              @click="handleAccountUsageGroupChange(option.value)"
+            >
+              {{ option.label }}
+            </button>
           </div>
-        </div>
-        <div
-          class="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400 sm:text-sm"
-        >
-          <span>共 {{ accountUsageTrendData.totalAccounts || 0 }} 个账号</span>
-          <span
-            v-if="accountUsageTrendData.topAccounts && accountUsageTrendData.topAccounts.length"
-          >
-            显示消耗排名前 {{ accountUsageTrendData.topAccounts.length }} 个账号
-          </span>
         </div>
         <div
           v-if="!accountUsageTrendData.data || accountUsageTrendData.data.length === 0"
@@ -906,6 +895,28 @@ const hasBalanceData = computed(() => {
     const list = Array.isArray(data?.accounts) ? data.accounts : []
     return list.some((entry) => typeof entry?.data?.balance?.amount === 'number')
   })
+})
+
+// 缓存创建与缓存读取合并为单一「缓存」摘要项，用于把卡片次要指标压到一行
+const todayCacheTokens = computed(
+  () =>
+    (dashboardData.value.todayCacheCreateTokens || 0) +
+    (dashboardData.value.todayCacheReadTokens || 0)
+)
+
+const totalCacheTokens = computed(
+  () =>
+    (dashboardData.value.totalCacheCreateTokens || 0) +
+    (dashboardData.value.totalCacheReadTokens || 0)
+)
+
+// 与 store 的 getEffectiveGranularity 保持同一规则：预设为「今日」且选择按天时，
+// 实际按小时取数，因此标题附注需报告生效粒度而非原始选择，避免与横轴矛盾
+const effectiveGranularityLabel = computed(() => {
+  const filter = dateFilter.value || {}
+  const upgraded =
+    filter.type === 'preset' && filter.preset === 'today' && trendGranularity.value === 'day'
+  return upgraded || trendGranularity.value === 'hour' ? '按小时' : '按天'
 })
 
 const formatCurrencyUsd = (amount) => {
@@ -1153,17 +1164,12 @@ function createUsageTrendChart() {
         intersect: false
       },
       plugins: {
+        // 标题改由卡片内的 HTML 标题行承担，避免画布内外重复渲染
         title: {
-          display: true,
-          text: 'Token使用趋势',
-          font: {
-            size: 16,
-            weight: 'bold'
-          },
-          color: chartColors.value.text
+          display: false
         },
         legend: {
-          position: 'top',
+          position: 'bottom',
           labels: {
             color: chartColors.value.legend
           }

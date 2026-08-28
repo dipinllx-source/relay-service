@@ -177,7 +177,7 @@ const calculateCcCost = (model) => {
     0 10px 10px -5px rgba(0, 0, 0, 0.08);
 }
 
-:global(.dark) .card:hover {
+.dark .card:hover {
   box-shadow:
     0 20px 25px -5px rgba(0, 0, 0, 0.5),
     0 10px 10px -5px rgba(0, 0, 0, 0.35);
@@ -218,7 +218,7 @@ const calculateCcCost = (model) => {
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-:global(.dark) .model-usage-item:hover {
+.dark .model-usage-item:hover {
   box-shadow:
     0 10px 15px -3px rgba(0, 0, 0, 0.4),
     0 4px 6px -2px rgba(0, 0, 0, 0.25);

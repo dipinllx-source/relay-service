@@ -107,7 +107,7 @@ defineEmits(['confirm', 'cancel'])
   background: rgba(0, 0, 0, 0.05);
   color: #1d1d1f;
 }
-:global(.dark) .confirm-btn--ghost {
+.dark .confirm-btn--ghost {
   background: rgba(255, 255, 255, 0.1);
   color: #f5f5f7;
 }

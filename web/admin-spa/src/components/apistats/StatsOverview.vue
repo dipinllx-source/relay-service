@@ -558,7 +558,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-primary, #1e293b);
 }
 
-:global(.dark) .header-title {
+.dark .header-title {
   color: var(--text-primary, #f1f5f9);
 }
 
@@ -592,7 +592,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   min-height: 86px;
 }
 
-:global(.dark) .info-item {
+.dark .info-item {
   background: rgba(var(--primary-rgb), 0.08);
 }
 
@@ -601,7 +601,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-secondary, #64748b);
 }
 
-:global(.dark) .info-label {
+.dark .info-label {
   color: var(--text-secondary, #94a3b8);
 }
 
@@ -610,7 +610,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-primary, #1e293b);
 }
 
-:global(.dark) .info-value {
+.dark .info-value {
   color: var(--text-primary, #f1f5f9);
 }
 
@@ -620,7 +620,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-secondary, #64748b);
 }
 
-:global(.dark) .contributor-item {
+.dark .contributor-item {
   background: rgba(var(--primary-rgb), 0.1);
   color: var(--text-secondary, #cbd5e1);
 }
@@ -635,7 +635,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   border: 1px solid var(--border-color);
 }
 
-:global(.dark) .metric-card {
+.dark .metric-card {
   background: rgba(var(--primary-rgb), 0.08);
 }
 
@@ -648,7 +648,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-secondary, #64748b);
 }
 
-:global(.dark) .metric-label {
+.dark .metric-label {
   color: var(--text-secondary, #cbd5e1);
 }
 
@@ -675,7 +675,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-primary, #1e293b);
 }
 
-:global(.dark) .account-name {
+.dark .account-name {
   color: var(--text-primary, #f1f5f9);
 }
 
@@ -684,7 +684,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-secondary, #64748b);
 }
 
-:global(.dark) .account-sub {
+.dark .account-sub {
   color: var(--text-secondary, #94a3b8);
 }
 
@@ -702,7 +702,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   background: rgba(var(--primary-rgb), 0.15);
 }
 
-:global(.dark) .progress-track {
+.dark .progress-track {
   background: rgba(var(--primary-rgb), 0.25);
 }
 
@@ -715,7 +715,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-secondary, #475569);
 }
 
-:global(.dark) .progress-value {
+.dark .progress-value {
   color: var(--text-secondary, #e2e8f0);
 }
 
@@ -725,7 +725,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   border: 1px solid var(--border-color);
 }
 
-:global(.dark) .quota-row {
+.dark .quota-row {
   background: rgba(var(--primary-rgb), 0.08);
 }
 
@@ -750,7 +750,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-secondary, #475569);
 }
 
-:global(.dark) .quota-percent {
+.dark .quota-percent {
   color: var(--text-secondary, #e2e8f0);
 }
 
@@ -759,7 +759,7 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   color: var(--text-tertiary, #94a3b8);
 }
 
-:global(.dark) .quota-foot {
+.dark .quota-foot {
   color: var(--text-tertiary, #cbd5e1);
 }
 </style>

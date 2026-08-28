@@ -638,7 +638,7 @@ watch(apiKey, (newValue) => {
 }
 
 /* 暗色模式的玻璃态效果 */
-:global(.dark) .glass-strong {
+.dark .glass-strong {
   box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(55, 65, 81, 0.3),
@@ -670,7 +670,7 @@ watch(apiKey, (newValue) => {
 }
 
 /* 暗色模式下的用户登录按钮 */
-:global(.dark) .user-login-button {
+.dark .user-login-button {
   background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
   border: 1px solid rgba(52, 211, 153, 0.4);
   color: white;
@@ -704,7 +704,7 @@ watch(apiKey, (newValue) => {
 }
 
 /* 暗色模式下的悬停效果 */
-:global(.dark) .user-login-button:hover {
+.dark .user-login-button:hover {
   box-shadow:
     0 8px 20px rgba(52, 211, 153, 0.4),
     inset 0 1px 1px rgba(255, 255, 255, 0.2);
@@ -738,7 +738,7 @@ watch(apiKey, (newValue) => {
 }
 
 /* 暗色模式下的管理后台按钮 */
-:global(.dark) .admin-button-refined {
+.dark .admin-button-refined {
   background: rgba(55, 65, 81, 0.8);
   border: 1px solid rgba(107, 114, 128, 0.4);
   color: #f3f4f6;
@@ -774,7 +774,7 @@ watch(apiKey, (newValue) => {
 }
 
 /* 暗色模式下的悬停效果 */
-:global(.dark) .admin-button-refined:hover {
+.dark .admin-button-refined:hover {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
   border-color: rgba(var(--secondary-rgb), 0.4);
   box-shadow:

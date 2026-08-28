@@ -180,7 +180,7 @@ const getProgressColor = (index) => {
     0 10px 10px -5px rgba(0, 0, 0, 0.08);
 }
 
-:global(.dark) .card:hover {
+.dark .card:hover {
   box-shadow:
     0 20px 25px -5px rgba(0, 0, 0, 0.5),
     0 10px 10px -5px rgba(0, 0, 0, 0.35);

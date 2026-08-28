@@ -187,7 +187,7 @@ const hasValidInput = computed(() => {
 }
 
 /* 暗夜模式宽卡片样式 */
-:global(.dark) .api-input-wide-card {
+.dark .api-input-wide-card {
   box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(75, 85, 99, 0.2),
@@ -202,7 +202,7 @@ const hasValidInput = computed(() => {
   transform: translateY(-1px);
 }
 
-:global(.dark) .api-input-wide-card:hover {
+.dark .api-input-wide-card:hover {
   box-shadow:
     0 32px 64px -12px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(75, 85, 99, 0.25),
@@ -215,7 +215,7 @@ const hasValidInput = computed(() => {
   font-weight: 700;
 }
 
-:global(.dark) .wide-card-title h2 {
+.dark .wide-card-title h2 {
   color: #f9fafb;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
@@ -225,7 +225,7 @@ const hasValidInput = computed(() => {
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
-:global(.dark) .wide-card-title p {
+.dark .wide-card-title p {
   color: #9ca3af;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
@@ -254,7 +254,7 @@ const hasValidInput = computed(() => {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-:global(.dark) .wide-card-input {
+.dark .wide-card-input {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   color: #e5e7eb;
 }
@@ -263,7 +263,7 @@ const hasValidInput = computed(() => {
   color: #9ca3af;
 }
 
-:global(.dark) .wide-card-input::placeholder {
+.dark .wide-card-input::placeholder {
   color: #64748b;
 }
 
@@ -277,7 +277,7 @@ const hasValidInput = computed(() => {
   color: #1f2937;
 }
 
-:global(.dark) .wide-card-input:focus {
+.dark .wide-card-input:focus {
   border-color: var(--primary-color);
   box-shadow:
     0 0 0 3px rgba(var(--primary-rgb), 0.15),
@@ -337,7 +337,7 @@ const hasValidInput = computed(() => {
   transition: all 0.3s ease;
 }
 
-:global(.dark) .security-notice {
+.dark .security-notice {
   background: var(--glass-strong-color) !important;
   border: 1px solid var(--border-color) !important;
   color: #d1d5db !important;
@@ -349,7 +349,7 @@ const hasValidInput = computed(() => {
   color: #1f2937;
 }
 
-:global(.dark) .security-notice:hover {
+.dark .security-notice:hover {
   background: var(--glass-strong-color) !important;
   border-color: var(--border-color) !important;
   color: #e5e7eb !important;
@@ -366,7 +366,7 @@ const hasValidInput = computed(() => {
   border-bottom: 1px solid rgba(229, 231, 235, 0.3);
 }
 
-:global(.dark) .control-bar {
+.dark .control-bar {
   border-bottom-color: rgba(75, 85, 99, 0.3);
 }
 
@@ -375,64 +375,6 @@ const hasValidInput = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-/* 模式切换组 */
-.mode-switch-group {
-  display: inline-flex;
-  padding: 4px;
-  background: #f3f4f6;
-  border-radius: 0.5rem;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-:global(.dark) .mode-switch-group {
-  background: var(--bg-gradient-start);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-/* 模式切换按钮 */
-.mode-switch-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #6b7280;
-  background: transparent;
-  border: none;
-  border-radius: 0.375rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-:global(.dark) .mode-switch-btn {
-  color: var(--text-secondary);
-}
-
-.mode-switch-btn:hover:not(.active) {
-  color: #374151;
-  background: rgba(0, 0, 0, 0.05);
-}
-
-:global(.dark) .mode-switch-btn:hover:not(.active) {
-  color: #d1d5db;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.mode-switch-btn.active {
-  color: white;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.2);
-}
-
-.mode-switch-btn.active:hover {
-  box-shadow: 0 4px 6px rgba(var(--primary-rgb), 0.3);
-}
-
-.mode-switch-btn i {
-  font-size: 0.875rem;
 }
 
 /* 淡入淡出动画 */

@@ -162,7 +162,7 @@ defineExpose({
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-:global(.dark) .toast {
+.dark .toast {
   background: var(--bg-gradient-start);
   border: 1px solid var(--border-color);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -233,7 +233,7 @@ defineExpose({
   color: #6b7280;
 }
 
-:global(.dark) .toast-close:hover {
+.dark .toast-close:hover {
   background: var(--bg-gradient-mid);
   color: var(--text-secondary);
 }
@@ -267,7 +267,7 @@ defineExpose({
   background: #d1fae5;
 }
 
-:global(.dark) .toast-success .toast-icon {
+.dark .toast-success .toast-icon {
   background: #064e3b;
 }
 
@@ -275,7 +275,7 @@ defineExpose({
   color: #065f46;
 }
 
-:global(.dark) .toast-success .toast-title {
+.dark .toast-success .toast-title {
   color: #10b981;
 }
 
@@ -283,7 +283,7 @@ defineExpose({
   color: #047857;
 }
 
-:global(.dark) .toast-success .toast-message {
+.dark .toast-success .toast-message {
   color: #34d399;
 }
 
@@ -301,7 +301,7 @@ defineExpose({
   background: #fee2e2;
 }
 
-:global(.dark) .toast-error .toast-icon {
+.dark .toast-error .toast-icon {
   background: #7f1d1d;
 }
 
@@ -309,7 +309,7 @@ defineExpose({
   color: #991b1b;
 }
 
-:global(.dark) .toast-error .toast-title {
+.dark .toast-error .toast-title {
   color: #ef4444;
 }
 
@@ -317,7 +317,7 @@ defineExpose({
   color: #dc2626;
 }
 
-:global(.dark) .toast-error .toast-message {
+.dark .toast-error .toast-message {
   color: #f87171;
 }
 
@@ -335,7 +335,7 @@ defineExpose({
   background: #fef3c7;
 }
 
-:global(.dark) .toast-warning .toast-icon {
+.dark .toast-warning .toast-icon {
   background: #78350f;
 }
 
@@ -343,7 +343,7 @@ defineExpose({
   color: #92400e;
 }
 
-:global(.dark) .toast-warning .toast-title {
+.dark .toast-warning .toast-title {
   color: #f59e0b;
 }
 
@@ -351,7 +351,7 @@ defineExpose({
   color: #d97706;
 }
 
-:global(.dark) .toast-warning .toast-message {
+.dark .toast-warning .toast-message {
   color: #fbbf24;
 }
 
@@ -369,7 +369,7 @@ defineExpose({
   background: #dbeafe;
 }
 
-:global(.dark) .toast-info .toast-icon {
+.dark .toast-info .toast-icon {
   background: #1e3a8a;
 }
 
@@ -377,7 +377,7 @@ defineExpose({
   color: #1e40af;
 }
 
-:global(.dark) .toast-info .toast-title {
+.dark .toast-info .toast-title {
   color: #3b82f6;
 }
 
@@ -385,7 +385,7 @@ defineExpose({
   color: #2563eb;
 }
 
-:global(.dark) .toast-info .toast-message {
+.dark .toast-info .toast-message {
   color: #60a5fa;
 }
 

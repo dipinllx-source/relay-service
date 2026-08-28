@@ -285,6 +285,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { cliToolsMeta as cliTools } from '@/constants/cliTools'
 import { copyText } from '@/utils/tools'
 
 const scrolled = ref(false)
@@ -298,13 +299,6 @@ const toggleDropdown = (name) => {
 const closeDropdown = () => {
   activeDropdown.value = null
 }
-
-const cliTools = [
-  { key: 'claude-code', name: 'Claude Code', icon: 'fas fa-robot' },
-  { key: 'codex', name: 'Codex', icon: 'fas fa-code' },
-  { key: 'gemini-cli', name: 'Gemini CLI', icon: 'fab fa-google' },
-  { key: 'droid-cli', name: 'Droid CLI', icon: 'fas fa-terminal' }
-]
 
 const steps = [
   {

@@ -237,11 +237,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { cliTools } from '@/constants/cliTools'
 import { useRoute, useRouter } from 'vue-router'
-import ClaudeCodeTutorial from '@/components/tutorial/ClaudeCodeTutorial.vue'
-import GeminiCliTutorial from '@/components/tutorial/GeminiCliTutorial.vue'
-import CodexTutorial from '@/components/tutorial/CodexTutorial.vue'
-import DroidCliTutorial from '@/components/tutorial/DroidCliTutorial.vue'
 import { enhanceTutorialCommandBoxes } from '@/utils/tutorialCommandCopy'
 
 const route = useRoute()
@@ -267,13 +264,6 @@ const tutorialSystems = [
   { key: 'windows', name: 'Windows', icon: 'fab fa-windows' },
   { key: 'macos', name: 'macOS', icon: 'fab fa-apple' },
   { key: 'linux', name: 'Linux / WSL2', icon: 'fab fa-linux' }
-]
-
-const cliTools = [
-  { key: 'claude-code', name: 'Claude Code', icon: 'fas fa-robot', component: ClaudeCodeTutorial },
-  { key: 'codex', name: 'Codex', icon: 'fas fa-code', component: CodexTutorial },
-  { key: 'gemini-cli', name: 'Gemini CLI', icon: 'fab fa-google', component: GeminiCliTutorial },
-  { key: 'droid-cli', name: 'Droid CLI', icon: 'fas fa-terminal', component: DroidCliTutorial }
 ]
 
 const currentToolTitle = computed(() => {

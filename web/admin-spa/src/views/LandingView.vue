@@ -498,6 +498,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { cliToolsMeta as cliTools } from '@/constants/cliTools'
 
 const scrolled = ref(false)
 const activeDropdown = ref(null)
@@ -511,13 +512,6 @@ const closeDropdown = () => {
   activeDropdown.value = null
 }
 const bars = [40, 70, 55, 85, 60, 90, 50, 75, 65, 95, 70, 80]
-
-const cliTools = [
-  { key: 'claude-code', name: 'Claude Code', icon: 'fas fa-robot' },
-  { key: 'codex', name: 'Codex', icon: 'fas fa-code' },
-  { key: 'gemini-cli', name: 'Gemini CLI', icon: 'fab fa-google' },
-  { key: 'droid-cli', name: 'Droid CLI', icon: 'fas fa-terminal' }
-]
 
 const platforms = [
   { name: 'Claude', icon: 'C', color: 'linear-gradient(135deg,#d97757,#b85a3c)' },

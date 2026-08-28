@@ -138,15 +138,7 @@
             </div>
           </div>
 
-          <!-- Remember + Error -->
-          <div class="al-remember">
-            <label class="al-remember__check">
-              <input v-model="remember" type="checkbox" />
-              <span class="al-remember__box"><i class="fas fa-check"></i></span>
-              <span class="al-remember__text">记住我</span>
-            </label>
-          </div>
-
+          <!-- Error -->
           <Transition name="al-shake">
             <div v-if="authStore.loginError" class="al-error">
               <i class="fas fa-exclamation-circle" />
@@ -181,7 +173,6 @@ const loginForm = ref({ username: '', password: '' })
 const userFocus = ref(false)
 const passFocus = ref(false)
 const showPassword = ref(false)
-const remember = ref(true)
 
 onMounted(() => {
   authStore.loadOemSettings()
@@ -426,56 +417,6 @@ const handleLogin = async () => {
   }
 }
 
-/* ---------- Remember me ---------- */
-.al-remember {
-  display: flex;
-  align-items: center;
-  padding-left: 4px;
-  margin-top: 4px;
-}
-.al-remember__check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-.al-remember__check input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.al-remember__box {
-  width: 16px;
-  height: 16px;
-  border: 1px solid #86868b;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-.al-remember__box i {
-  font-size: 9px;
-  color: #fff;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.al-remember__check input:checked + .al-remember__box {
-  background: #0071e3;
-  border-color: #0071e3;
-}
-.al-remember__check input:checked + .al-remember__box i {
-  opacity: 1;
-}
-.al-remember__text {
-  font-size: 13px;
-  color: #1d1d1f;
-}
-
 /* ---------- Error ---------- */
 .al-error {
   display: flex;
@@ -580,11 +521,6 @@ const handleLogin = async () => {
 .dark .al-clear {
   background: #374151;
   color: #9ca3af;
-}
-
-.dark .al-remember__box {
-  background: #1f2937;
-  border-color: #6b7280;
 }
 
 .dark .al-error {

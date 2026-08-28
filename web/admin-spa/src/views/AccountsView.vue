@@ -255,7 +255,7 @@
                   </div>
                 </th>
                 <th
-                  class="name-column sticky z-20 min-w-[200px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="name-column sticky z-20 min-w-[260px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
                   :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                   @click="sortAccounts('name')"
                 >
@@ -271,44 +271,9 @@
                   <i v-else class="fas fa-sort ml-1 text-gray-400" />
                 </th>
                 <th
-                  class="min-w-[220px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  @click="sortAccounts('platform')"
-                >
-                  平台/类型
-                  <i
-                    v-if="accountsSortBy === 'platform'"
-                    :class="[
-                      'fas',
-                      accountsSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
-                      'ml-1'
-                    ]"
-                  />
-                  <i v-else class="fas fa-sort ml-1 text-gray-400" />
-                </th>
-                <th
-                  class="min-w-[160px] max-w-[160px] cursor-pointer px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
-                  @click="sortAccounts('status')"
-                >
-                  状态
-                  <i
-                    v-if="accountsSortBy === 'status'"
-                    :class="[
-                      'fas',
-                      accountsSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
-                      'ml-1'
-                    ]"
-                  />
-                  <i v-else class="fas fa-sort ml-1 text-gray-400" />
-                </th>
-                <th
                   class="min-w-[150px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                 >
                   今日使用
-                </th>
-                <th
-                  class="min-w-[220px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
-                >
-                  余额/配额
                 </th>
                 <th
                   class="min-w-[210px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
@@ -431,6 +396,21 @@
                   </div>
                 </th>
                 <th
+                  class="min-w-[90px] cursor-pointer px-3 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-600"
+                  @click="sortAccounts('priority')"
+                >
+                  优先级
+                  <i
+                    v-if="accountsSortBy === 'priority'"
+                    :class="[
+                      'fas',
+                      accountsSortOrder === 'asc' ? 'fa-sort-up' : 'fa-sort-down',
+                      'ml-1'
+                    ]"
+                  />
+                  <i v-else class="fas fa-sort ml-1 text-gray-400" />
+                </th>
+                <th
                   class="min-w-[80px] px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300"
                 >
                   最后使用
@@ -460,17 +440,30 @@
                   </div>
                 </td>
                 <td
-                  class="name-column sticky z-10 min-w-[200px] px-3 py-4"
+                  class="name-column sticky z-10 min-w-[260px] px-3 py-4"
                   :class="shouldShowCheckboxes ? 'left-[50px]' : 'left-0'"
                 >
-                  <div class="flex items-center">
+                  <div class="flex items-start">
                     <div
-                      class="mr-2 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-green-600"
+                      class="mr-2 mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-green-600"
                     >
                       <i class="fas fa-user-circle text-xs text-white" />
                     </div>
-                    <div class="min-w-0">
+                    <div class="flex min-w-0 flex-1 flex-col">
                       <div class="flex items-center gap-2">
+                        <span
+                          class="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                          :class="
+                            account.status === 'blocked' || account.status === 'temp_error'
+                              ? 'bg-orange-500'
+                              : account.status === 'unauthorized'
+                                ? 'bg-red-500'
+                                : account.isActive
+                                  ? 'bg-green-500'
+                                  : 'bg-red-500'
+                          "
+                          :title="getAccountStatusText(account)"
+                        />
                         <div
                           class="cursor-pointer truncate text-sm font-semibold text-gray-900 hover:text-blue-600 dark:text-gray-100 dark:hover:text-blue-400"
                           title="点击复制"
@@ -497,6 +490,297 @@
                           <i class="fas fa-share-alt mr-1" />共享
                         </span>
                       </div>
+                      <!-- 平台/类型（原独立列已收入此处，按 demo 方式呈现） -->
+                      <div class="mt-1 flex flex-wrap items-center gap-1">
+                        <div class="flex items-center gap-1">
+                          <!-- 平台图标和名称 -->
+                          <div
+                            v-if="account.platform === 'gemini'"
+                            class="flex items-center gap-1.5 rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-100 to-amber-100 px-2.5 py-1"
+                          >
+                            <i class="fas fa-robot text-xs text-yellow-700" />
+                            <span class="text-xs font-semibold text-yellow-800">Gemini</span>
+                            <span class="mx-1 h-4 w-px bg-yellow-300" />
+                            <span class="text-xs font-medium text-yellow-700">
+                              {{ getGeminiAuthType() }}
+                            </span>
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'claude-console'"
+                            class="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-100 to-pink-100 px-2.5 py-1"
+                          >
+                            <i class="fas fa-terminal text-xs text-purple-700" />
+                            <span class="text-xs font-semibold text-purple-800">Console</span>
+                            <span class="mx-1 h-4 w-px bg-purple-300" />
+                            <span class="text-xs font-medium text-purple-700">API Key</span>
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'bedrock'"
+                            class="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-gradient-to-r from-orange-100 to-red-100 px-2.5 py-1"
+                          >
+                            <i class="fab fa-aws text-xs text-orange-700" />
+                            <span class="text-xs font-semibold text-orange-800">Bedrock</span>
+                            <span class="mx-1 h-4 w-px bg-orange-300" />
+                            <span class="text-xs font-medium text-orange-700">AWS</span>
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'openai'"
+                            class="flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-100 bg-gradient-to-r from-gray-100 to-gray-100 px-2.5 py-1"
+                          >
+                            <div class="fa-openai" />
+                            <span class="text-xs font-semibold text-gray-950">OpenAi</span>
+                            <span class="mx-1 h-4 w-px bg-gray-400" />
+                            <span class="text-xs font-medium text-gray-950">{{
+                              getOpenAIAuthType()
+                            }}</span>
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'azure_openai'"
+                            class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-100 to-cyan-100 px-2.5 py-1 dark:border-blue-700 dark:from-blue-900/20 dark:to-cyan-900/20"
+                          >
+                            <i class="fab fa-microsoft text-xs text-blue-700 dark:text-blue-400" />
+                            <span class="text-xs font-semibold text-blue-800 dark:text-blue-300"
+                              >Azure OpenAI</span
+                            >
+                            <span class="mx-1 h-4 w-px bg-blue-300 dark:bg-blue-600" />
+                            <span class="text-xs font-medium text-blue-700 dark:text-blue-400"
+                              >API Key</span
+                            >
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'openai-responses'"
+                            class="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-gradient-to-r from-teal-100 to-green-100 px-2.5 py-1 dark:border-teal-700 dark:from-teal-900/20 dark:to-green-900/20"
+                          >
+                            <i class="fas fa-server text-xs text-teal-700 dark:text-teal-400" />
+                            <span class="text-xs font-semibold text-teal-800 dark:text-teal-300"
+                              >OpenAI-Api</span
+                            >
+                            <span class="mx-1 h-4 w-px bg-teal-300 dark:bg-teal-600" />
+                            <span class="text-xs font-medium text-teal-700 dark:text-teal-400"
+                              >API Key</span
+                            >
+                          </div>
+                          <div
+                            v-else-if="
+                              account.platform === 'claude' || account.platform === 'claude-oauth'
+                            "
+                            class="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-indigo-100 to-blue-100 px-2.5 py-1"
+                          >
+                            <i class="fas fa-brain text-xs text-indigo-700" />
+                            <span class="text-xs font-semibold text-indigo-800">{{
+                              getClaudeAccountType(account)
+                            }}</span>
+                            <span class="mx-1 h-4 w-px bg-indigo-300" />
+                            <span class="text-xs font-medium text-indigo-700">
+                              {{ getClaudeAuthType(account) }}
+                            </span>
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'ccr'"
+                            class="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-gradient-to-r from-teal-100 to-emerald-100 px-2.5 py-1 dark:border-teal-700 dark:from-teal-900/20 dark:to-emerald-900/20"
+                          >
+                            <i
+                              class="fas fa-code-branch text-xs text-teal-700 dark:text-teal-400"
+                            />
+                            <span class="text-xs font-semibold text-teal-800 dark:text-teal-300"
+                              >CCR</span
+                            >
+                            <span class="mx-1 h-4 w-px bg-teal-300 dark:bg-teal-600" />
+                            <span class="text-xs font-medium text-teal-700 dark:text-teal-300"
+                              >Relay</span
+                            >
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'droid'"
+                            class="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-gradient-to-r from-cyan-100 to-sky-100 px-2.5 py-1 dark:border-cyan-700 dark:from-cyan-900/20 dark:to-sky-900/20"
+                          >
+                            <i class="fas fa-robot text-xs text-cyan-700 dark:text-cyan-400" />
+                            <span class="text-xs font-semibold text-cyan-800 dark:text-cyan-300"
+                              >Droid</span
+                            >
+                            <span class="mx-1 h-4 w-px bg-cyan-300 dark:bg-cyan-600" />
+                            <span class="text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                              {{ getDroidAuthType(account) }}
+                            </span>
+                            <span
+                              v-if="isDroidApiKeyMode(account)"
+                              :class="getDroidApiKeyBadgeClasses(account)"
+                            >
+                              <i class="fas fa-key text-[9px]" />
+                              <span>x{{ getDroidApiKeyCount(account) }}</span>
+                            </span>
+                          </div>
+                          <div
+                            v-else-if="account.platform === 'gemini-api'"
+                            class="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-100 to-yellow-100 px-2.5 py-1 dark:border-amber-700 dark:from-amber-900/20 dark:to-yellow-900/20"
+                          >
+                            <i class="fas fa-robot text-xs text-amber-700 dark:text-amber-400" />
+                            <span class="text-xs font-semibold text-amber-800 dark:text-amber-300"
+                              >Gemini-API</span
+                            >
+                            <span class="mx-1 h-4 w-px bg-amber-300 dark:bg-amber-600" />
+                            <span class="text-xs font-medium text-amber-700 dark:text-amber-400"
+                              >API Key</span
+                            >
+                          </div>
+                          <div
+                            v-else
+                            class="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-100 to-gray-200 px-2.5 py-1"
+                          >
+                            <i class="fas fa-question text-xs text-gray-700" />
+                            <span class="text-xs font-semibold text-gray-800">未知</span>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- 状态异常详情（原状态列的异常徽章；正常态由名称前圆点表达，此处不渲染） -->
+                      <div class="mt-1 flex flex-col items-start gap-1">
+                        <span
+                          v-if="
+                            account.status === 'blocked' ||
+                            account.status === 'unauthorized' ||
+                            account.status === 'temp_error' ||
+                            !account.isActive
+                          "
+                          :class="[
+                            'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
+                            account.status === 'blocked'
+                              ? 'bg-orange-100 text-orange-800'
+                              : account.status === 'unauthorized'
+                                ? 'bg-red-100 text-red-800'
+                                : account.status === 'temp_error'
+                                  ? 'bg-orange-100 text-orange-800'
+                                  : 'bg-red-100 text-red-800'
+                          ]"
+                        >
+                          <div
+                            :class="[
+                              'mr-2 h-2 w-2 rounded-full',
+                              account.status === 'blocked'
+                                ? 'bg-orange-500'
+                                : account.status === 'unauthorized'
+                                  ? 'bg-red-500'
+                                  : account.status === 'temp_error'
+                                    ? 'bg-orange-500'
+                                    : 'bg-red-500'
+                            ]"
+                          />
+                          {{
+                            account.status === 'blocked'
+                              ? '已封锁'
+                              : account.status === 'unauthorized'
+                                ? '异常'
+                                : account.status === 'temp_error'
+                                  ? '临时异常'
+                                  : '已停用'
+                          }}
+                        </span>
+                        <span
+                          v-if="
+                            (account.rateLimitStatus && account.rateLimitStatus.isRateLimited) ||
+                            account.rateLimitStatus === 'limited'
+                          "
+                          class="inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800"
+                        >
+                          <i class="fas fa-exclamation-triangle mr-1" />
+                          限流中
+                          <span
+                            v-if="
+                              account.rateLimitStatus &&
+                              typeof account.rateLimitStatus === 'object' &&
+                              account.rateLimitStatus.minutesRemaining > 0
+                            "
+                            >({{
+                              formatRateLimitTime(account.rateLimitStatus.minutesRemaining)
+                            }})</span
+                          >
+                        </span>
+                        <span
+                          v-if="account.tempUnavailable"
+                          class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                        >
+                          <i class="fas fa-clock mr-1" />
+                          临时暂停
+                          <span
+                            v-if="getTempUnavailableRemainingSeconds(account.tempUnavailable) > 0"
+                          >
+                            ({{
+                              formatTempUnavailableTime(
+                                getTempUnavailableRemainingSeconds(account.tempUnavailable)
+                              )
+                            }}
+                            <span
+                              v-if="getTempUnavailableCooldownSeconds(account.tempUnavailable) > 0"
+                              >/
+                              {{
+                                formatTempUnavailableTime(
+                                  getTempUnavailableCooldownSeconds(account.tempUnavailable)
+                                )
+                              }}</span
+                            >)
+                          </span>
+                          <el-tooltip
+                            :content="getTempUnavailableTooltipContent(account.tempUnavailable)"
+                            effect="dark"
+                            placement="top"
+                          >
+                            <i class="fas fa-info-circle ml-1 cursor-help" />
+                          </el-tooltip>
+                        </span>
+                        <span
+                          v-if="account.schedulable === false"
+                          class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700"
+                        >
+                          <i class="fas fa-pause-circle mr-1" />
+                          不可调度
+                          <el-tooltip
+                            v-if="getSchedulableReason(account)"
+                            :content="getSchedulableReason(account)"
+                            effect="dark"
+                            placement="top"
+                          >
+                            <i class="fas fa-question-circle ml-1 cursor-help text-gray-500" />
+                          </el-tooltip>
+                        </span>
+                        <span
+                          v-if="
+                            account.opusRateLimitStatus && account.opusRateLimitStatus.isRateLimited
+                          "
+                          class="inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800"
+                        >
+                          <i class="fas fa-hourglass-half mr-1" />
+                          Opus限流
+                          <span
+                            v-if="
+                              Number.isFinite(account.opusRateLimitStatus.minutesRemaining) &&
+                              account.opusRateLimitStatus.minutesRemaining > 0
+                            "
+                          >
+                            ({{
+                              formatRateLimitTime(account.opusRateLimitStatus.minutesRemaining)
+                            }})
+                          </span>
+                        </span>
+                        <span
+                          v-if="account.status === 'blocked' && account.errorMessage"
+                          class="mt-1 max-w-xs truncate text-xs text-gray-500 dark:text-gray-400"
+                          :title="account.errorMessage"
+                        >
+                          {{ account.errorMessage }}
+                        </span>
+                        <span
+                          v-if="isAccountRoutingBlocked(account)"
+                          class="mt-1 block max-w-xl truncate text-xs font-medium text-red-600 dark:text-red-300"
+                          :title="`不可路由：${getRoutingBlockReasonSummary(account)}`"
+                        >
+                          不可路由：{{ getRoutingBlockReasonSummary(account) }}
+                        </span>
+                        <span
+                          v-if="account.accountType === 'dedicated'"
+                          class="text-xs text-gray-500 dark:text-gray-400"
+                        >
+                          绑定: {{ account.boundApiKeysCount || 0 }} 个API Key
+                        </span>
+                      </div>
                       <!-- 显示所有分组 - 换行显示 -->
                       <div
                         v-if="account.groupInfos && account.groupInfos.length > 0"
@@ -517,26 +801,16 @@
                       >
                         {{ account.id }}
                       </div>
-                      <!-- 次要信息摘要：优先级 / 代理 / 到期时间（原独立列已降级至此） -->
+                      <!-- 次要信息摘要：代理 / 到期时间（原独立列已降级至此，默认值为灰字） -->
                       <div class="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs">
                         <span
-                          :class="
-                            (account.priority || 50) !== 50
-                              ? 'font-medium text-blue-600 dark:text-blue-400'
-                              : 'text-gray-400 dark:text-gray-500'
-                          "
+                          v-if="formatProxyDisplay(account.proxy)"
+                          class="max-w-[110px] truncate font-medium text-blue-600 dark:text-blue-400"
+                          :title="`代理: ${formatProxyDisplay(account.proxy)}`"
                         >
-                          {{ accountPrioritySummary(account) }}
+                          {{ formatProxyDisplay(account.proxy) }}
                         </span>
-                        <template v-if="formatProxyDisplay(account.proxy)">
-                          <span class="text-gray-300 dark:text-gray-600">·</span>
-                          <span
-                            class="max-w-[110px] truncate font-medium text-blue-600 dark:text-blue-400"
-                            :title="`代理: ${formatProxyDisplay(account.proxy)}`"
-                          >
-                            {{ formatProxyDisplay(account.proxy) }}
-                          </span>
-                        </template>
+                        <span v-else class="text-gray-400 dark:text-gray-500">无代理</span>
                         <span class="text-gray-300 dark:text-gray-600">·</span>
                         <span
                           class="cursor-pointer hover:underline"
@@ -548,288 +822,6 @@
                         </span>
                       </div>
                     </div>
-                  </div>
-                </td>
-                <td class="px-3 py-4">
-                  <div class="flex items-center gap-1">
-                    <!-- 平台图标和名称 -->
-                    <div
-                      v-if="account.platform === 'gemini'"
-                      class="flex items-center gap-1.5 rounded-lg border border-yellow-200 bg-gradient-to-r from-yellow-100 to-amber-100 px-2.5 py-1"
-                    >
-                      <i class="fas fa-robot text-xs text-yellow-700" />
-                      <span class="text-xs font-semibold text-yellow-800">Gemini</span>
-                      <span class="mx-1 h-4 w-px bg-yellow-300" />
-                      <span class="text-xs font-medium text-yellow-700">
-                        {{ getGeminiAuthType() }}
-                      </span>
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'claude-console'"
-                      class="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-100 to-pink-100 px-2.5 py-1"
-                    >
-                      <i class="fas fa-terminal text-xs text-purple-700" />
-                      <span class="text-xs font-semibold text-purple-800">Console</span>
-                      <span class="mx-1 h-4 w-px bg-purple-300" />
-                      <span class="text-xs font-medium text-purple-700">API Key</span>
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'bedrock'"
-                      class="flex items-center gap-1.5 rounded-lg border border-orange-200 bg-gradient-to-r from-orange-100 to-red-100 px-2.5 py-1"
-                    >
-                      <i class="fab fa-aws text-xs text-orange-700" />
-                      <span class="text-xs font-semibold text-orange-800">Bedrock</span>
-                      <span class="mx-1 h-4 w-px bg-orange-300" />
-                      <span class="text-xs font-medium text-orange-700">AWS</span>
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'openai'"
-                      class="flex items-center gap-1.5 rounded-lg border border-gray-700 bg-gray-100 bg-gradient-to-r from-gray-100 to-gray-100 px-2.5 py-1"
-                    >
-                      <div class="fa-openai" />
-                      <span class="text-xs font-semibold text-gray-950">OpenAi</span>
-                      <span class="mx-1 h-4 w-px bg-gray-400" />
-                      <span class="text-xs font-medium text-gray-950">{{
-                        getOpenAIAuthType()
-                      }}</span>
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'azure_openai'"
-                      class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-100 to-cyan-100 px-2.5 py-1 dark:border-blue-700 dark:from-blue-900/20 dark:to-cyan-900/20"
-                    >
-                      <i class="fab fa-microsoft text-xs text-blue-700 dark:text-blue-400" />
-                      <span class="text-xs font-semibold text-blue-800 dark:text-blue-300"
-                        >Azure OpenAI</span
-                      >
-                      <span class="mx-1 h-4 w-px bg-blue-300 dark:bg-blue-600" />
-                      <span class="text-xs font-medium text-blue-700 dark:text-blue-400"
-                        >API Key</span
-                      >
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'openai-responses'"
-                      class="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-gradient-to-r from-teal-100 to-green-100 px-2.5 py-1 dark:border-teal-700 dark:from-teal-900/20 dark:to-green-900/20"
-                    >
-                      <i class="fas fa-server text-xs text-teal-700 dark:text-teal-400" />
-                      <span class="text-xs font-semibold text-teal-800 dark:text-teal-300"
-                        >OpenAI-Api</span
-                      >
-                      <span class="mx-1 h-4 w-px bg-teal-300 dark:bg-teal-600" />
-                      <span class="text-xs font-medium text-teal-700 dark:text-teal-400"
-                        >API Key</span
-                      >
-                    </div>
-                    <div
-                      v-else-if="
-                        account.platform === 'claude' || account.platform === 'claude-oauth'
-                      "
-                      class="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-gradient-to-r from-indigo-100 to-blue-100 px-2.5 py-1"
-                    >
-                      <i class="fas fa-brain text-xs text-indigo-700" />
-                      <span class="text-xs font-semibold text-indigo-800">{{
-                        getClaudeAccountType(account)
-                      }}</span>
-                      <span class="mx-1 h-4 w-px bg-indigo-300" />
-                      <span class="text-xs font-medium text-indigo-700">
-                        {{ getClaudeAuthType(account) }}
-                      </span>
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'ccr'"
-                      class="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-gradient-to-r from-teal-100 to-emerald-100 px-2.5 py-1 dark:border-teal-700 dark:from-teal-900/20 dark:to-emerald-900/20"
-                    >
-                      <i class="fas fa-code-branch text-xs text-teal-700 dark:text-teal-400" />
-                      <span class="text-xs font-semibold text-teal-800 dark:text-teal-300"
-                        >CCR</span
-                      >
-                      <span class="mx-1 h-4 w-px bg-teal-300 dark:bg-teal-600" />
-                      <span class="text-xs font-medium text-teal-700 dark:text-teal-300"
-                        >Relay</span
-                      >
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'droid'"
-                      class="flex items-center gap-1.5 rounded-lg border border-cyan-200 bg-gradient-to-r from-cyan-100 to-sky-100 px-2.5 py-1 dark:border-cyan-700 dark:from-cyan-900/20 dark:to-sky-900/20"
-                    >
-                      <i class="fas fa-robot text-xs text-cyan-700 dark:text-cyan-400" />
-                      <span class="text-xs font-semibold text-cyan-800 dark:text-cyan-300"
-                        >Droid</span
-                      >
-                      <span class="mx-1 h-4 w-px bg-cyan-300 dark:bg-cyan-600" />
-                      <span class="text-xs font-medium text-cyan-700 dark:text-cyan-300">
-                        {{ getDroidAuthType(account) }}
-                      </span>
-                      <span
-                        v-if="isDroidApiKeyMode(account)"
-                        :class="getDroidApiKeyBadgeClasses(account)"
-                      >
-                        <i class="fas fa-key text-[9px]" />
-                        <span>x{{ getDroidApiKeyCount(account) }}</span>
-                      </span>
-                    </div>
-                    <div
-                      v-else-if="account.platform === 'gemini-api'"
-                      class="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-gradient-to-r from-amber-100 to-yellow-100 px-2.5 py-1 dark:border-amber-700 dark:from-amber-900/20 dark:to-yellow-900/20"
-                    >
-                      <i class="fas fa-robot text-xs text-amber-700 dark:text-amber-400" />
-                      <span class="text-xs font-semibold text-amber-800 dark:text-amber-300"
-                        >Gemini-API</span
-                      >
-                      <span class="mx-1 h-4 w-px bg-amber-300 dark:bg-amber-600" />
-                      <span class="text-xs font-medium text-amber-700 dark:text-amber-400"
-                        >API Key</span
-                      >
-                    </div>
-                    <div
-                      v-else
-                      class="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gradient-to-r from-gray-100 to-gray-200 px-2.5 py-1"
-                    >
-                      <i class="fas fa-question text-xs text-gray-700" />
-                      <span class="text-xs font-semibold text-gray-800">未知</span>
-                    </div>
-                  </div>
-                </td>
-                <td class="min-w-[160px] max-w-[160px] whitespace-nowrap px-3 py-4">
-                  <div class="flex flex-col gap-1">
-                    <span
-                      :class="[
-                        'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold',
-                        account.status === 'blocked'
-                          ? 'bg-orange-100 text-orange-800'
-                          : account.status === 'unauthorized'
-                            ? 'bg-red-100 text-red-800'
-                            : account.status === 'temp_error'
-                              ? 'bg-orange-100 text-orange-800'
-                              : account.isActive
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-red-100 text-red-800'
-                      ]"
-                    >
-                      <div
-                        :class="[
-                          'mr-2 h-2 w-2 rounded-full',
-                          account.status === 'blocked'
-                            ? 'bg-orange-500'
-                            : account.status === 'unauthorized'
-                              ? 'bg-red-500'
-                              : account.status === 'temp_error'
-                                ? 'bg-orange-500'
-                                : account.isActive
-                                  ? 'bg-green-500'
-                                  : 'bg-red-500'
-                        ]"
-                      />
-                      {{
-                        account.status === 'blocked'
-                          ? '已封锁'
-                          : account.status === 'unauthorized'
-                            ? '异常'
-                            : account.status === 'temp_error'
-                              ? '临时异常'
-                              : account.isActive
-                                ? '正常'
-                                : '异常'
-                      }}
-                    </span>
-                    <span
-                      v-if="
-                        (account.rateLimitStatus && account.rateLimitStatus.isRateLimited) ||
-                        account.rateLimitStatus === 'limited'
-                      "
-                      class="inline-flex items-center rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800"
-                    >
-                      <i class="fas fa-exclamation-triangle mr-1" />
-                      限流中
-                      <span
-                        v-if="
-                          account.rateLimitStatus &&
-                          typeof account.rateLimitStatus === 'object' &&
-                          account.rateLimitStatus.minutesRemaining > 0
-                        "
-                        >({{ formatRateLimitTime(account.rateLimitStatus.minutesRemaining) }})</span
-                      >
-                    </span>
-                    <span
-                      v-if="account.tempUnavailable"
-                      class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                    >
-                      <i class="fas fa-clock mr-1" />
-                      临时暂停
-                      <span v-if="getTempUnavailableRemainingSeconds(account.tempUnavailable) > 0">
-                        ({{
-                          formatTempUnavailableTime(
-                            getTempUnavailableRemainingSeconds(account.tempUnavailable)
-                          )
-                        }}
-                        <span v-if="getTempUnavailableCooldownSeconds(account.tempUnavailable) > 0"
-                          >/
-                          {{
-                            formatTempUnavailableTime(
-                              getTempUnavailableCooldownSeconds(account.tempUnavailable)
-                            )
-                          }}</span
-                        >)
-                      </span>
-                      <el-tooltip
-                        :content="getTempUnavailableTooltipContent(account.tempUnavailable)"
-                        effect="dark"
-                        placement="top"
-                      >
-                        <i class="fas fa-info-circle ml-1 cursor-help" />
-                      </el-tooltip>
-                    </span>
-                    <span
-                      v-if="account.schedulable === false"
-                      class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700"
-                    >
-                      <i class="fas fa-pause-circle mr-1" />
-                      不可调度
-                      <el-tooltip
-                        v-if="getSchedulableReason(account)"
-                        :content="getSchedulableReason(account)"
-                        effect="dark"
-                        placement="top"
-                      >
-                        <i class="fas fa-question-circle ml-1 cursor-help text-gray-500" />
-                      </el-tooltip>
-                    </span>
-                    <span
-                      v-if="
-                        account.opusRateLimitStatus && account.opusRateLimitStatus.isRateLimited
-                      "
-                      class="inline-flex items-center rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800"
-                    >
-                      <i class="fas fa-hourglass-half mr-1" />
-                      Opus限流
-                      <span
-                        v-if="
-                          Number.isFinite(account.opusRateLimitStatus.minutesRemaining) &&
-                          account.opusRateLimitStatus.minutesRemaining > 0
-                        "
-                      >
-                        ({{ formatRateLimitTime(account.opusRateLimitStatus.minutesRemaining) }})
-                      </span>
-                    </span>
-                    <span
-                      v-if="account.status === 'blocked' && account.errorMessage"
-                      class="mt-1 max-w-xs truncate text-xs text-gray-500 dark:text-gray-400"
-                      :title="account.errorMessage"
-                    >
-                      {{ account.errorMessage }}
-                    </span>
-                    <span
-                      v-if="isAccountRoutingBlocked(account)"
-                      class="mt-1 block max-w-xl truncate text-xs font-medium text-red-600 dark:text-red-300"
-                      :title="`不可路由：${getRoutingBlockReasonSummary(account)}`"
-                    >
-                      不可路由：{{ getRoutingBlockReasonSummary(account) }}
-                    </span>
-                    <span
-                      v-if="account.accountType === 'dedicated'"
-                      class="text-xs text-gray-500 dark:text-gray-400"
-                    >
-                      绑定: {{ account.boundApiKeysCount || 0 }} 个API Key
-                    </span>
                   </div>
                 </td>
                 <td class="whitespace-nowrap px-3 py-4 text-sm">
@@ -860,31 +852,6 @@
                     </div>
                   </div>
                   <div v-else class="text-xs text-gray-400">暂无数据</div>
-                </td>
-                <td class="whitespace-nowrap px-3 py-4">
-                  <BalanceDisplay
-                    :account-id="account.id"
-                    :initial-balance="account.balanceInfo"
-                    :platform="account.platform"
-                    :query-mode="
-                      account.platform === 'gemini' && account.oauthProvider === 'antigravity'
-                        ? 'auto'
-                        : 'local'
-                    "
-                    @error="(error) => handleBalanceError(account.id, error)"
-                    @refreshed="(data) => handleBalanceRefreshed(account.id, data)"
-                  />
-                  <div class="mt-1 text-xs">
-                    <button
-                      v-if="
-                        !(account.platform === 'gemini' && account.oauthProvider === 'antigravity')
-                      "
-                      class="text-blue-500 hover:underline dark:text-blue-300"
-                      @click="openBalanceScriptModal(account)"
-                    >
-                      配置余额脚本
-                    </button>
-                  </div>
                 </td>
                 <td class="whitespace-nowrap px-3 py-4">
                   <div v-if="account.platform === 'claude'" class="space-y-2">
@@ -1224,6 +1191,17 @@
                   <div v-else class="text-sm text-gray-400">
                     <span class="text-xs">N/A</span>
                   </div>
+                </td>
+                <td class="whitespace-nowrap px-3 py-4 text-right text-sm">
+                  <span
+                    :class="
+                      (account.priority || 50) !== 50
+                        ? 'font-semibold text-blue-600 dark:text-blue-400'
+                        : 'text-gray-600 dark:text-gray-300'
+                    "
+                  >
+                    {{ account.priority || 50 }}
+                  </span>
                 </td>
                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
                   {{ formatLastUsed(account.lastUsedAt) }}
@@ -5125,9 +5103,6 @@ const isExpiringSoon = (expiresAt) => {
 // —— 以下三个函数支撑名称列内的降级信息 ——
 // 优先级 / 代理 / 到期时间三列在真实数据下恒为默认值（50 / 无代理 / 永不过期），
 // 已从表格移除并降级为名称列下的次要信息，仅在偏离默认时以强调色呈现。
-
-// 优先级摘要：默认 50 时不单独强调
-const accountPrioritySummary = (account) => `优先级 ${account?.priority || 50}`
 
 // 到期摘要
 const accountExpirySummary = (account) => {

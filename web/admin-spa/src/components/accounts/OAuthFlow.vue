@@ -928,7 +928,6 @@ watch(authCode, (newValue) => {
           // 成功提取授权码
           authCode.value = code
           showToast('成功提取授权码！', 'success')
-          console.log('Successfully extracted authorization code from URL')
         } else {
           // URL 中没有 code 参数
           showToast('URL 中未找到授权码参数，请检查链接是否正确', 'error')

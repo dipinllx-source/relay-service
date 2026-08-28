@@ -1384,7 +1384,6 @@ onMounted(async () => {
   // 如果有历史tokenLimit但没有rateLimitCost，提示用户需要重新设置
   if (props.apiKey.tokenLimit > 0 && !props.apiKey.rateLimitCost) {
     // 可以根据需要添加提示，或者自动迁移（这里选择让用户手动设置）
-    // console.log('检测到历史Token限制，请考虑设置费用限制')
   }
 
   form.rateLimitWindow = props.apiKey.rateLimitWindow || ''

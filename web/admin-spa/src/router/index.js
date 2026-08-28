@@ -231,16 +231,6 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   const userStore = useUserStore()
 
-  console.log('路由导航:', {
-    to: to.path,
-    from: from.path,
-    fullPath: to.fullPath,
-    requiresAuth: to.meta.requiresAuth,
-    requiresUserAuth: to.meta.requiresUserAuth,
-    isAuthenticated: authStore.isAuthenticated,
-    isUserAuthenticated: userStore.isAuthenticated
-  })
-
   // 防止重定向循环：如果已经在目标路径，直接放行
   if (to.path === from.path && to.fullPath === from.fullPath) {
     return next()

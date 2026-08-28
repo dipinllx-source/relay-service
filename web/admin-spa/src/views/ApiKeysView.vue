@@ -4053,43 +4053,6 @@ const formatWindowTime = (seconds) => {
   }
 }
 
-// 获取每日费用进度 - 已移到 LimitProgressBar 组件中
-// const getDailyCostProgress = (key) => {
-//   if (!key.dailyCostLimit || key.dailyCostLimit === 0) return 0
-//   const percentage = ((key.dailyCost || 0) / key.dailyCostLimit) * 100
-//   return Math.min(percentage, 100)
-// }
-
-// 获取每日费用进度条颜色 - 已移到 LimitProgressBar 组件中
-// const getDailyCostProgressColor = (key) => {
-//   const progress = getDailyCostProgress(key)
-//   if (progress >= 100) return 'bg-red-500'
-//   if (progress >= 80) return 'bg-yellow-500'
-//   return 'bg-green-500'
-// }
-
-// 获取 Opus 周费用进度 - 已移到 LimitBadge 组件中
-// const getWeeklyOpusCostProgress = (key) => {
-//   if (!key.weeklyOpusCostLimit || key.weeklyOpusCostLimit === 0) return 0
-//   const percentage = ((key.weeklyOpusCost || 0) / key.weeklyOpusCostLimit) * 100
-//   return Math.min(percentage, 100)
-// }
-
-// 获取 Opus 周费用进度条颜色 - 已移到 LimitBadge 组件中
-// const getWeeklyOpusCostProgressColor = (key) => {
-//   const progress = getWeeklyOpusCostProgress(key)
-//   if (progress >= 100) return 'bg-red-500'
-//   if (progress >= 80) return 'bg-yellow-500'
-//   return 'bg-green-500'
-// }
-
-// 获取总费用进度 - 暂时不用
-// const getTotalCostProgress = (key) => {
-//   if (!key.totalCostLimit || key.totalCostLimit === 0) return 0
-//   const percentage = ((key.totalCost || 0) / key.totalCostLimit) * 100
-//   return Math.min(percentage, 100)
-// }
-
 // 显示使用详情
 const showUsageDetails = (apiKey) => {
   const cachedStats = getCachedStats(apiKey.id)

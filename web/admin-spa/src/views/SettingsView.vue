@@ -2,13 +2,49 @@
   <div class="settings-container">
     <div class="card p-4 sm:p-6">
       <!-- 页面标题 (activeSection 由 top nav 下拉驱动) -->
-      <div class="mb-4 sm:mb-6">
-        <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:mb-2 sm:text-xl">
-          {{ sectionTitle }}
-        </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
-          {{ sectionSubtitle }}
-        </p>
+      <div
+        class="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+      >
+        <div class="min-w-0">
+          <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:mb-2 sm:text-xl">
+            {{ sectionTitle }}
+          </h3>
+          <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
+            {{ sectionSubtitle }}
+          </p>
+        </div>
+
+        <!-- 保存与重置成对置于标题行右侧；仅品牌设置为手动保存，其余分区均为改动即存 -->
+        <div
+          v-if="!loading && activeSection === 'branding'"
+          class="flex flex-col items-stretch gap-2 sm:flex-shrink-0 sm:items-end"
+        >
+          <div class="flex gap-2">
+            <button
+              class="btn-md bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="saving"
+              @click="saveOemSettings"
+            >
+              <i :class="['fas', saving ? 'fa-spinner fa-spin' : 'fa-save']" />
+              {{ saving ? '保存中' : '保存设置' }}
+            </button>
+
+            <button
+              class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+              :disabled="saving"
+              @click="resetOemSettings"
+            >
+              <i class="fas fa-undo" />
+              重置为默认
+            </button>
+          </div>
+          <p
+            v-if="oemSettings.updatedAt"
+            class="text-xs text-gray-500 dark:text-gray-400 sm:text-right"
+          >
+            <i class="fas fa-clock mr-1" />最后更新：{{ formatDateTime(oemSettings.updatedAt) }}
+          </p>
+        </div>
       </div>
 
       <!-- 加载状态 -->
@@ -21,281 +57,54 @@
       <div v-else>
         <!-- 品牌设置部分 -->
         <div v-show="activeSection === 'branding'">
-          <!-- 桌面端表格视图 -->
-          <div class="table-container hidden sm:block">
-            <table class="min-w-full">
-              <tbody class="divide-y divide-gray-200/50 dark:divide-gray-600/50">
-                <!-- 网站名称 -->
-                <tr class="table-row">
-                  <td class="w-48 whitespace-nowrap px-6 py-4">
-                    <div class="flex items-center">
-                      <div
-                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600"
-                      >
-                        <i class="fas fa-font text-xs text-white" />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          网站名称
-                        </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">品牌标识</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <input
-                      v-model="oemSettings.siteName"
-                      class="form-input w-full max-w-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                      maxlength="100"
-                      placeholder="Relay Service"
-                      type="text"
-                    />
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      将显示在浏览器标题和页面头部
-                    </p>
-                  </td>
-                </tr>
-
-                <!-- 网站图标 -->
-                <tr class="table-row">
-                  <td class="w-48 whitespace-nowrap px-6 py-4">
-                    <div class="flex items-center">
-                      <div
-                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-purple-600"
-                      >
-                        <i class="fas fa-image text-xs text-white" />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          网站图标
-                        </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">Favicon</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="space-y-3">
-                      <!-- 图标预览 -->
-                      <div
-                        v-if="oemSettings.siteIconData || oemSettings.siteIcon"
-                        class="inline-flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700"
-                      >
-                        <img
-                          alt="图标预览"
-                          class="h-8 w-8"
-                          :src="oemSettings.siteIconData || oemSettings.siteIcon"
-                          @error="handleIconError"
-                        />
-                        <span class="text-sm text-gray-600 dark:text-gray-400">当前图标</span>
-                        <button
-                          class="rounded-lg px-3 py-1 font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-900"
-                          @click="removeIcon"
-                        >
-                          <i class="fas fa-trash mr-1" />删除
-                        </button>
-                      </div>
-
-                      <!-- 文件上传 -->
-                      <div>
-                        <input
-                          ref="iconFileInput"
-                          accept=".ico,.png,.jpg,.jpeg,.svg"
-                          class="hidden"
-                          type="file"
-                          @change="handleIconUpload"
-                        />
-                        <button
-                          class="btn btn-success px-4 py-2"
-                          @click="$refs.iconFileInput.click()"
-                        >
-                          <i class="fas fa-upload mr-2" />
-                          上传图标
-                        </button>
-                        <span class="ml-3 text-xs text-gray-500 dark:text-gray-400"
-                          >支持 .ico, .png, .jpg, .svg 格式，最大 350KB</span
-                        >
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-
-                <!-- 管理后台按钮显示控制 -->
-                <tr class="table-row">
-                  <td class="w-48 whitespace-nowrap px-6 py-4">
-                    <div class="flex items-center">
-                      <div
-                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600"
-                      >
-                        <i class="fas fa-eye-slash text-xs text-white" />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          管理入口
-                        </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">登录按钮显示</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex items-center">
-                      <label class="inline-flex cursor-pointer items-center">
-                        <input v-model="hideAdminButton" class="peer sr-only" type="checkbox" />
-                        <div
-                          class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
-                        ></div>
-                        <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
-                          hideAdminButton ? '隐藏登录按钮' : '显示登录按钮'
-                        }}</span>
-                      </label>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      隐藏后，用户需要直接访问 /admin/login 页面登录
-                    </p>
-                  </td>
-                </tr>
-
-                <!-- API Stats 通知 -->
-                <tr class="border-b border-gray-100 dark:border-gray-700">
-                  <td class="w-48 whitespace-nowrap px-6 py-4">
-                    <div class="flex items-center">
-                      <div
-                        class="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600"
-                      >
-                        <i class="fas fa-bell text-xs text-white" />
-                      </div>
-                      <div>
-                        <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          统计页通知
-                        </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">API Stats</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex items-center">
-                      <label class="inline-flex cursor-pointer items-center">
-                        <input
-                          v-model="oemSettings.apiStatsNotice.enabled"
-                          class="peer sr-only"
-                          type="checkbox"
-                        />
-                        <div
-                          class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
-                        ></div>
-                        <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
-                          oemSettings.apiStatsNotice.enabled ? '已启用' : '已禁用'
-                        }}</span>
-                      </label>
-                    </div>
-                    <div v-if="oemSettings.apiStatsNotice.enabled" class="mt-3 space-y-3">
-                      <div>
-                        <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-                          标题
-                        </label>
-                        <input
-                          v-model="oemSettings.apiStatsNotice.title"
-                          class="form-input w-full max-w-md dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          maxlength="100"
-                          placeholder="通知标题"
-                          type="text"
-                        />
-                      </div>
-                      <div>
-                        <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
-                          内容
-                        </label>
-                        <textarea
-                          v-model="oemSettings.apiStatsNotice.content"
-                          class="form-input w-full max-w-md resize-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                          maxlength="2000"
-                          placeholder="通知内容（支持换行）"
-                          rows="3"
-                        ></textarea>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-
-                <!-- 操作按钮 -->
-                <tr>
-                  <td class="px-6 py-6" colspan="2">
-                    <div class="flex items-center justify-between">
-                      <div class="flex gap-3">
-                        <button
-                          class="btn btn-primary px-6 py-3"
-                          :class="{ 'cursor-not-allowed opacity-50': saving }"
-                          :disabled="saving"
-                          @click="saveOemSettings"
-                        >
-                          <div v-if="saving" class="loading-spinner mr-2"></div>
-                          <i v-else class="fas fa-save mr-2" />
-                          {{ saving ? '保存中...' : '保存设置' }}
-                        </button>
-
-                        <button
-                          class="btn bg-gray-100 px-6 py-3 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                          :disabled="saving"
-                          @click="resetOemSettings"
-                        >
-                          <i class="fas fa-undo mr-2" />
-                          重置为默认
-                        </button>
-                      </div>
-
-                      <div
-                        v-if="oemSettings.updatedAt"
-                        class="text-sm text-gray-500 dark:text-gray-400"
-                      >
-                        <i class="fas fa-clock mr-1" />
-                        最后更新：{{ formatDateTime(oemSettings.updatedAt) }}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- 移动端卡片视图 -->
-          <div class="space-y-4 sm:hidden">
-            <!-- 站点名称卡片 -->
-            <div class="glass-card p-4">
-              <div class="mb-3 flex items-center gap-3">
+          <!-- 响应式单套模板：原桌面表格与移动卡片两套并行模板已合并。
+               合并同时补齐了移动端缺失的「统计页通知」配置项，此前移动端无法配置该功能。 -->
+          <div class="space-y-3 sm:space-y-4">
+            <!-- 网站名称 -->
+            <div
+              class="rounded-xl border border-gray-100 p-4 dark:border-gray-700/60 sm:flex sm:items-start sm:gap-6"
+            >
+              <div class="mb-3 flex items-center gap-3 sm:mb-0 sm:w-48 sm:flex-shrink-0">
                 <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 text-white shadow-md"
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600"
                 >
-                  <i class="fas fa-tag"></i>
+                  <i class="fas fa-font text-xs text-white" />
                 </div>
-                <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">站点名称</h3>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">自定义您的站点品牌名称</p>
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">网站名称</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">品牌标识</div>
                 </div>
               </div>
-              <input
-                v-model="oemSettings.siteName"
-                class="form-input w-full dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                maxlength="100"
-                placeholder="Relay Service"
-                type="text"
-              />
+              <div class="min-w-0 flex-1">
+                <input
+                  v-model="oemSettings.siteName"
+                  class="form-input form-input-md w-full max-w-md dark:bg-gray-700 dark:text-gray-200"
+                  maxlength="100"
+                  placeholder="Relay Service"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  将显示在浏览器标题和页面头部
+                </p>
+              </div>
             </div>
 
-            <!-- 站点图标卡片 -->
-            <div class="glass-card p-4">
-              <div class="mb-3 flex items-center gap-3">
+            <!-- 网站图标 -->
+            <div
+              class="rounded-xl border border-gray-100 p-4 dark:border-gray-700/60 sm:flex sm:items-start sm:gap-6"
+            >
+              <div class="mb-3 flex items-center gap-3 sm:mb-0 sm:w-48 sm:flex-shrink-0">
                 <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 text-white shadow-md"
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-purple-600"
                 >
-                  <i class="fas fa-image"></i>
+                  <i class="fas fa-image text-xs text-white" />
                 </div>
-                <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">站点图标</h3>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
-                    上传自定义图标或输入图标URL
-                  </p>
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">网站图标</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">Favicon</div>
                 </div>
               </div>
-              <div class="space-y-3">
+              <div class="min-w-0 flex-1 space-y-3">
                 <!-- 图标预览 -->
                 <div
                   v-if="oemSettings.siteIconData || oemSettings.siteIcon"
@@ -309,94 +118,115 @@
                   />
                   <span class="text-sm text-gray-600 dark:text-gray-400">当前图标</span>
                   <button
-                    class="rounded-lg px-3 py-1 font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-900"
+                    class="btn-sm font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-900 dark:hover:bg-red-900/30"
                     @click="removeIcon"
                   >
-                    删除
+                    <i class="fas fa-trash" />删除
                   </button>
                 </div>
 
-                <!-- 上传按钮 -->
-                <div>
+                <!-- 文件上传：合并后单一 ref，原桌面与移动各自持有一个 ref -->
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
                   <input
-                    ref="iconFileInputMobile"
+                    ref="iconFileInput"
                     accept=".ico,.png,.jpg,.jpeg,.svg"
                     class="hidden"
                     type="file"
                     @change="handleIconUpload"
                   />
                   <button
-                    class="btn btn-success px-4 py-2"
-                    @click="$refs.iconFileInputMobile.click()"
+                    class="btn-md bg-gradient-to-r from-green-500 to-green-600 font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md"
+                    @click="$refs.iconFileInput.click()"
                   >
-                    <i class="fas fa-upload mr-2" />
+                    <i class="fas fa-upload" />
                     上传图标
                   </button>
-                  <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    支持 .ico, .png, .jpg, .svg 格式，最大 350KB
-                  </p>
+                  <span class="text-xs text-gray-500 dark:text-gray-400"
+                    >支持 .ico, .png, .jpg, .svg 格式，最大 350KB</span
+                  >
                 </div>
               </div>
             </div>
 
-            <!-- 管理后台按钮显示控制卡片 -->
-            <div class="glass-card p-4">
-              <div class="mb-3 flex items-center gap-3">
+            <!-- 管理入口 -->
+            <div
+              class="rounded-xl border border-gray-100 p-4 dark:border-gray-700/60 sm:flex sm:items-start sm:gap-6"
+            >
+              <div class="mb-3 flex items-center gap-3 sm:mb-0 sm:w-48 sm:flex-shrink-0">
                 <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600"
                 >
-                  <i class="fas fa-eye-slash"></i>
+                  <i class="fas fa-eye-slash text-xs text-white" />
                 </div>
-                <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">管理入口</h3>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">控制登录按钮在首页的显示</p>
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">管理入口</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">登录按钮显示</div>
                 </div>
               </div>
-              <div class="space-y-2">
-                <label class="inline-flex cursor-pointer items-center">
+              <div class="min-w-0 flex-1">
+                <label class="switch">
                   <input v-model="hideAdminButton" class="peer sr-only" type="checkbox" />
-                  <div
-                    class="peer relative h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
-                  ></div>
+                  <div class="switch-track"></div>
                   <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
                     hideAdminButton ? '隐藏登录按钮' : '显示登录按钮'
                   }}</span>
                 </label>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   隐藏后，用户需要直接访问 /admin/login 页面登录
                 </p>
               </div>
             </div>
 
-            <!-- 操作按钮卡片 -->
-            <div class="glass-card p-4">
-              <div class="flex flex-col gap-3">
-                <button
-                  class="btn btn-primary w-full px-6 py-3"
-                  :class="{ 'cursor-not-allowed opacity-50': saving }"
-                  :disabled="saving"
-                  @click="saveOemSettings"
-                >
-                  <div v-if="saving" class="loading-spinner mr-2"></div>
-                  <i v-else class="fas fa-save mr-2" />
-                  {{ saving ? '保存中...' : '保存设置' }}
-                </button>
-
-                <button
-                  class="btn w-full bg-gray-100 px-6 py-3 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                  :disabled="saving"
-                  @click="resetOemSettings"
-                >
-                  <i class="fas fa-undo mr-2" />
-                  重置为默认
-                </button>
-
+            <!-- 统计页通知 -->
+            <div
+              class="rounded-xl border border-gray-100 p-4 dark:border-gray-700/60 sm:flex sm:items-start sm:gap-6"
+            >
+              <div class="mb-3 flex items-center gap-3 sm:mb-0 sm:w-48 sm:flex-shrink-0">
                 <div
-                  v-if="oemSettings.updatedAt"
-                  class="text-center text-sm text-gray-500 dark:text-gray-400"
+                  class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600"
                 >
-                  <i class="fas fa-clock mr-1" />
-                  上次更新: {{ formatDateTime(oemSettings.updatedAt) }}
+                  <i class="fas fa-bell text-xs text-white" />
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    统计页通知
+                  </div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">API Stats</div>
+                </div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <label class="switch">
+                  <input
+                    v-model="oemSettings.apiStatsNotice.enabled"
+                    class="peer sr-only"
+                    type="checkbox"
+                  />
+                  <div class="switch-track"></div>
+                  <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{
+                    oemSettings.apiStatsNotice.enabled ? '已启用' : '已禁用'
+                  }}</span>
+                </label>
+                <div v-if="oemSettings.apiStatsNotice.enabled" class="mt-3 space-y-3">
+                  <div>
+                    <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">标题</label>
+                    <input
+                      v-model="oemSettings.apiStatsNotice.title"
+                      class="form-input form-input-md w-full max-w-md dark:bg-gray-700 dark:text-gray-200"
+                      maxlength="100"
+                      placeholder="通知标题"
+                      type="text"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">内容</label>
+                    <textarea
+                      v-model="oemSettings.apiStatsNotice.content"
+                      class="form-input w-full max-w-md resize-none border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      maxlength="2000"
+                      placeholder="通知内容（支持换行）"
+                      rows="3"
+                    ></textarea>
+                  </div>
                 </div>
               </div>
             </div>
@@ -416,16 +246,14 @@
                   开启后，系统将按配置发送通知到指定平台
                 </p>
               </div>
-              <label class="relative inline-flex cursor-pointer items-center">
+              <label class="switch">
                 <input
                   v-model="webhookConfig.enabled"
                   class="peer sr-only"
                   type="checkbox"
                   @change="saveWebhookConfig"
                 />
-                <div
-                  class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
-                ></div>
+                <div class="switch-track"></div>
               </label>
             </div>
           </div>
@@ -449,16 +277,14 @@
                     {{ getNotificationTypeDescription(type) }}
                   </span>
                 </div>
-                <label class="relative inline-flex cursor-pointer items-center">
+                <label class="switch">
                   <input
                     v-model="webhookConfig.notificationTypes[type]"
                     class="peer sr-only"
                     type="checkbox"
                     @change="saveWebhookConfig"
                   />
-                  <div
-                    class="peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:border-gray-600 dark:bg-gray-700"
-                  ></div>
+                  <div class="switch-track"></div>
                 </label>
               </div>
             </div>
@@ -560,16 +386,14 @@
                   </div>
                   <div class="ml-4 flex items-center space-x-2">
                     <!-- 启用/禁用开关 -->
-                    <label class="relative inline-flex cursor-pointer items-center">
+                    <label class="switch">
                       <input
                         :checked="platform.enabled"
                         class="peer sr-only"
                         type="checkbox"
                         @change="togglePlatform(platform.id)"
                       />
-                      <div
-                        class="peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:border-gray-600 dark:bg-gray-700"
-                      ></div>
+                      <div class="switch-track"></div>
                     </label>
                     <!-- 测试按钮 -->
                     <button
@@ -614,7 +438,7 @@
                 </label>
                 <input
                   v-model.number="webhookConfig.retrySettings.maxRetries"
-                  class="mt-1 block w-full rounded-lg border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  class="mt-1 block h-8 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                   max="10"
                   min="0"
                   type="number"
@@ -627,7 +451,7 @@
                 </label>
                 <input
                   v-model.number="webhookConfig.retrySettings.retryDelay"
-                  class="mt-1 block w-full rounded-lg border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  class="mt-1 block h-8 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                   max="10000"
                   min="100"
                   step="100"
@@ -692,16 +516,14 @@
                     </div>
                   </div>
                 </div>
-                <label class="relative inline-flex cursor-pointer items-center">
+                <label class="switch">
                   <input
                     v-model="claudeConfig.claudeCodeOnlyEnabled"
                     class="peer sr-only"
                     type="checkbox"
                     @change="saveClaudeConfig"
                   />
-                  <div
-                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-orange-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-orange-800"
-                  ></div>
+                  <div class="switch-track"></div>
                 </label>
               </div>
               <div class="mt-4 rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
@@ -739,16 +561,14 @@
                     </div>
                   </div>
                 </div>
-                <label class="relative inline-flex cursor-pointer items-center">
+                <label class="switch">
                   <input
                     v-model="claudeConfig.globalSessionBindingEnabled"
                     class="peer sr-only"
                     type="checkbox"
                     @change="saveClaudeConfig"
                   />
-                  <div
-                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-purple-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-purple-800"
-                  ></div>
+                  <div class="switch-track"></div>
                 </label>
               </div>
 
@@ -762,7 +582,7 @@
                   </label>
                   <input
                     v-model.number="claudeConfig.sessionBindingTtlDays"
-                    class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block h-8 w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     max="365"
                     min="1"
                     placeholder="30"
@@ -782,7 +602,7 @@
                   </label>
                   <textarea
                     v-model="claudeConfig.sessionBindingErrorMessage"
-                    class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     placeholder="你的本地session已污染，请清理后使用。"
                     rows="2"
                     @change="saveClaudeConfig"
@@ -837,16 +657,14 @@
                     </div>
                   </div>
                 </div>
-                <label class="relative inline-flex cursor-pointer items-center">
+                <label class="switch">
                   <input
                     v-model="claudeConfig.userMessageQueueEnabled"
                     class="peer sr-only"
                     type="checkbox"
                     @change="saveClaudeConfig"
                   />
-                  <div
-                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-teal-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-teal-800"
-                  ></div>
+                  <div class="switch-track"></div>
                 </label>
               </div>
 
@@ -860,7 +678,7 @@
                   </label>
                   <input
                     v-model.number="claudeConfig.userMessageQueueDelayMs"
-                    class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block h-8 w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     max="10000"
                     min="0"
                     placeholder="200"
@@ -880,7 +698,7 @@
                   </label>
                   <input
                     v-model.number="claudeConfig.userMessageQueueTimeoutMs"
-                    class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block h-8 w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     max="300000"
                     min="1000"
                     placeholder="30000"
@@ -929,16 +747,14 @@
                     </p>
                   </div>
                 </div>
-                <label class="relative inline-flex cursor-pointer items-center">
+                <label class="switch">
                   <input
                     v-model="claudeConfig.concurrentRequestQueueEnabled"
                     class="peer sr-only"
                     type="checkbox"
                     @change="saveClaudeConfig"
                   />
-                  <div
-                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-blue-800"
-                  ></div>
+                  <div class="switch-track"></div>
                 </label>
               </div>
 
@@ -952,7 +768,7 @@
                   </label>
                   <input
                     v-model.number="claudeConfig.concurrentRequestQueueMaxSize"
-                    class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block h-8 w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     max="100"
                     min="1"
                     placeholder="3"
@@ -972,7 +788,7 @@
                   </label>
                   <input
                     v-model.number="claudeConfig.concurrentRequestQueueMaxSizeMultiplier"
-                    class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block h-8 w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     max="10"
                     min="0"
                     placeholder="1"
@@ -993,7 +809,7 @@
                   </label>
                   <input
                     v-model.number="claudeConfig.concurrentRequestQueueTimeoutMs"
-                    class="mt-1 block w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                    class="mt-1 block h-8 w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                     max="300000"
                     min="5000"
                     placeholder="10000"
@@ -1043,16 +859,14 @@
                     </p>
                   </div>
                 </div>
-                <label class="relative inline-flex cursor-pointer items-center">
+                <label class="switch">
                   <input
                     v-model="claudeConfig.requestDetailCaptureEnabled"
                     class="peer sr-only"
                     type="checkbox"
                     @change="saveClaudeConfig"
                   />
-                  <div
-                    class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-cyan-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:border-gray-600 dark:bg-gray-700 dark:peer-focus:ring-cyan-800"
-                  ></div>
+                  <div class="switch-track"></div>
                 </label>
               </div>
 
@@ -1071,7 +885,7 @@
                       </label>
                       <input
                         v-model.number="requestDetailRetentionInput.days"
-                        class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                        class="block h-8 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                         max="30"
                         min="0"
                         placeholder="0"
@@ -1087,7 +901,7 @@
                       </label>
                       <input
                         v-model.number="requestDetailRetentionInput.hours"
-                        class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-gray-500 dark:bg-gray-700 dark:text-white sm:text-sm"
+                        class="block h-8 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                         max="23"
                         min="0"
                         placeholder="6"
@@ -1138,26 +952,16 @@
 
                     <button
                       :aria-checked="claudeConfig.requestDetailBodyPreviewEnabled"
-                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-4 focus:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60 dark:focus:ring-cyan-800"
-                      :class="
-                        claudeConfig.requestDetailBodyPreviewEnabled
-                          ? 'bg-cyan-500'
-                          : 'bg-gray-200 dark:bg-gray-700'
-                      "
+                      class="switch-track flex-shrink-0"
+                      :class="{
+                        'switch-track-on': claudeConfig.requestDetailBodyPreviewEnabled
+                      }"
                       :disabled="requestDetailBodyPreviewSaving"
                       role="switch"
                       type="button"
                       @click="handleRequestDetailBodyPreviewToggle"
                     >
                       <span class="sr-only">切换请求体预览</span>
-                      <span
-                        class="absolute left-[2px] top-[2px] h-5 w-5 rounded-full border bg-white transition-transform"
-                        :class="
-                          claudeConfig.requestDetailBodyPreviewEnabled
-                            ? 'translate-x-full border-white'
-                            : 'border-gray-300'
-                        "
-                      ></span>
                     </button>
                   </div>
                 </div>
@@ -1267,7 +1071,7 @@
                   <div class="flex items-center gap-3">
                     <input
                       v-model.number="serviceRates.rates[service]"
-                      class="w-24 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      class="h-8 w-24 rounded-lg border border-gray-300 bg-white px-3 text-center text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                       max="10"
                       min="0.1"
                       step="0.1"
@@ -3212,22 +3016,13 @@ const formatDateTime = settingsStore.formatDateTime
   background-color: var(--bg-gradient-mid);
 }
 
-.form-input {
-  @apply w-full rounded-lg border border-gray-300 px-4 py-2 transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-blue-500;
-}
-
-.btn {
-  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
-}
-
-.btn-primary {
-  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
-}
-
-.btn-success {
-  @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
-}
-
+/*
+ * 原此处 scoped 重定义了 .form-input / .btn / .btn-primary / .btn-success。
+ * scoped 样式编译为属性选择器，优先级高于全局基线，会把 .form-input-md 的
+ * 内边距顶掉（实测 8px 16px 而非基线 0 12px）。本页控件已全部迁移到
+ * 全局 .btn-md / .form-input-md / .switch，故删除这组影子定义，
+ * 使本页与其余管理页共用同一套基线。
+ */
 .loading-spinner {
   @apply h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600;
 }

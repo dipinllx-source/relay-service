@@ -516,12 +516,9 @@
           <div class="flex items-center gap-2">
             <!-- 自动刷新控制 -->
             <div class="flex h-8 items-center rounded-lg bg-gray-100 px-3 dark:bg-gray-700">
-              <label class="relative inline-flex cursor-pointer items-center">
+              <label class="switch">
                 <input v-model="autoRefreshEnabled" class="peer sr-only" type="checkbox" />
-                <!-- 更小的开关 -->
-                <div
-                  class="peer relative h-5 w-9 rounded-full bg-gray-300 transition-all duration-200 after:absolute after:left-[2px] after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:duration-200 after:content-[''] peer-checked:bg-blue-500 peer-checked:after:translate-x-4 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:bg-gray-600 dark:after:bg-gray-300 dark:peer-focus:ring-blue-600"
-                />
+                <div class="switch-track" />
                 <span
                   class="ml-2.5 flex select-none items-center gap-1 text-sm font-medium text-gray-600 dark:text-gray-300"
                 >

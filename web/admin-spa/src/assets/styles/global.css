@@ -316,35 +316,6 @@ body::before {
   border-radius: var(--ctl-radius);
 }
 
-/* 输入框同档尺寸，使其可与按钮对齐到同一基线 */
-.form-input-sm,
-.form-input-md,
-.form-input-lg {
-  box-sizing: border-box;
-  line-height: 1;
-}
-
-.form-input-sm {
-  height: var(--ctl-h-sm);
-  padding: 0 var(--ctl-px-sm);
-  font-size: var(--ctl-fs-sm);
-  border-radius: var(--ctl-radius-sm);
-}
-
-.form-input-md {
-  height: var(--ctl-h-md);
-  padding: 0 var(--ctl-px-md);
-  font-size: var(--ctl-fs-md);
-  border-radius: var(--ctl-radius);
-}
-
-.form-input-lg {
-  height: var(--ctl-h-lg);
-  padding: 0 var(--ctl-px-lg);
-  font-size: var(--ctl-fs-lg);
-  border-radius: var(--ctl-radius);
-}
-
 /*
  * 分段控件基线（仅几何，不含配色）。
  * 轨道外高与 --ctl-h-md 相等，因此可与 .btn-md、.form-input-md 对齐到同一基线；
@@ -376,6 +347,91 @@ body::before {
   transition:
     color 0.15s ease,
     background-color 0.15s ease;
+}
+
+/*
+ * 开关基线：单一尺寸 + 单一选中色。
+ * 设置页原有 12 处手写模拟开关，分布在两种尺寸（h-6 w-11 / h-5 w-9）与
+ * 六种选中色（blue-600 / blue-500 / green-600 / orange-500 / purple-500 /
+ * teal-500 / cyan-500）之间；此处统一收敛，选中色取主题主色，
+ * 使开关状态成为可复用的语义而非逐功能配色。
+ */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.switch-track {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 24px;
+  box-sizing: border-box;
+  background: #d1d5db;
+  border-radius: 9999px;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.dark .switch-track {
+  background: #4b5563;
+}
+
+/* 滑块用伪元素绘制，与原有 after: 写法一致，迁移时只需替换类名不动结构 */
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.switch input:checked ~ .switch-track {
+  background: var(--primary-color);
+}
+
+.switch input:checked ~ .switch-track::after {
+  transform: translateX(20px);
+}
+
+.switch input:focus-visible ~ .switch-track {
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.25);
+}
+
+.switch input:disabled ~ .switch-track {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/*
+ * 显式开态修饰类：供以 role="switch" 按钮实现的开关复用同一基线。
+ * 该形态没有兄弟 checkbox，无法命中上面的兄弟选择器，故由调用点切换此类。
+ */
+.switch-track-on {
+  background: var(--primary-color);
+}
+
+.switch-track-on::after {
+  transform: translateX(20px);
+}
+
+button.switch-track:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.25);
+}
+
+button.switch-track:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .btn::before {
@@ -468,6 +524,54 @@ body::before {
   color: #1f2937;
 }
 
+/*
+ * 输入框同档尺寸，使其可与按钮对齐到同一基线。
+ * 必须声明在 .form-input 之后：基类硬编码了 padding / font-size / border-radius，
+ * 同优先级下后者胜出，若写在基类之前则整组尺寸档全部失效。
+ * 边框在变体内收为 1px，避免 2px 边框把声明高度顶高 2px；
+ * 未迁移的调用点仍走基类，视觉不变。
+ */
+.form-input-sm,
+.form-input-md,
+.form-input-lg {
+  box-sizing: border-box;
+  border-width: 1px;
+  /*
+   * 基类的 border 简写用了 25% 透明度主色，1px 宽度下几乎不可见。
+   * 调用点写 Tailwind 的 border-gray-300 无效：同优先级下 global.css
+   * 晚于工具类层加载而胜出，故边框色必须在此声明。
+   */
+  border-color: #d1d5db;
+  line-height: 1;
+}
+
+.dark .form-input-sm,
+.dark .form-input-md,
+.dark .form-input-lg {
+  border-color: #4b5563;
+}
+
+.form-input-sm {
+  height: var(--ctl-h-sm);
+  padding: 0 var(--ctl-px-sm);
+  font-size: var(--ctl-fs-sm);
+  border-radius: var(--ctl-radius-sm);
+}
+
+.form-input-md {
+  height: var(--ctl-h-md);
+  padding: 0 var(--ctl-px-md);
+  font-size: var(--ctl-fs-md);
+  border-radius: var(--ctl-radius);
+}
+
+.form-input-lg {
+  height: var(--ctl-h-lg);
+  padding: 0 var(--ctl-px-lg);
+  font-size: var(--ctl-fs-lg);
+  border-radius: var(--ctl-radius);
+}
+
 .dark .form-input:focus {
   box-shadow:
     0 0 0 3px rgba(var(--primary-rgb), 0.2),
@@ -542,7 +646,6 @@ body::before {
     0 10px 15px -3px rgba(0, 0, 0, 0.1),
     0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
-
 
 .table-container {
   background: var(--table-bg);

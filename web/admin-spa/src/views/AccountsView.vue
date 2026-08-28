@@ -1834,93 +1834,92 @@
           </div>
         </div>
       </div>
-    </div>
+      <div
+        v-if="!accountsLoading && sortedAccounts.length > 0"
+        class="mt-4 flex flex-col items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-gray-700/60 sm:mt-6 sm:flex-row sm:pt-5"
+      >
+        <div class="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
+          <span class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
+            共 {{ sortedAccounts.length }} 条记录
+          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">每页显示</span>
+            <select
+              v-model="pageSize"
+              class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 transition-colors hover:border-gray-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:text-sm"
+              @change="currentPage = 1"
+            >
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                {{ size }}
+              </option>
+            </select>
+            <span class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">条</span>
+          </div>
+        </div>
 
-    <div
-      v-if="!accountsLoading && sortedAccounts.length > 0"
-      class="mt-4 flex flex-col items-center justify-between gap-4 sm:mt-6 sm:flex-row"
-    >
-      <div class="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
-        <span class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
-          共 {{ sortedAccounts.length }} 条记录
-        </span>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">每页显示</span>
-          <select
-            v-model="pageSize"
-            class="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 transition-colors hover:border-gray-300 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500 sm:text-sm"
-            @change="currentPage = 1"
-          >
-            <option v-for="size in pageSizeOptions" :key="size" :value="size">
-              {{ size }}
-            </option>
-          </select>
-          <span class="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">条</span>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <button
-          class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
-          :disabled="currentPage === 1"
-          @click="currentPage--"
-        >
-          <i class="fas fa-chevron-left" />
-        </button>
-
-        <div class="flex items-center gap-1">
           <button
-            v-if="shouldShowFirstPage"
-            class="hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:block"
-            @click="currentPage = 1"
+            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
+            :disabled="currentPage === 1"
+            @click="currentPage--"
           >
-            1
+            <i class="fas fa-chevron-left" />
           </button>
 
-          <span
-            v-if="showLeadingEllipsis"
-            class="hidden px-2 text-sm text-gray-500 dark:text-gray-400 sm:block"
-          >
-            ...
-          </span>
+          <div class="flex items-center gap-1">
+            <button
+              v-if="shouldShowFirstPage"
+              class="hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:block"
+              @click="currentPage = 1"
+            >
+              1
+            </button>
+
+            <span
+              v-if="showLeadingEllipsis"
+              class="hidden px-2 text-sm text-gray-500 dark:text-gray-400 sm:block"
+            >
+              ...
+            </span>
+
+            <button
+              v-for="page in pageNumbers"
+              :key="page"
+              :class="[
+                'rounded-md border px-3 py-1 text-xs font-medium transition-colors sm:text-sm',
+                page === currentPage
+                  ? 'border-blue-500 bg-blue-50 text-blue-600 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300'
+                  : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+              ]"
+              @click="currentPage = page"
+            >
+              {{ page }}
+            </button>
+
+            <span
+              v-if="showTrailingEllipsis"
+              class="hidden px-2 text-sm text-gray-500 dark:text-gray-400 sm:block"
+            >
+              ...
+            </span>
+
+            <button
+              v-if="shouldShowLastPage"
+              class="hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:block"
+              @click="currentPage = totalPages"
+            >
+              {{ totalPages }}
+            </button>
+          </div>
 
           <button
-            v-for="page in pageNumbers"
-            :key="page"
-            :class="[
-              'rounded-md border px-3 py-1 text-xs font-medium transition-colors sm:text-sm',
-              page === currentPage
-                ? 'border-blue-500 bg-blue-50 text-blue-600 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-            ]"
-            @click="currentPage = page"
+            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
+            :disabled="currentPage === totalPages || totalPages === 0"
+            @click="currentPage++"
           >
-            {{ page }}
-          </button>
-
-          <span
-            v-if="showTrailingEllipsis"
-            class="hidden px-2 text-sm text-gray-500 dark:text-gray-400 sm:block"
-          >
-            ...
-          </span>
-
-          <button
-            v-if="shouldShowLastPage"
-            class="hidden rounded-md border border-gray-300 bg-white px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:block"
-            @click="currentPage = totalPages"
-          >
-            {{ totalPages }}
+            <i class="fas fa-chevron-right" />
           </button>
         </div>
-
-        <button
-          class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
-          :disabled="currentPage === totalPages || totalPages === 0"
-          @click="currentPage++"
-        >
-          <i class="fas fa-chevron-right" />
-        </button>
       </div>
     </div>
 

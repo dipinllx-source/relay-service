@@ -22,26 +22,32 @@
         <!-- 模式切换和查询按钮组 -->
         <div class="button-group flex items-center gap-2">
           <!-- 模式切换 -->
-          <div
-            class="mode-switch-group flex items-center rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
-          >
+          <div class="seg bg-gray-100 dark:bg-gray-800">
             <button
-              class="mode-switch-btn"
-              :class="{ active: !multiKeyMode }"
+              class="seg-item"
+              :class="
+                !multiKeyMode
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+              "
               title="单一模式"
               @click="multiKeyMode = false"
             >
               <i class="fas fa-key" />
-              <span class="ml-2 hidden sm:inline">单一</span>
+              <span class="hidden sm:inline">单一</span>
             </button>
             <button
-              class="mode-switch-btn"
-              :class="{ active: multiKeyMode }"
+              class="seg-item"
+              :class="
+                multiKeyMode
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+              "
               title="聚合模式"
               @click="multiKeyMode = true"
             >
               <i class="fas fa-layer-group" />
-              <span class="ml-2 hidden sm:inline">聚合</span>
+              <span class="hidden sm:inline">聚合</span>
               <span
                 v-if="multiKeyMode && parsedApiKeys.length > 0"
                 class="ml-1 rounded-full bg-white/20 px-1.5 py-0.5 text-xs font-semibold"

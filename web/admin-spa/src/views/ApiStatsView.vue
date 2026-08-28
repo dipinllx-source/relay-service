@@ -1,11 +1,9 @@
 <template>
-  <div
-    class="min-h-screen p-2 sm:p-4 md:p-6"
-    :class="isDarkMode ? 'gradient-bg-dark' : 'gradient-bg'"
-  >
+  <!-- 底色改用管理台一致的中性面：原为品牌紫渐变，与管理台视觉割裂 -->
+  <div class="min-h-screen bg-gray-50 p-2 dark:bg-gray-900 sm:p-4 md:p-6">
     <!-- 顶部导航 -->
     <div
-      class="glass-strong mb-4 rounded-2xl p-3 shadow-xl sm:mb-6 sm:rounded-3xl sm:p-4 md:mb-8 md:p-6"
+      class="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-6 sm:p-4 md:mb-8 md:p-6"
     >
       <div class="flex flex-col items-center justify-between gap-3 sm:gap-4 md:flex-row">
         <LogoTitle
@@ -51,22 +49,31 @@
     <!-- Tab 切换 -->
     <div class="mb-4 sm:mb-6 md:mb-8">
       <div class="flex justify-center">
-        <div
-          class="inline-flex w-full max-w-2xl flex-wrap justify-center gap-1 rounded-full border border-white/20 bg-white/10 p-1 shadow-lg backdrop-blur-xl sm:w-auto sm:flex-nowrap"
-        >
+        <!-- 与聚合切换器共用 .seg 分段控件基线，替换原半透明玻璃胶囊 -->
+        <div class="seg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
           <button
-            :class="['tab-pill-button', currentTab === 'stats' ? 'active' : '']"
+            class="seg-item"
+            :class="
+              currentTab === 'stats'
+                ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+            "
             @click="currentTab = 'stats'"
           >
-            <i class="fas fa-chart-line mr-1 md:mr-2" />
-            <span class="text-sm md:text-base">统计查询</span>
+            <i class="fas fa-chart-line" />
+            <span>统计查询</span>
           </button>
           <button
-            :class="['tab-pill-button', currentTab === 'tutorial' ? 'active' : '']"
+            class="seg-item"
+            :class="
+              currentTab === 'tutorial'
+                ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+            "
             @click="currentTab = 'tutorial'"
           >
-            <i class="fas fa-graduation-cap mr-1 md:mr-2" />
-            <span class="text-sm md:text-base">使用教程</span>
+            <i class="fas fa-graduation-cap" />
+            <span>使用教程</span>
           </button>
         </div>
       </div>
@@ -74,6 +81,31 @@
 
     <!-- 统计内容 -->
     <div v-if="currentTab === 'stats'" class="tab-content">
+      <!-- 查询前的公共概览：避免首屏除输入框外无任何内容 -->
+      <div
+        v-if="!hasQueried && platformRates.length"
+        class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      >
+        <div class="mb-3 flex items-baseline justify-between gap-3">
+          <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">可接入平台与计费倍率</p>
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            共 {{ platformRates.length }} 个平台
+          </span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <div
+            v-for="item in platformRates"
+            :key="item.key"
+            class="flex items-baseline gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40"
+          >
+            <span class="text-xs text-gray-600 dark:text-gray-300">{{ item.label }}</span>
+            <span class="text-sm font-bold tabular-nums text-blue-600 dark:text-blue-400">
+              ×{{ item.rate }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- API Key 输入区域 -->
       <ApiKeyInput />
 
@@ -89,7 +121,9 @@
 
       <!-- 统计数据展示区域 -->
       <div v-if="statsData" class="fade-in">
-        <div class="glass-strong rounded-2xl p-3 shadow-xl sm:rounded-3xl sm:p-4 md:p-6">
+        <div
+          class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4 md:p-6"
+        >
           <!-- 时间范围选择器 -->
           <div
             class="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 sm:mb-4 sm:pb-4 md:mb-6 md:pb-6"
@@ -216,7 +250,9 @@
 
     <!-- 教程内容 -->
     <div v-if="currentTab === 'tutorial'" class="tab-content">
-      <div class="glass-strong rounded-3xl shadow-xl">
+      <div
+        class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
+      >
         <TutorialView />
       </div>
     </div>
@@ -284,7 +320,6 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useApiStatsStore } from '@/stores/apistats'
-import { useThemeStore } from '@/stores/theme'
 
 import LogoTitle from '@/components/common/LogoTitle.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
@@ -300,13 +335,11 @@ import UnifiedTestModal from '@/components/common/UnifiedTestModal.vue'
 
 const route = useRoute()
 const apiStatsStore = useApiStatsStore()
-const themeStore = useThemeStore()
 
 // 当前标签页
 const currentTab = ref('stats')
 
 // 主题相关
-const isDarkMode = computed(() => themeStore.isDarkMode)
 
 const {
   apiKey,
@@ -317,8 +350,34 @@ const {
   statsPeriod,
   statsData,
   oemSettings,
-  multiKeyMode
+  multiKeyMode,
+  serviceRates
 } = storeToRefs(apiStatsStore)
+
+/*
+ * 查询前的公共概览：本页未认证即可访问，因此只能取公开数据。
+ * 刻意不展示全站用量总额——那会把整个部署的调用量与成本泄露给任何访客。
+ * 这里用已加载的服务倍率（/apiStats/service-rates 为公开接口）推导可接入平台。
+ */
+const platformRates = computed(() => {
+  const rates = serviceRates.value?.rates || {}
+  const labels = {
+    claude: 'Claude',
+    codex: 'Codex',
+    gemini: 'Gemini',
+    droid: 'Droid',
+    bedrock: 'Bedrock',
+    azure: 'Azure',
+    ccr: 'CCR'
+  }
+  return Object.entries(rates).map(([key, rate]) => ({
+    key,
+    label: labels[key] || key,
+    rate: Number(rate)
+  }))
+})
+
+const hasQueried = computed(() => !!statsData.value)
 
 const {
   queryStats,
@@ -808,67 +867,6 @@ watch(apiKey, (newValue) => {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
-}
-
-/* Tab 胶囊按钮样式 */
-.tab-pill-button {
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  font-weight: 500;
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.8);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  flex: 1;
-  justify-content: center;
-}
-
-/* 暗夜模式下的Tab按钮基础样式 */
-:global(html.dark) .tab-pill-button {
-  color: rgba(209, 213, 219, 0.8);
-}
-
-@media (min-width: 768px) {
-  .tab-pill-button {
-    padding: 0.625rem 1.25rem;
-    flex: none;
-  }
-}
-
-.tab-pill-button:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-:global(html.dark) .tab-pill-button:hover {
-  color: #f3f4f6;
-  background: rgba(100, 116, 139, 0.2);
-}
-
-.tab-pill-button.active {
-  background: white;
-  color: var(--secondary-color);
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-:global(html.dark) .tab-pill-button.active {
-  background: rgba(71, 85, 105, 0.9);
-  color: #f3f4f6;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.3),
-    0 2px 4px -1px rgba(0, 0, 0, 0.2);
-}
-
-.tab-pill-button i {
-  font-size: 0.875rem;
 }
 
 /* Tab 内容切换动画 */

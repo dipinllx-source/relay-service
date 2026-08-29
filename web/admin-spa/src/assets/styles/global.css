@@ -317,6 +317,23 @@ body::before {
 }
 
 /*
+ * 方形图标按钮：与 .btn-md 同高同圆角，但左右内边距归零、宽高相等，
+ * 用于只承载一个图标的行内操作（测试/编辑/删除等），避免被文本档位拉成长方形。
+ */
+.icon-btn-md {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--ctl-h-md);
+  height: var(--ctl-h-md);
+  padding: 0;
+  font-size: var(--ctl-fs-md);
+  line-height: 1;
+  border-radius: var(--ctl-radius);
+}
+
+/*
  * 分段控件基线（仅几何，不含配色）。
  * 轨道外高与 --ctl-h-md 相等，因此可与 .btn-md、.form-input-md 对齐到同一基线；
  * 配色与暗色变体仍由调用点的 Tailwind 类提供，避免影响既有主题。

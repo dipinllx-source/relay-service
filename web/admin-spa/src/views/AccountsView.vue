@@ -1214,7 +1214,7 @@
                     <button
                       v-if="showResetButton(account)"
                       :class="[
-                        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                        'btn-sm font-medium transition-colors',
                         account.isResetting
                           ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                           : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
@@ -1228,7 +1228,7 @@
                     </button>
                     <button
                       :class="[
-                        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                        'btn-sm font-medium transition-colors',
                         account.isTogglingSchedulable
                           ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                           : account.schedulable
@@ -1278,7 +1278,7 @@
                       <span class="ml-1">定时</span>
                     </button>
                     <button
-                      class="rounded bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200"
+                      class="btn-sm bg-blue-100 font-medium text-blue-700 transition-colors hover:bg-blue-200"
                       title="编辑账户"
                       @click="editAccount(account)"
                     >
@@ -1298,7 +1298,7 @@
                   <div v-else class="flex items-center gap-1">
                     <button
                       :class="[
-                        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                        'btn-sm font-medium transition-colors',
                         account.isTogglingSchedulable
                           ? 'cursor-not-allowed bg-gray-100 text-gray-400'
                           : account.schedulable
@@ -1313,7 +1313,7 @@
                       <span class="ml-1">{{ account.schedulable ? '调度' : '停用' }}</span>
                     </button>
                     <button
-                      class="rounded bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200"
+                      class="btn-sm bg-blue-100 font-medium text-blue-700 transition-colors hover:bg-blue-200"
                       title="编辑账户"
                       @click="editAccount(account)"
                     >
@@ -1859,7 +1859,7 @@
 
         <div class="flex items-center gap-2">
           <button
-            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
+            class="btn-sm border border-gray-300 bg-white font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
             :disabled="currentPage === 1"
             @click="currentPage--"
           >
@@ -1886,7 +1886,7 @@
               v-for="page in pageNumbers"
               :key="page"
               :class="[
-                'rounded-md border px-3 py-1 text-xs font-medium transition-colors sm:text-sm',
+                'btn-sm border font-medium transition-colors',
                 page === currentPage
                   ? 'border-blue-500 bg-blue-50 text-blue-600 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-300'
                   : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
@@ -1913,7 +1913,7 @@
           </div>
 
           <button
-            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
+            class="btn-sm border border-gray-300 bg-white font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 sm:py-1 sm:text-sm"
             :disabled="currentPage === totalPages || totalPages === 0"
             @click="currentPage++"
           >

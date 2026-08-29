@@ -297,7 +297,7 @@
             <div class="mb-4 flex items-center justify-between">
               <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">通知平台</h2>
               <button
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                class="btn-md bg-blue-600 font-medium text-white transition-colors hover:bg-blue-700"
                 @click="showAddPlatformModal = true"
               >
                 <i class="fas fa-plus mr-2"></i>
@@ -397,7 +397,7 @@
                     </label>
                     <!-- 测试按钮 -->
                     <button
-                      class="rounded-lg bg-blue-100 p-2 text-blue-600 transition-colors hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-400 dark:hover:bg-blue-800"
+                      class="icon-btn-md bg-blue-100 text-blue-600 transition-colors hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-400 dark:hover:bg-blue-800"
                       title="测试连接"
                       @click="testPlatform(platform)"
                     >
@@ -405,7 +405,7 @@
                     </button>
                     <!-- 编辑按钮 -->
                     <button
-                      class="rounded-lg bg-gray-100 p-2 text-gray-600 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+                      class="icon-btn-md bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
                       title="编辑"
                       @click="editPlatform(platform)"
                     >
@@ -413,7 +413,7 @@
                     </button>
                     <!-- 删除按钮 -->
                     <button
-                      class="rounded-lg bg-red-100 p-2 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900 dark:text-red-400 dark:hover:bg-red-800"
+                      class="icon-btn-md bg-red-100 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900 dark:text-red-400 dark:hover:bg-red-800"
                       title="删除"
                       @click="deletePlatform(platform.id)"
                     >
@@ -468,7 +468,7 @@
           <!-- 测试通知按钮 -->
           <div class="mt-6 text-center">
             <button
-              class="rounded-lg bg-green-600 px-6 py-3 text-white shadow-lg transition-all hover:bg-green-700 hover:shadow-xl"
+              class="btn-md bg-green-600 text-white shadow-lg transition-all hover:bg-green-700 hover:shadow-xl"
               @click="sendTestNotification"
             >
               <i class="fas fa-paper-plane mr-2"></i>

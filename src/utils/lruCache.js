@@ -2,6 +2,8 @@
  * LRU (Least Recently Used) 缓存实现
  * 用于缓存解密结果，提高性能同时控制内存使用
  */
+const logger = require('./logger')
+
 class LRUCache {
   constructor(maxSize = 500) {
     this.maxSize = maxSize
@@ -86,7 +88,7 @@ class LRUCache {
 
     this.lastCleanup = now
     if (cleanedCount > 0) {
-      console.log(`🧹 LRU Cache: Cleaned ${cleanedCount} expired items`)
+      logger.debug(`🧹 LRU Cache: Cleaned ${cleanedCount} expired items`)
     }
   }
 
@@ -99,7 +101,7 @@ class LRUCache {
     this.hits = 0
     this.misses = 0
     this.evictions = 0
-    console.log(`🗑️ LRU Cache: Cleared ${size} items`)
+    logger.debug(`🗑️ LRU Cache: Cleared ${size} items`)
   }
 
   /**
@@ -125,7 +127,7 @@ class LRUCache {
    */
   printStats() {
     const stats = this.getStats()
-    console.log(
+    logger.debug(
       `📊 LRU Cache Stats: Size: ${stats.size}/${stats.maxSize}, Hit Rate: ${stats.hitRate}, Hits: ${stats.hits}, Misses: ${stats.misses}, Evictions: ${stats.evictions}`
     )
   }

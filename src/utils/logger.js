@@ -176,6 +176,13 @@ const fileFormat = createFileFormat()
 const consoleFormat = createConsoleFormat()
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID
 
+// 🖥️ 控制台输出开关
+// 文件 transport 已有轮转/压缩/保留策略；stdout 由 systemd `append:` 接管且永不轮转，
+// 生产环境重复输出会无限堆积（实测 ~240MB/天）。默认生产关闭，可用 LOG_CONSOLE=true 强开。
+const enableConsoleTransport =
+  process.env.LOG_CONSOLE === 'true' ||
+  (process.env.LOG_CONSOLE !== 'false' && process.env.NODE_ENV !== 'production')
+
 // 📁 确保日志目录存在并设置权限
 if (!fs.existsSync(config.logging.dirname)) {
   fs.mkdirSync(config.logging.dirname, { recursive: true, mode: 0o755 })
@@ -250,12 +257,16 @@ const logger = winston.createLogger({
     dailyRotateFileTransport,
     errorFileTransport,
 
-    // 🖥️ 控制台输出
-    new winston.transports.Console({
-      format: consoleFormat,
-      handleExceptions: false,
-      handleRejections: false
-    })
+    // 🖥️ 控制台输出（生产默认关闭，见 enableConsoleTransport）
+    ...(enableConsoleTransport
+      ? [
+          new winston.transports.Console({
+            format: consoleFormat,
+            handleExceptions: false,
+            handleRejections: false
+          })
+        ]
+      : [])
   ],
 
   // 🚨 异常处理

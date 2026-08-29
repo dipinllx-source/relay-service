@@ -2841,7 +2841,7 @@ class RedisClient {
         apiKeysCreatedToday
       }
     } catch (error) {
-      console.error('Error getting today stats:', error)
+      logger.error('Error getting today stats:', error)
       return {
         requestsToday: 0,
         tokensToday: 0,
@@ -2908,7 +2908,7 @@ class RedisClient {
         totalTokens
       }
     } catch (error) {
-      console.error('Error getting system averages:', error)
+      logger.error('Error getting system averages:', error)
       return {
         systemRPM: 0,
         systemTPM: 0,
@@ -2998,7 +2998,7 @@ class RedisClient {
 
       return result
     } catch (error) {
-      console.error('Error getting realtime system metrics:', error)
+      logger.error('Error getting realtime system metrics:', error)
       // 如果出错，返回历史平均值作为降级方案
       const historicalMetrics = await this.getSystemAverages()
       return {

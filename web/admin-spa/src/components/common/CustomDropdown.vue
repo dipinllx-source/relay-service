@@ -3,13 +3,13 @@
     <!-- 触发器 -->
     <div
       ref="triggerRef"
-      class="relative flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm transition-all duration-200 hover:shadow-md dark:border-gray-600 dark:bg-gray-800"
+      class="relative flex h-8 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 shadow-sm transition-all duration-200 hover:shadow-md dark:border-gray-600 dark:bg-gray-800"
       :class="[isOpen && 'border-blue-400 shadow-md']"
       @click="toggleDropdown"
     >
-      <i v-if="icon" :class="['fas', icon, 'text-sm', iconColor]"></i>
+      <i v-if="icon" :class="['fas', icon, 'text-xs', iconColor]"></i>
       <span
-        class="select-none whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-200"
+        class="select-none whitespace-nowrap text-[13px] font-medium leading-none text-gray-700 dark:text-gray-200"
       >
         {{ selectedLabel || placeholder }}
       </span>

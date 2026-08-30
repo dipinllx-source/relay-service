@@ -50,16 +50,13 @@
                 到系统设置开启“请求明细采集”后，后台会开始记录新的请求摘要。历史请求不会回填。
               </p>
             </div>
-            <div class="flex flex-col gap-2 sm:flex-row">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
-                class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                 @click="goToSettings"
               >
-                <span
-                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                ></span>
-                <i class="fas fa-cog relative text-blue-500" />
-                <span class="relative">前往系统设置</span>
+                <i class="fas fa-cog text-blue-500" />
+                <span>前往系统设置</span>
               </button>
               <el-tooltip placement="top">
                 <template #content>
@@ -68,20 +65,17 @@
                   </div>
                 </template>
                 <button
-                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                  class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   :disabled="requestDetailBodyPreviewPurging"
                   @click="handleRequestDetailBodyPreviewPurge"
                 >
-                  <span
-                    class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                  ></span>
                   <i
                     :class="[
-                      'fas relative text-red-500',
+                      'fas text-red-500',
                       requestDetailBodyPreviewPurging ? 'fa-spinner fa-spin' : 'fa-trash-alt'
                     ]"
                   />
-                  <span class="relative">清理历史预览</span>
+                  <span>清理历史预览</span>
                 </button>
               </el-tooltip>
             </div>
@@ -134,10 +128,7 @@
             <div class="request-toolbar">
               <div class="request-filters">
                 <div class="request-filter-row request-filter-row-primary">
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-blue-500 to-purple-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-date-picker
                       v-model="filters.dateRange"
                       class="toolbar-element w-full"
@@ -150,10 +141,7 @@
                     />
                   </div>
 
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-cyan-500 to-teal-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-input
                       v-model="filters.keyword"
                       class="toolbar-element w-full"
@@ -168,10 +156,7 @@
                 </div>
 
                 <div class="request-filter-row request-filter-row-secondary">
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-indigo-500 to-blue-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-select
                       v-model="filters.apiKeyId"
                       class="toolbar-element w-full"
@@ -188,10 +173,7 @@
                     </el-select>
                   </div>
 
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-purple-500 to-pink-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-select
                       v-model="filters.accountId"
                       class="toolbar-element w-full"
@@ -208,10 +190,7 @@
                     </el-select>
                   </div>
 
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-emerald-500 to-green-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-select
                       v-model="filters.model"
                       class="toolbar-element w-full"
@@ -228,10 +207,7 @@
                     </el-select>
                   </div>
 
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-orange-500 to-amber-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-select
                       v-model="filters.endpoint"
                       class="toolbar-element w-full"
@@ -248,10 +224,7 @@
                     </el-select>
                   </div>
 
-                  <div class="toolbar-control group">
-                    <div
-                      class="toolbar-control-glow bg-gradient-to-r from-slate-500 to-gray-500"
-                    ></div>
+                  <div class="toolbar-control">
                     <el-select
                       v-model="filters.sortOrder"
                       class="toolbar-element w-full"
@@ -264,75 +237,32 @@
                 </div>
               </div>
 
+              <!--
+                动作区：容器补 items-center，按钮不再被 stretch 纵向拉伸；
+                统一 btn-md（32px / r8px）并移除纯装饰的发光渐变；
+                「导出 CSV / 清理历史预览」收进「更多」下拉。
+              -->
               <div class="request-toolbar-actions">
                 <button
-                  class="toolbar-action-button group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                  class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   :disabled="loading"
                   @click="refreshRecords"
                 >
-                  <span
-                    class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-green-500 to-teal-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                  ></span>
                   <i
-                    :class="[
-                      'fas relative text-green-500',
-                      loading ? 'fa-spinner fa-spin' : 'fa-sync-alt'
-                    ]"
+                    :class="['fas text-green-500', loading ? 'fa-spinner fa-spin' : 'fa-sync-alt']"
                   />
-                  <span class="relative">刷新</span>
+                  <span>刷新</span>
                 </button>
 
                 <button
-                  class="toolbar-action-button group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                  class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   @click="resetFilters"
                 >
-                  <span
-                    class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-gray-400 to-gray-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                  ></span>
-                  <i class="fas fa-undo relative text-gray-500" />
-                  <span class="relative">重置筛选</span>
+                  <i class="fas fa-undo text-gray-500" />
+                  <span>重置筛选</span>
                 </button>
 
-                <button
-                  class="toolbar-action-button group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
-                  :disabled="exporting"
-                  @click="exportCsv"
-                >
-                  <span
-                    class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                  ></span>
-                  <i
-                    :class="[
-                      'fas relative text-blue-500',
-                      exporting ? 'fa-spinner fa-spin' : 'fa-file-export'
-                    ]"
-                  />
-                  <span class="relative">导出 CSV</span>
-                </button>
-
-                <el-tooltip placement="top">
-                  <template #content>
-                    <div class="max-w-xs text-xs leading-relaxed">
-                      清理所有已保存的历史请求体预览数据；仅影响历史预览，不影响当前请求体预览开关设置
-                    </div>
-                  </template>
-                  <button
-                    class="toolbar-action-button group relative flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
-                    :disabled="requestDetailBodyPreviewPurging"
-                    @click="handleRequestDetailBodyPreviewPurge"
-                  >
-                    <span
-                      class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                    ></span>
-                    <i
-                      :class="[
-                        'fas relative text-red-500',
-                        requestDetailBodyPreviewPurging ? 'fa-spinner fa-spin' : 'fa-trash-alt'
-                      ]"
-                    />
-                    <span class="relative">清理历史预览</span>
-                  </button>
-                </el-tooltip>
+                <ActionDropdown :actions="requestMoreActions" align="end" label="更多" />
               </div>
             </div>
           </div>
@@ -595,6 +525,7 @@ import {
 } from '@/utils/http_apis'
 import { showToast, formatDate, formatNumber } from '@/utils/tools'
 import RequestDetailModal from '@/components/admin/RequestDetailModal.vue'
+import ActionDropdown from '@/components/common/ActionDropdown.vue'
 
 const router = useRouter()
 
@@ -988,6 +919,28 @@ const formatDuration = (value) => `${Number(value || 0)}ms`
 const formatPercent = (value) => `${Number(value || 0).toFixed(2)}%`
 const formatReasoning = (value) => value || '-'
 
+// 工具条「更多」下拉：动作区只常驻「刷新 / 重置筛选」，导出与清理收进下拉。
+const requestMoreActions = computed(() => [
+  {
+    key: 'export-csv',
+    label: exporting.value ? '导出中…' : '导出 CSV',
+    icon: exporting.value ? 'fa-spinner fa-spin' : 'fa-file-export',
+    color: 'blue',
+    handler: () => {
+      if (!exporting.value) exportCsv()
+    }
+  },
+  {
+    key: 'purge-body-preview',
+    label: requestDetailBodyPreviewPurging.value ? '清理中…' : '清理历史预览',
+    icon: requestDetailBodyPreviewPurging.value ? 'fa-spinner fa-spin' : 'fa-trash-alt',
+    color: 'red',
+    handler: () => {
+      if (!requestDetailBodyPreviewPurging.value) handleRequestDetailBodyPreviewPurge()
+    }
+  }
+])
+
 const debouncedKeywordFetch = debounce(() => {
   pagination.currentPage = 1
   fetchRecords(1)
@@ -1093,23 +1046,22 @@ onMounted(() => {
   min-width: 0;
 }
 
-.toolbar-control-glow {
-  position: absolute;
-  inset: -2px;
-  border-radius: 12px;
-  opacity: 0;
-  filter: blur(10px);
-  transition: opacity 0.3s ease;
-}
-
-.toolbar-control:hover .toolbar-control-glow {
-  opacity: 0.16;
-}
-
+/*
+ * 筛选控件收到与 .btn-md 相同的 32px / r8px 基线（原为 40px / r10px），
+ * 使筛选行与动作行对齐到同一条基线。
+ */
 .toolbar-control :deep(.el-input__wrapper),
 .toolbar-control :deep(.el-select__wrapper) {
-  min-height: 40px;
-  border-radius: 10px;
+  /*
+   * 高度写死而非 min-height：el-select 的 wrapper 内含 tag/placeholder 行高，
+   * 只给 min-height 时会被内容顶到 34px，与 el-input 的 32px 差 2px。
+   */
+  height: 32px;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: 8px;
   border: 1px solid rgb(229 231 235);
   background: rgb(255 255 255);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
@@ -1139,12 +1091,7 @@ onMounted(() => {
 .request-toolbar-actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.toolbar-action-button {
-  min-width: 112px;
-  white-space: nowrap;
+  gap: 8px;
 }
 
 .table-cell {

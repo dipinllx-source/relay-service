@@ -2,23 +2,59 @@
   <div class="tab-content">
     <div class="card p-4 sm:p-6">
       <div class="mb-4 flex flex-col gap-4 sm:mb-6">
-        <div>
-          <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:mb-2 sm:text-xl">
-            {{ activeTab === 'deleted' ? '已删除 API Keys' : '活跃 API Keys' }}
-          </h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
-            {{
-              activeTab === 'deleted' ? '查看和清理已删除的 API 密钥' : '管理和监控您的 API 密钥'
-            }}
-          </p>
+        <!--
+          标题与主操作同行：动作区常驻「刷新 + 创建新 Key」，次级动作收进「更多」下拉。
+          筛选器单独成行（见下方 tab-panel），两行同为块级容器，因此主按钮右缘
+          与筛选行右缘天然对齐，控件统一 btn-md（32px / r8px）基线。
+        -->
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:mb-2 sm:text-xl">
+              {{ activeTab === 'deleted' ? '已删除 API Keys' : '活跃 API Keys' }}
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
+              {{
+                activeTab === 'deleted' ? '查看和清理已删除的 API 密钥' : '管理和监控您的 API 密钥'
+              }}
+            </p>
+          </div>
+
+          <!-- 右侧：动作区（仅活跃 Tab；已删除 Tab 有独立的清空入口） -->
+          <div v-if="activeTab === 'active'" class="flex flex-wrap items-center gap-2">
+            <!-- 刷新按钮 -->
+            <button
+              class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-500"
+              :disabled="apiKeysLoading"
+              @click="loadApiKeys()"
+            >
+              <i
+                :class="[
+                  'fas text-green-500',
+                  apiKeysLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'
+                ]"
+              />
+              <span>刷新</span>
+            </button>
+
+            <!-- 更多：选择 / 导出 / 管理标签 / 批量编辑 / 批量删除 -->
+            <ActionDropdown :actions="apiKeysMoreActions" align="end" label="更多" />
+
+            <!-- 创建按钮（主操作，右缘与筛选行右缘对齐） -->
+            <button
+              class="btn-md bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-md transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg"
+              @click.stop="openCreateApiKeyModal"
+            >
+              <i class="fas fa-plus" />
+              <span>创建新 Key</span>
+            </button>
+          </div>
         </div>
 
         <!-- Tab Content -->
         <!-- 活跃 API Keys Tab Panel -->
         <div v-if="activeTab === 'active'" class="tab-panel">
-          <!-- 工具栏区域 - 添加 mb-4 增加与表格的间距 -->
-          <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <!-- 左侧：查询筛选器组 -->
+          <!-- 筛选行：与上方动作行各占一行，两行右缘对齐 -->
+          <div class="mb-4">
             <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
               <!-- 时间范围筛选 -->
               <div class="group relative min-w-[140px]">
@@ -48,7 +84,7 @@
                   range-separator="至"
                   size="small"
                   start-placeholder="开始日期"
-                  style="width: 320px; height: 38px"
+                  style="width: 320px"
                   type="datetimerange"
                   :unlink-panels="false"
                   value-format="YYYY-MM-DD HH:mm:ss"
@@ -119,7 +155,7 @@
                   <div class="relative flex items-center">
                     <input
                       v-model="searchKeyword"
-                      class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 pl-9 text-sm text-gray-700 placeholder-gray-400 shadow-sm transition-all duration-200 hover:border-gray-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:placeholder-gray-500 dark:hover:border-gray-500"
+                      class="form-input-md w-full border border-gray-200 bg-white text-gray-700 placeholder-gray-400 shadow-sm transition-all duration-200 hover:border-gray-300 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:placeholder-gray-500 dark:hover:border-gray-500"
                       :placeholder="
                         searchMode === 'bindingAccount'
                           ? '搜索所属账号...'
@@ -127,6 +163,7 @@
                             ? '搜索名称或所有者...'
                             : '搜索名称...'
                       "
+                      style="padding-left: 32px"
                       type="text"
                     />
                     <i class="fas fa-search absolute left-3 text-sm text-cyan-500" />
@@ -140,95 +177,6 @@
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- 右侧：操作按钮组 -->
-            <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-              <!-- 刷新按钮 -->
-              <button
-                class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-500 sm:w-auto"
-                :disabled="apiKeysLoading"
-                @click="loadApiKeys()"
-              >
-                <div
-                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-green-500 to-teal-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                ></div>
-                <i
-                  :class="[
-                    'fas relative text-green-500',
-                    apiKeysLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt'
-                  ]"
-                />
-                <span class="relative">刷新</span>
-              </button>
-
-              <!-- 选择/取消选择按钮 -->
-              <button
-                class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                @click="toggleSelectionMode"
-              >
-                <i :class="showCheckboxes ? 'fas fa-times' : 'fas fa-check-square'"></i>
-                <span>{{ showCheckboxes ? '取消选择' : '选择' }}</span>
-              </button>
-
-              <!-- 导出数据按钮 -->
-              <button
-                class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-500 sm:w-auto"
-                @click="exportToExcel"
-              >
-                <div
-                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                ></div>
-                <i class="fas fa-file-excel relative text-emerald-500" />
-                <span class="relative">导出数据</span>
-              </button>
-
-              <!-- 管理标签按钮 -->
-              <button
-                class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-gray-500 sm:w-auto"
-                @click="showTagManagementModal = true"
-              >
-                <div
-                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                ></div>
-                <i class="fas fa-tags relative text-purple-500" />
-                <span class="relative">管理标签</span>
-              </button>
-
-              <!-- 批量编辑按钮 - 移到刷新按钮旁边 -->
-              <button
-                v-if="selectedApiKeys.length > 0"
-                class="btn-md group relative border border-blue-200 bg-blue-50 font-medium text-blue-700 shadow-sm transition-all duration-200 hover:border-blue-300 hover:bg-blue-100 hover:shadow-md dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50 sm:w-auto"
-                @click="openBatchEditModal()"
-              >
-                <div
-                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                ></div>
-                <i class="fas fa-edit relative text-blue-600 dark:text-blue-400" />
-                <span class="relative">编辑选中 ({{ selectedApiKeys.length }})</span>
-              </button>
-
-              <!-- 批量删除按钮 - 移到刷新按钮旁边 -->
-              <button
-                v-if="selectedApiKeys.length > 0"
-                class="btn-md group relative border border-red-200 bg-red-50 font-medium text-red-700 shadow-sm transition-all duration-200 hover:border-red-300 hover:bg-red-100 hover:shadow-md dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50 sm:w-auto"
-                @click="batchDeleteApiKeys()"
-              >
-                <div
-                  class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                ></div>
-                <i class="fas fa-trash relative text-red-600 dark:text-red-400" />
-                <span class="relative">删除选中 ({{ selectedApiKeys.length }})</span>
-              </button>
-
-              <!-- 创建按钮 -->
-              <button
-                class="btn-md w-full bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-md transition-all duration-200 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg sm:w-auto"
-                @click.stop="openCreateApiKeyModal"
-              >
-                <i class="fas fa-plus"></i>
-                <span>创建新 Key</span>
-              </button>
             </div>
           </div>
 
@@ -1997,6 +1945,55 @@ const toggleSelectionMode = () => {
     isIndeterminate.value = false
   }
 }
+
+// 工具条「更多」下拉：次级动作集中收纳，工具条只常驻「刷新 + 创建新 Key」。
+// 批量项与原按钮一致，仅在有选中项时出现（原先是 v-if 控制的独立按钮）。
+const apiKeysMoreActions = computed(() => {
+  const actions = [
+    {
+      key: 'toggle-selection',
+      label: showCheckboxes.value ? '取消选择' : '选择',
+      icon: showCheckboxes.value ? 'fa-times' : 'fa-check-square',
+      color: 'gray',
+      handler: toggleSelectionMode
+    },
+    {
+      key: 'export',
+      label: '导出数据',
+      icon: 'fa-file-excel',
+      color: 'green',
+      handler: () => exportToExcel()
+    },
+    {
+      key: 'manage-tags',
+      label: '管理标签',
+      icon: 'fa-tags',
+      color: 'purple',
+      handler: () => {
+        showTagManagementModal.value = true
+      }
+    }
+  ]
+
+  if (selectedApiKeys.value.length > 0) {
+    actions.push({
+      key: 'batch-edit',
+      label: `编辑选中 (${selectedApiKeys.value.length})`,
+      icon: 'fa-edit',
+      color: 'blue',
+      handler: () => openBatchEditModal()
+    })
+    actions.push({
+      key: 'batch-delete',
+      label: `删除选中 (${selectedApiKeys.value.length})`,
+      icon: 'fa-trash',
+      color: 'red',
+      handler: () => batchDeleteApiKeys()
+    })
+  }
+
+  return actions
+})
 
 // 时间范围下拉选项
 const timeRangeDropdownOptions = computed(() => [
@@ -4816,12 +4813,16 @@ onUnmounted(() => {
   @apply text-gray-500;
 }
 
-/* 自定义日期范围选择器高度对齐 */
+/*
+ * 自定义日期范围选择器高度对齐。
+ * 收到与 .btn-md / .form-input-md 相同的 32px 基线（原为 Element Plus 自带的 38px），
+ * 使其与筛选行其余控件对齐到同一条基线。
+ */
 .custom-date-range-picker :deep(.el-input__wrapper) {
-  @apply h-[38px] rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800;
+  @apply h-8 rounded-lg border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800;
 }
 .custom-date-range-picker :deep(.el-input__inner) {
-  @apply h-full py-2 text-sm font-medium text-gray-700 dark:text-gray-200;
+  @apply h-full py-0 text-sm font-medium leading-none text-gray-700 dark:text-gray-200;
 }
 .custom-date-range-picker :deep(.el-input__prefix),
 .custom-date-range-picker :deep(.el-input__suffix) {

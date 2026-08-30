@@ -145,72 +145,37 @@
               </el-tooltip>
             </div>
 
-            <!-- 刷新余额按钮 -->
-            <div class="relative">
+            <!--
+              刷新余额：仅当本页存在已配置余额脚本（按量计费）的账户时才渲染。
+              原先恒定渲染并置灰，在没有此类账户的部署上是一个永远点不动的按钮。
+            -->
+            <div v-if="canRefreshVisibleBalances" class="relative">
               <el-tooltip :content="refreshBalanceTooltip" effect="dark" placement="bottom">
                 <button
-                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
-                  :disabled="accountsLoading || refreshingBalances || !canRefreshVisibleBalances"
+                  class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                  :disabled="accountsLoading || refreshingBalances"
                   @click="refreshVisibleBalances"
                 >
-                  <div
-                    class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                  ></div>
                   <i
                     :class="[
-                      'fas relative text-blue-500',
+                      'fas text-blue-500',
                       refreshingBalances ? 'fa-spinner fa-spin' : 'fa-wallet'
                     ]"
                   />
-                  <span class="relative">刷新余额</span>
+                  <span>刷新余额</span>
                 </button>
               </el-tooltip>
             </div>
 
-            <!-- 选择/取消选择按钮 -->
-            <button
-              class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              @click="toggleSelectionMode"
-            >
-              <i :class="showCheckboxes ? 'fas fa-times' : 'fas fa-check-square'"></i>
-              <span>{{ showCheckboxes ? '取消选择' : '选择' }}</span>
-            </button>
+            <!-- 更多：选择 / 分组 / 批量删除 -->
+            <ActionDropdown :actions="accountsMoreActions" align="end" label="更多" />
 
-            <!-- 分组管理按钮 -->
-            <div class="relative">
-              <el-tooltip content="管理账户分组" effect="dark" placement="bottom">
-                <button
-                  class="btn-md group relative border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
-                  @click="showGroupManagementModal = true"
-                >
-                  <div
-                    class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-                  ></div>
-                  <i class="fas fa-layer-group relative text-purple-500" />
-                  <span class="relative">分组</span>
-                </button>
-              </el-tooltip>
-            </div>
-
-            <!-- 批量删除按钮 -->
+            <!-- 添加账户按钮（主操作，固定在最右） -->
             <button
-              v-if="selectedAccounts.length > 0"
-              class="btn-md group relative border border-red-200 bg-red-50 font-medium text-red-700 shadow-sm transition-all duration-200 hover:border-red-300 hover:bg-red-100 hover:shadow-md dark:border-red-700 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
-              @click="batchDeleteAccounts"
-            >
-              <div
-                class="absolute -inset-0.5 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 opacity-0 blur transition duration-300 group-hover:opacity-20"
-              ></div>
-              <i class="fas fa-trash relative text-red-600 dark:text-red-400" />
-              <span class="relative">删除选中 ({{ selectedAccounts.length }})</span>
-            </button>
-
-            <!-- 添加账户按钮 -->
-            <button
-              class="btn-md w-full bg-gradient-to-r from-green-500 to-green-600 font-medium text-white shadow-md transition-all duration-200 hover:from-green-600 hover:to-green-700 hover:shadow-lg sm:w-auto"
+              class="btn-md bg-gradient-to-r from-green-500 to-green-600 font-medium text-white shadow-md transition-all duration-200 hover:from-green-600 hover:to-green-700 hover:shadow-lg"
               @click.stop="openCreateAccountModal"
             >
-              <i class="fas fa-plus"></i>
+              <i class="fas fa-plus" />
               <span>添加账户</span>
             </button>
           </div>
@@ -3155,6 +3120,40 @@ const toggleSelectionMode = () => {
     updateSelectAllState()
   }
 }
+
+// 工具条「更多」下拉：次级动作集中收纳，工具条只常驻「统计 / 刷新 / 更多 / 添加账户」。
+const accountsMoreActions = computed(() => {
+  const actions = [
+    {
+      key: 'toggle-selection',
+      label: showCheckboxes.value ? '取消选择' : '选择',
+      icon: showCheckboxes.value ? 'fa-times' : 'fa-check-square',
+      color: 'gray',
+      handler: toggleSelectionMode
+    },
+    {
+      key: 'groups',
+      label: '分组管理',
+      icon: 'fa-layer-group',
+      color: 'purple',
+      handler: () => {
+        showGroupManagementModal.value = true
+      }
+    }
+  ]
+
+  if (selectedAccounts.value.length > 0) {
+    actions.push({
+      key: 'batch-delete',
+      label: `删除选中 (${selectedAccounts.value.length})`,
+      icon: 'fa-trash',
+      color: 'red',
+      handler: () => batchDeleteAccounts()
+    })
+  }
+
+  return actions
+})
 
 const cleanupSelectedAccounts = () => {
   const validIds = new Set(accounts.value.map((account) => account.id))

@@ -1,17 +1,26 @@
 <template>
   <div class="relative">
     <!-- 触发器按钮 -->
+    <!--
+      两种形态共用同一套下拉逻辑：
+        - 无 label：表格行内的方形图标按钮（icon-btn-md，与行内操作同高）
+        - 有 label：工具条上的文字按钮（btn-md，与筛选器、主按钮同一 32px 基线）
+    -->
     <button
       ref="triggerRef"
-      class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+      class="border border-gray-200 bg-white transition-all duration-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200"
       :class="[
+        label
+          ? 'btn-md font-medium text-gray-700 dark:text-gray-200'
+          : 'icon-btn-md text-gray-600 dark:text-gray-400',
         isOpen &&
           'border-blue-400 bg-blue-50 text-blue-600 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
       ]"
-      title="更多操作"
+      :title="label || '更多操作'"
       @click.stop="toggleDropdown"
     >
-      <i class="fas fa-ellipsis-v text-sm"></i>
+      <i :class="['fas', label ? 'fa-ellipsis-h' : 'fa-ellipsis-v', 'text-sm']"></i>
+      <span v-if="label">{{ label }}</span>
     </button>
 
     <!-- 下拉菜单 - 使用 Teleport 避免被父容器裁剪 -->
@@ -49,11 +58,22 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 
-defineProps({
+const props = defineProps({
   actions: {
     type: Array,
     required: true
     // 格式: [{ key: 'edit', label: '编辑', icon: 'fa-edit', color: 'blue', handler: () => {} }]
+  },
+  // 有值时触发器渲染为工具条文字按钮（如「更多」），无值时保持原有方形图标按钮
+  label: {
+    type: String,
+    default: ''
+  },
+  // 'auto'：优先向右侧展开（表格行内，避免遮挡数据）
+  // 'end' ：右缘与触发器右缘对齐并向下展开（工具条，避免超出卡片右缘）
+  align: {
+    type: String,
+    default: 'auto'
   }
 })
 
@@ -115,8 +135,10 @@ const updateDropdownPosition = () => {
   if (!triggerRef.value || !isOpen.value) return
 
   const trigger = triggerRef.value.getBoundingClientRect()
-  const dropdownHeight = 200 // 预估高度
-  const dropdownWidth = 180 // 预估宽度，略大以减少遮挡
+  // 优先用已渲染的实测尺寸（nextTick 后可取），取不到时才回退到预估值；
+  // align='end' 靠右缘对齐，宽度偏差会直接变成可见的错位，因此必须实测。
+  const dropdownHeight = dropdownRef.value?.offsetHeight || 200
+  const dropdownWidth = dropdownRef.value?.offsetWidth || 180
   const gap = 8
   const spaceBelow = window.innerHeight - trigger.bottom
   const spaceAbove = trigger.top
@@ -132,8 +154,12 @@ const updateDropdownPosition = () => {
     top = trigger.top - dropdownHeight - gap
   }
 
-  // 计算水平位置 - 优先向右展开，避免遮挡左侧内容
-  if (spaceRight >= dropdownWidth + gap) {
+  // 计算水平位置
+  if (props.align === 'end') {
+    // 工具条形态：右缘对齐触发器右缘，正下方展开
+    left = trigger.right - dropdownWidth
+  } else if (spaceRight >= dropdownWidth + gap) {
+    // 行内形态：优先向右展开，避免遮挡左侧内容
     left = trigger.right + gap
   } else if (spaceLeft >= dropdownWidth + gap) {
     left = trigger.left - dropdownWidth - gap + trigger.width

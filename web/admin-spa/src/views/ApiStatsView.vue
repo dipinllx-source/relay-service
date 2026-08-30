@@ -303,7 +303,7 @@
               <span class="text-sm text-gray-600 dark:text-gray-400">本次会话不再显示</span>
             </label>
             <button
-              class="w-full rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2.5 font-medium text-white transition-all hover:from-blue-600 hover:to-cyan-600"
+              class="btn-md w-full bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white transition-all hover:from-blue-600 hover:to-blue-700"
               @click="dismissNotice"
             >
               知道了
@@ -568,61 +568,10 @@ watch(apiKey, (newValue) => {
 
 <style scoped>
 /* 渐变背景 */
-.gradient-bg {
-  background: linear-gradient(
-    135deg,
-    var(--bg-gradient-start) 0%,
-    var(--bg-gradient-mid) 50%,
-    var(--bg-gradient-end) 100%
-  );
-  background-attachment: fixed;
-  min-height: 100vh;
-  position: relative;
-}
 
 /* 暗色模式的渐变背景 */
-.gradient-bg-dark {
-  background: linear-gradient(
-    135deg,
-    var(--bg-gradient-start) 0%,
-    var(--bg-gradient-mid) 50%,
-    var(--bg-gradient-end) 100%
-  );
-  background-attachment: fixed;
-  min-height: 100vh;
-  position: relative;
-}
-
-.gradient-bg::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(circle at 20% 80%, rgba(var(--accent-rgb), 0.2) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(var(--primary-rgb), 0.2) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(var(--secondary-rgb), 0.1) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
-}
 
 /* 暗色模式的背景覆盖 */
-.gradient-bg-dark::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(circle at 20% 80%, rgba(var(--accent-rgb), 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(var(--primary-rgb), 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(var(--secondary-rgb), 0.1) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: 0;
-}
 
 /* 玻璃态效果 - 使用CSS变量 */
 .glass-strong {

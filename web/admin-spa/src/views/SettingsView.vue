@@ -14,7 +14,7 @@
           </p>
         </div>
 
-        <!-- 保存与重置成对置于标题行右侧；仅品牌设置为手动保存，其余分区均为改动即存 -->
+        <!-- 保存与重置成对置于标题行右侧 -->
         <div
           v-if="!loading && activeSection === 'branding'"
           class="flex flex-col items-stretch gap-2 sm:flex-shrink-0 sm:items-end"
@@ -43,6 +43,39 @@
             class="text-xs text-gray-500 dark:text-gray-400 sm:text-right"
           >
             <i class="fas fa-clock mr-1" />最后更新：{{ formatDateTime(oemSettings.updatedAt) }}
+          </p>
+        </div>
+
+        <!--
+          通知设置同样走显式保存：原先 4 处 @change 直接落库（改一个开关就发一次请求），
+          与品牌设置的「改完再保存」是两套并存的心智模型。改为脏值提示 + 保存后，
+          全页保存范式统一。平台的启用开关例外（独立接口、单条即时生效）。
+        -->
+        <div
+          v-if="!loading && activeSection === 'webhook'"
+          class="flex flex-col items-stretch gap-2 sm:flex-shrink-0 sm:items-end"
+        >
+          <div class="flex gap-2">
+            <button
+              class="btn-md bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="webhookSaving || !webhookDirty"
+              @click="saveWebhookConfig"
+            >
+              <i :class="['fas', webhookSaving ? 'fa-spinner fa-spin' : 'fa-save']" />
+              {{ webhookSaving ? '保存中' : '保存设置' }}
+            </button>
+
+            <button
+              class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+              :disabled="webhookSaving || !webhookDirty"
+              @click="discardWebhookChanges"
+            >
+              <i class="fas fa-undo" />
+              放弃更改
+            </button>
+          </div>
+          <p v-if="webhookDirty" class="text-xs text-amber-600 sm:text-right">
+            <i class="fas fa-circle-exclamation mr-1" />有未保存的更改
           </p>
         </div>
       </div>
@@ -247,12 +280,7 @@
                 </p>
               </div>
               <label class="switch">
-                <input
-                  v-model="webhookConfig.enabled"
-                  class="peer sr-only"
-                  type="checkbox"
-                  @change="saveWebhookConfig"
-                />
+                <input v-model="webhookConfig.enabled" class="peer sr-only" type="checkbox" />
                 <div class="switch-track"></div>
               </label>
             </div>
@@ -282,7 +310,6 @@
                     v-model="webhookConfig.notificationTypes[type]"
                     class="peer sr-only"
                     type="checkbox"
-                    @change="saveWebhookConfig"
                   />
                   <div class="switch-track"></div>
                 </label>
@@ -442,7 +469,6 @@
                   max="10"
                   min="0"
                   type="number"
-                  @change="saveWebhookConfig"
                 />
               </div>
               <div>
@@ -456,7 +482,6 @@
                   min="100"
                   step="100"
                   type="number"
-                  @change="saveWebhookConfig"
                 />
               </div>
             </div>
@@ -1849,6 +1874,47 @@ const webhookConfig = ref({
   }
 })
 
+/*
+ * 通知设置改为显式保存后需要的状态。
+ * webhookSavedSnapshot 保存「上一次与服务端一致」的快照，脏值判定与
+ * 「放弃更改」都以它为基准；平台列表由独立接口即时生效，不参与脏值比较，
+ * 否则新增/删除平台后会一直显示「有未保存的更改」。
+ */
+const webhookSaving = ref(false)
+const webhookSavedSnapshot = ref('')
+
+const pickWebhookComparable = (config) => ({
+  enabled: config?.enabled ?? false,
+  notificationTypes: {
+    ...DEFAULT_WEBHOOK_NOTIFICATION_TYPES,
+    ...(config?.notificationTypes || {})
+  },
+  retrySettings: {
+    maxRetries: 3,
+    retryDelay: 1000,
+    ...(config?.retrySettings || {})
+  }
+})
+
+const snapshotWebhookConfig = () => {
+  webhookSavedSnapshot.value = JSON.stringify(pickWebhookComparable(webhookConfig.value))
+}
+
+const webhookDirty = computed(
+  () =>
+    webhookSavedSnapshot.value !== '' &&
+    JSON.stringify(pickWebhookComparable(webhookConfig.value)) !== webhookSavedSnapshot.value
+)
+
+const discardWebhookChanges = () => {
+  if (!webhookSavedSnapshot.value) return
+  const saved = JSON.parse(webhookSavedSnapshot.value)
+  webhookConfig.value = {
+    ...webhookConfig.value,
+    ...saved
+  }
+}
+
 // Claude 转发配置
 const claudeConfigLoading = ref(false)
 const claudeConfig = ref({
@@ -2213,6 +2279,8 @@ const loadWebhookConfig = async () => {
           ...(config.retrySettings || {})
         }
       }
+      // 取回即视为「与服务端一致」，作为脏值判定基准
+      snapshotWebhookConfig()
     }
   } catch (error) {
     if (error.name === 'AbortError') return
@@ -2223,8 +2291,30 @@ const loadWebhookConfig = async () => {
 }
 
 // 保存webhook配置
+/*
+ * 平台由独立接口即时生效（新增/编辑/删除/启停），刷新后只更新平台列表，
+ * 不整体覆盖 webhookConfig —— 否则会把用户尚未保存的通知类型/重试设置改动冲掉。
+ */
+const reloadWebhookPlatforms = async () => {
+  if (!isMounted.value) return
+  try {
+    const response = await httpApis.getWebhookConfigApi({
+      signal: abortController.value.signal
+    })
+    if (response.success && isMounted.value) {
+      const config = response.config || {}
+      webhookConfig.value.platforms = Array.isArray(config.platforms) ? config.platforms : []
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') return
+    if (!isMounted.value) return
+    console.error(error)
+  }
+}
+
 const saveWebhookConfig = async () => {
   if (!isMounted.value) return
+  webhookSaving.value = true
   try {
     const payload = {
       ...webhookConfig.value,
@@ -2239,6 +2329,7 @@ const saveWebhookConfig = async () => {
     })
     if (response.success && isMounted.value) {
       webhookConfig.value = payload
+      snapshotWebhookConfig()
       showToast('配置已保存', 'success')
     }
   } catch (error) {
@@ -2246,6 +2337,10 @@ const saveWebhookConfig = async () => {
     if (!isMounted.value) return
     showToast('保存配置失败', 'error')
     console.error(error)
+  } finally {
+    if (isMounted.value) {
+      webhookSaving.value = false
+    }
   }
 }
 
@@ -2583,7 +2678,7 @@ const savePlatform = async () => {
 
     if (response.success && isMounted.value) {
       showToast(editingPlatform.value ? '平台已更新' : '平台已添加', 'success')
-      await loadWebhookConfig()
+      await reloadWebhookPlatforms()
       closePlatformModal()
     }
   } catch (error) {
@@ -2646,7 +2741,7 @@ const deletePlatform = async (id) => {
     })
     if (response.success && isMounted.value) {
       showToast('平台已删除', 'success')
-      await loadWebhookConfig()
+      await reloadWebhookPlatforms()
     }
   } catch (error) {
     if (error.name === 'AbortError') return
@@ -2666,7 +2761,7 @@ const togglePlatform = async (id) => {
     })
     if (response.success && isMounted.value) {
       showToast(response.message, 'success')
-      await loadWebhookConfig()
+      await reloadWebhookPlatforms()
     }
   } catch (error) {
     if (error.name === 'AbortError') return

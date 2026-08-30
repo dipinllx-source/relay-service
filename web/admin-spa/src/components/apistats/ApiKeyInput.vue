@@ -1,12 +1,12 @@
 <template>
-  <div class="api-input-wide-card mb-8 rounded-3xl p-6 shadow-xl">
+  <div class="api-input-wide-card mb-6 rounded-2xl p-5">
     <!-- 标题区域 -->
-    <div class="wide-card-title mb-6">
-      <h2 class="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-200">
-        <i class="fas fa-chart-line mr-3" />
+    <div class="wide-card-title mb-4">
+      <h2 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-200 sm:text-xl">
+        <i class="fas fa-chart-line mr-2" />
         使用统计查询
       </h2>
-      <p class="text-base text-gray-600 dark:text-gray-400">查询您的 API Key 使用情况和统计数据</p>
+      <p class="text-sm text-gray-600 dark:text-gray-400">查询您的 API Key 使用情况和统计数据</p>
     </div>
 
     <!-- 输入区域 -->
@@ -105,7 +105,7 @@
         <!-- 查询按钮 -->
         <div class="lg:col-span-1">
           <button
-            class="btn btn-primary btn-query flex h-full w-full items-center justify-center gap-2"
+            class="btn-md w-full bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="loading || !hasValidInput"
             @click="queryStats"
           >
@@ -175,64 +175,32 @@ const hasValidInput = computed(() => {
 
 <style scoped>
 /* 宽卡片样式 - 使用CSS变量 */
+/*
+ * 归统到管理台卡片观感：16px 圆角（模板上的 rounded-2xl）+ 常规边框 + 轻阴影。
+ * 原先是 rounded-3xl 配 50px 扩散阴影与 hover 位移，与看板/账户等页的 .card 完全两套。
+ */
 .api-input-wide-card {
   background: var(--surface-color);
-  backdrop-filter: blur(25px);
   border: 1px solid var(--border-color);
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.2s ease;
 }
 
-/* 暗夜模式宽卡片样式 */
-.dark .api-input-wide-card {
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(75, 85, 99, 0.2),
-    inset 0 1px 0 rgba(107, 114, 128, 0.15);
-}
-
-.api-input-wide-card:hover {
-  box-shadow:
-    0 32px 64px -12px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
-
-.dark .api-input-wide-card:hover {
-  box-shadow:
-    0 32px 64px -12px rgba(0, 0, 0, 0.7),
-    0 0 0 1px rgba(75, 85, 99, 0.25),
-    inset 0 1px 0 rgba(107, 114, 128, 0.3) !important;
-}
-
-/* 标题样式 */
-.wide-card-title h2 {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  font-weight: 700;
-}
-
+/* 标题样式：去掉 text-shadow，与其余管理页标题一致 */
 .dark .wide-card-title h2 {
   color: #f9fafb;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .wide-card-title p {
   color: #6b7280;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
 .dark .wide-card-title p {
   color: #9ca3af;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
 .wide-card-title .fas.fa-chart-line {
   color: #3b82f6;
-  text-shadow: 0 1px 2px rgba(59, 130, 246, 0.2);
 }
 
 /* 网格布局 */
@@ -242,20 +210,35 @@ const hasValidInput = computed(() => {
 }
 
 /* 输入框样式 - 使用CSS变量 */
+/*
+ * 输入框收到 32px / r8px 基线：原为 2px 边框 + 12px 圆角 + 16px 字号 + 14px 内距，
+ * 比同页分段控件高一大截。单行 input 固定 32px；textarea 是多行，只统一
+ * 边框/圆角/字号，高度仍由 rows 决定。
+ */
 .wide-card-input {
   background: var(--input-bg);
-  border: 2px solid var(--input-border);
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-size: 16px;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
+  border: 1px solid var(--input-border);
+  border-radius: var(--ctl-radius);
+  padding: 0 var(--ctl-px-md);
+  font-size: var(--ctl-fs-md);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   color: var(--text-primary);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+input.wide-card-input {
+  height: var(--ctl-h-md);
+  line-height: 1;
+}
+
+textarea.wide-card-input {
+  padding: 8px var(--ctl-px-md);
+  line-height: 1.5;
 }
 
 .dark .wide-card-input {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   color: #e5e7eb;
 }
 
@@ -270,61 +253,22 @@ const hasValidInput = computed(() => {
 .wide-card-input:focus {
   outline: none;
   border-color: #60a5fa;
-  box-shadow:
-    0 0 0 3px rgba(96, 165, 250, 0.2),
-    0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
   background: white;
   color: #1f2937;
 }
 
 .dark .wide-card-input:focus {
   border-color: var(--primary-color);
-  box-shadow:
-    0 0 0 3px rgba(var(--primary-rgb), 0.15),
-    0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
   background: var(--glass-strong-color);
   color: #f3f4f6;
 }
 
-/* 按钮样式 */
-.btn {
-  font-weight: 500;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  letter-spacing: 0.025em;
-}
-
-/* 查询按钮特定样式 */
-.btn-query {
-  padding: 14px 24px;
-  font-size: 16px;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
-  box-shadow:
-    0 10px 15px -3px rgba(var(--primary-rgb), 0.3),
-    0 4px 6px -2px rgba(var(--primary-rgb), 0.05);
-}
-
-.btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow:
-    0 20px 25px -5px rgba(var(--primary-rgb), 0.3),
-    0 10px 10px -5px rgba(var(--primary-rgb), 0.1);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
+/*
+ * 查询按钮改用全局 .btn-md（32px / r8px），本地不再重复定义 .btn / .btn-primary，
+ * 避免与 global.css 的按钮基线冲突（原先是 14px 内距 + 16px 字号 = 52px 高）。
+ */
 /* 安全提示样式 */
 .security-notice {
   background: rgba(255, 255, 255, 0.5);
@@ -438,16 +382,6 @@ const hasValidInput = computed(() => {
     gap: 1rem;
   }
 
-  .wide-card-input {
-    padding: 12px 14px;
-    font-size: 15px;
-  }
-
-  .btn-query {
-    padding: 12px 20px;
-    font-size: 15px;
-  }
-
   .security-notice {
     padding: 10px 14px;
     font-size: 0.8rem;
@@ -481,16 +415,6 @@ const hasValidInput = computed(() => {
 
   .wide-card-title p {
     font-size: 0.8rem;
-  }
-
-  .wide-card-input {
-    padding: 10px 12px;
-    font-size: 14px;
-  }
-
-  .btn-query {
-    padding: 10px 16px;
-    font-size: 14px;
   }
 }
 </style>

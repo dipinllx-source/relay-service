@@ -1,174 +1,35 @@
 <template>
   <div>
-    <!-- 主要统计 -->
-    <div
-      class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 md:mb-8 md:gap-6 lg:grid-cols-4"
-    >
+    <!--
+      一级指标：4 张卡密度一致，每张都是「标题 + 主值 + 两条辅助信息」，
+      不再出现「总API Keys」那种只有一个数字、下半张卡空着的形态。
+      RPM 与 TPM 合成一张双栏卡（原先独占一张三列卡）。
+      API Keys 数 / 账户数 / 累计量降级到下方摘要行。
+    -->
+    <div class="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:mb-4 lg:grid-cols-4">
       <div class="stat-card">
         <div class="flex items-center justify-between">
-          <div>
-            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              总API Keys
-            </p>
-            <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 sm:text-3xl">
-              {{ dashboardData.totalApiKeys }}
-            </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              活跃: {{ dashboardData.activeApiKeys || 0 }}
-            </p>
-          </div>
-          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-blue-500 to-blue-600">
-            <i class="fas fa-key" />
-          </div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              服务账户
-            </p>
-            <div class="flex flex-wrap items-baseline gap-x-2">
-              <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 sm:text-3xl">
-                {{ dashboardData.totalAccounts }}
-              </p>
-              <!-- 各平台账户数量展示 -->
-              <div v-if="dashboardData.accountsByPlatform" class="flex items-center gap-2">
-                <!-- Claude账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform.claude &&
-                    dashboardData.accountsByPlatform.claude.total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`Claude: ${dashboardData.accountsByPlatform.claude.total} 个 (正常: ${dashboardData.accountsByPlatform.claude.normal})`"
-                >
-                  <i class="fas fa-brain text-xs text-indigo-600" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform.claude.total
-                  }}</span>
-                </div>
-                <!-- Claude Console账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform['claude-console'] &&
-                    dashboardData.accountsByPlatform['claude-console'].total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`Console: ${dashboardData.accountsByPlatform['claude-console'].total} 个 (正常: ${dashboardData.accountsByPlatform['claude-console'].normal})`"
-                >
-                  <i class="fas fa-terminal text-xs text-purple-600" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform['claude-console'].total
-                  }}</span>
-                </div>
-                <!-- Gemini账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform.gemini &&
-                    dashboardData.accountsByPlatform.gemini.total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`Gemini: ${dashboardData.accountsByPlatform.gemini.total} 个 (正常: ${dashboardData.accountsByPlatform.gemini.normal})`"
-                >
-                  <i class="fas fa-robot text-xs text-yellow-600" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform.gemini.total
-                  }}</span>
-                </div>
-                <!-- Bedrock账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform.bedrock &&
-                    dashboardData.accountsByPlatform.bedrock.total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`Bedrock: ${dashboardData.accountsByPlatform.bedrock.total} 个 (正常: ${dashboardData.accountsByPlatform.bedrock.normal})`"
-                >
-                  <i class="fab fa-aws text-xs text-orange-600" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform.bedrock.total
-                  }}</span>
-                </div>
-                <!-- OpenAI账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform.openai &&
-                    dashboardData.accountsByPlatform.openai.total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`OpenAI: ${dashboardData.accountsByPlatform.openai.total} 个 (正常: ${dashboardData.accountsByPlatform.openai.normal})`"
-                >
-                  <i class="fas fa-openai text-xs text-gray-100" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform.openai.total
-                  }}</span>
-                </div>
-                <!-- Azure OpenAI账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform.azure_openai &&
-                    dashboardData.accountsByPlatform.azure_openai.total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`Azure OpenAI: ${dashboardData.accountsByPlatform.azure_openai.total} 个 (正常: ${dashboardData.accountsByPlatform.azure_openai.normal})`"
-                >
-                  <i class="fab fa-microsoft text-xs text-blue-600" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform.azure_openai.total
-                  }}</span>
-                </div>
-                <!-- OpenAI-Responses账户 -->
-                <div
-                  v-if="
-                    dashboardData.accountsByPlatform['openai-responses'] &&
-                    dashboardData.accountsByPlatform['openai-responses'].total > 0
-                  "
-                  class="inline-flex items-center gap-0.5"
-                  :title="`OpenAI Responses: ${dashboardData.accountsByPlatform['openai-responses'].total} 个 (正常: ${dashboardData.accountsByPlatform['openai-responses'].normal})`"
-                >
-                  <i class="fas fa-server text-xs text-cyan-600" />
-                  <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{
-                    dashboardData.accountsByPlatform['openai-responses'].total
-                  }}</span>
-                </div>
-              </div>
-            </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              正常: {{ dashboardData.normalAccounts || 0 }}
-              <span v-if="dashboardData.abnormalAccounts > 0" class="text-red-600">
-                | 异常: {{ dashboardData.abnormalAccounts }}
-              </span>
-              <span
-                v-if="dashboardData.pausedAccounts > 0"
-                class="text-gray-600 dark:text-gray-400"
-              >
-                | 停止调度: {{ dashboardData.pausedAccounts }}
-              </span>
-              <span v-if="dashboardData.rateLimitedAccounts > 0" class="text-yellow-600">
-                | 限流: {{ dashboardData.rateLimitedAccounts }}
-              </span>
-            </p>
-          </div>
-          <div class="stat-icon ml-2 flex-shrink-0 bg-gradient-to-br from-green-500 to-green-600">
-            <i class="fas fa-user-circle" />
-          </div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="flex items-center justify-between">
-          <div>
+          <div class="min-w-0 flex-1">
             <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
               今日请求
             </p>
             <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 sm:text-3xl">
-              {{ dashboardData.todayRequests }}
+              {{ formatNumber(dashboardData.todayRequests || 0) }}
             </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              总请求: {{ formatNumber(dashboardData.totalRequests || 0) }}
-            </p>
+            <div
+              class="mt-1 flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
+            >
+              <span
+                >7 日均 <span class="font-medium">{{ formatNumber(avgDailyRequests) }}</span></span
+              >
+              <span class="text-gray-300 dark:text-gray-600">·</span>
+              <span
+                >累计
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.totalRequests || 0)
+                }}</span></span
+              >
+            </div>
           </div>
           <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-purple-500 to-purple-600">
             <i class="fas fa-chart-line" />
@@ -178,22 +39,168 @@
 
       <div class="stat-card">
         <div class="flex items-center justify-between">
-          <div>
+          <div class="min-w-0 flex-1">
+            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
+              今日 Token
+            </p>
+            <div class="flex flex-wrap items-baseline gap-x-2">
+              <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 sm:text-3xl">
+                {{ formatNumber(todayTotalTokens) }}
+              </p>
+              <span class="text-sm font-medium text-green-600">{{
+                costsData.todayCosts.formatted.totalCost
+              }}</span>
+            </div>
+            <div
+              class="mt-1 flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
+            >
+              <span
+                >入
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.todayInputTokens || 0)
+                }}</span></span
+              >
+              <span class="text-gray-300 dark:text-gray-600">·</span>
+              <span
+                >出
+                <span class="font-medium">{{
+                  formatNumber(dashboardData.todayOutputTokens || 0)
+                }}</span></span
+              >
+              <template v-if="todayCacheTokens > 0">
+                <span class="text-gray-300 dark:text-gray-600">·</span>
+                <span class="truncate text-purple-600"
+                  >缓存 <span class="font-medium">{{ formatNumber(todayCacheTokens) }}</span></span
+                >
+              </template>
+            </div>
+          </div>
+          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-indigo-500 to-indigo-600">
+            <i class="fas fa-coins" />
+          </div>
+        </div>
+      </div>
+
+      <!-- RPM 与 TPM 合成双栏，中间一条分隔线 -->
+      <div class="stat-card">
+        <div class="flex items-center justify-between">
+          <div class="mr-3 min-w-0 flex-1">
+            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
+              实时吞吐
+              <span class="font-normal text-gray-400">({{ dashboardData.metricsWindow }}分钟)</span>
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="min-w-0">
+                <p class="text-2xl font-bold text-orange-600 sm:text-3xl">
+                  {{ dashboardData.realtimeRPM || 0 }}
+                </p>
+                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                  RPM · 均 {{ dashboardData.systemRPM || 0 }}
+                </p>
+              </div>
+              <div class="min-w-0 border-l border-gray-100 pl-3 dark:border-gray-700/60">
+                <p class="text-2xl font-bold text-rose-600 sm:text-3xl">
+                  {{ formatNumber(dashboardData.realtimeTPM || 0) }}
+                </p>
+                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                  TPM · 均 {{ formatNumber(dashboardData.systemTPM || 0) }}
+                </p>
+              </div>
+            </div>
+            <p v-if="dashboardData.isHistoricalMetrics" class="mt-1 text-xs text-yellow-600">
+              <i class="fas fa-exclamation-circle" /> 历史数据
+            </p>
+          </div>
+          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-orange-500 to-rose-500">
+            <i class="fas fa-tachometer-alt" />
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="flex items-center justify-between">
+          <div class="min-w-0 flex-1">
             <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
               系统状态
             </p>
-            <p class="text-2xl font-bold text-green-600 sm:text-3xl">
+            <p
+              class="text-2xl font-bold sm:text-3xl"
+              :class="dashboardData.systemStatus === '正常' ? 'text-green-600' : 'text-red-600'"
+            >
               {{ dashboardData.systemStatus }}
             </p>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              运行时间: {{ formattedUptime }}
-            </p>
+            <div
+              class="mt-1 flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
+            >
+              <span
+                >已运行 <span class="font-medium">{{ formattedUptime }}</span></span
+              >
+              <span class="text-gray-300 dark:text-gray-600">·</span>
+              <span>Redis {{ dashboardData.systemStatus === '正常' ? '已连接' : '断开' }}</span>
+            </div>
           </div>
           <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-yellow-500 to-orange-500">
             <i class="fas fa-heartbeat" />
           </div>
         </div>
       </div>
+    </div>
+
+    <!--
+      二级信息压成一条摘要行：原本 API Keys 数、账户数、累计请求 / Token / 费用
+      各占一张大卡，信息量却只有一个数字。压成单行后信息没丢，省下约 366px。
+      累计费用只保留 usage 一套口径（与 costsData 同源），不再与卡片重复。
+    -->
+    <div class="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 text-sm sm:mb-6">
+      <span class="text-gray-600 dark:text-gray-400">
+        API Keys
+        <b class="ml-1 font-semibold text-gray-900 dark:text-gray-100">{{
+          dashboardData.totalApiKeys
+        }}</b>
+        <span
+          v-if="
+            dashboardData.totalApiKeys > 0 &&
+            dashboardData.activeApiKeys === dashboardData.totalApiKeys
+          "
+          class="ml-1 text-xs text-green-600"
+          >全活跃</span
+        >
+        <span v-else class="ml-1 text-xs text-gray-500 dark:text-gray-400"
+          >活跃 {{ dashboardData.activeApiKeys || 0 }}</span
+        >
+      </span>
+      <span class="text-gray-600 dark:text-gray-400">
+        账户
+        <b class="ml-1 font-semibold text-gray-900 dark:text-gray-100">{{
+          dashboardData.totalAccounts
+        }}</b>
+        <span
+          v-if="dashboardData.totalAccounts > 0 && dashboardData.abnormalAccounts === 0"
+          class="ml-1 text-xs text-green-600"
+          >全正常</span
+        >
+        <span v-else class="ml-1 text-xs text-amber-600"
+          >异常 {{ dashboardData.abnormalAccounts || 0 }}</span
+        >
+      </span>
+      <span class="text-gray-600 dark:text-gray-400">
+        累计请求
+        <b class="ml-1 font-semibold text-gray-900 dark:text-gray-100">{{
+          formatNumber(dashboardData.totalRequests || 0)
+        }}</b>
+      </span>
+      <span class="text-gray-600 dark:text-gray-400">
+        累计 Token
+        <b class="ml-1 font-semibold text-gray-900 dark:text-gray-100">{{
+          formatNumber(totalAllTokens)
+        }}</b>
+      </span>
+      <span class="text-gray-600 dark:text-gray-400">
+        累计费用
+        <b class="ml-1 font-semibold text-green-600">{{
+          costsData.totalCosts.formatted.totalCost
+        }}</b>
+      </span>
     </div>
 
     <!-- 账户余额/配额汇总（仅当存在具备余额语义的账户时渲染） -->
@@ -293,146 +300,6 @@
                 ></div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Token统计和性能指标 -->
-    <div
-      class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 md:mb-8 md:gap-6 lg:grid-cols-3"
-    >
-      <div class="stat-card">
-        <div class="flex items-center justify-between">
-          <div class="mr-8 flex-1">
-            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              今日Token
-            </p>
-            <div class="mb-2 flex flex-wrap items-baseline gap-2">
-              <p class="text-xl font-bold text-blue-600 sm:text-2xl md:text-3xl">
-                {{
-                  formatNumber(
-                    (dashboardData.todayInputTokens || 0) +
-                      (dashboardData.todayOutputTokens || 0) +
-                      (dashboardData.todayCacheCreateTokens || 0) +
-                      (dashboardData.todayCacheReadTokens || 0)
-                  )
-                }}
-              </p>
-              <span class="text-sm font-medium text-green-600"
-                >/ {{ costsData.todayCosts.formatted.totalCost }}</span
-              >
-            </div>
-            <div
-              class="flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
-            >
-              <span
-                >入
-                <span class="font-medium">{{
-                  formatNumber(dashboardData.todayInputTokens || 0)
-                }}</span></span
-              >
-              <span class="text-gray-300 dark:text-gray-600">·</span>
-              <span
-                >出
-                <span class="font-medium">{{
-                  formatNumber(dashboardData.todayOutputTokens || 0)
-                }}</span></span
-              >
-              <template v-if="todayCacheTokens > 0">
-                <span class="text-gray-300 dark:text-gray-600">·</span>
-                <span class="truncate text-purple-600"
-                  >缓存 <span class="font-medium">{{ formatNumber(todayCacheTokens) }}</span></span
-                >
-              </template>
-            </div>
-          </div>
-          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-indigo-500 to-indigo-600">
-            <i class="fas fa-coins" />
-          </div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="flex items-center justify-between">
-          <div class="mr-8 flex-1">
-            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              总Token消耗
-            </p>
-            <div class="mb-2 flex flex-wrap items-baseline gap-2">
-              <p class="text-xl font-bold text-emerald-600 sm:text-2xl md:text-3xl">
-                {{
-                  formatNumber(
-                    (dashboardData.totalInputTokens || 0) +
-                      (dashboardData.totalOutputTokens || 0) +
-                      (dashboardData.totalCacheCreateTokens || 0) +
-                      (dashboardData.totalCacheReadTokens || 0)
-                  )
-                }}
-              </p>
-              <span class="text-sm font-medium text-green-600"
-                >/ {{ costsData.totalCosts.formatted.totalCost }}</span
-              >
-            </div>
-            <div
-              class="flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs text-gray-500 dark:text-gray-400"
-            >
-              <span
-                >入
-                <span class="font-medium">{{
-                  formatNumber(dashboardData.totalInputTokens || 0)
-                }}</span></span
-              >
-              <span class="text-gray-300 dark:text-gray-600">·</span>
-              <span
-                >出
-                <span class="font-medium">{{
-                  formatNumber(dashboardData.totalOutputTokens || 0)
-                }}</span></span
-              >
-              <template v-if="totalCacheTokens > 0">
-                <span class="text-gray-300 dark:text-gray-600">·</span>
-                <span class="truncate text-purple-600"
-                  >缓存 <span class="font-medium">{{ formatNumber(totalCacheTokens) }}</span></span
-                >
-              </template>
-            </div>
-          </div>
-          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-600">
-            <i class="fas fa-database" />
-          </div>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="flex items-center justify-between">
-          <div class="mr-4 min-w-0 flex-1">
-            <p class="mb-1 text-xs font-semibold text-gray-600 dark:text-gray-400 sm:text-sm">
-              实时吞吐
-              <span class="font-normal text-gray-400">({{ dashboardData.metricsWindow }}分钟)</span>
-            </p>
-            <div class="grid grid-cols-2 gap-3">
-              <div class="min-w-0">
-                <p class="text-2xl font-bold text-orange-600 sm:text-3xl">
-                  {{ dashboardData.realtimeRPM || 0 }}
-                </p>
-                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">RPM 每分钟请求</p>
-              </div>
-              <div class="min-w-0 border-l border-gray-100 pl-3 dark:border-gray-700/60">
-                <p class="text-2xl font-bold text-rose-600 sm:text-3xl">
-                  {{ formatNumber(dashboardData.realtimeTPM || 0) }}
-                </p>
-                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
-                  TPM 每分钟Token
-                </p>
-              </div>
-            </div>
-            <p v-if="dashboardData.isHistoricalMetrics" class="mt-2 text-xs text-yellow-600">
-              <i class="fas fa-exclamation-circle" /> 历史数据
-            </p>
-          </div>
-          <div class="stat-icon flex-shrink-0 bg-gradient-to-br from-orange-500 to-rose-500">
-            <i class="fas fa-tachometer-alt" />
           </div>
         </div>
       </div>
@@ -652,8 +519,13 @@
       </div>
     </div>
 
-    <!-- Token使用趋势图 -->
-    <div class="mb-4 sm:mb-6 md:mb-8">
+    <!--
+      底部趋势图：原先 3 张全宽图各占一行（高 350px），纵向堆叠冗长。
+      改为「Token 趋势 + API Keys 趋势」并排 2 列、账号趋势保持全宽，
+      并把高度从 350 收到 300 上下。
+    -->
+    <div class="mb-4 grid grid-cols-1 gap-4 sm:mb-6 md:mb-8 lg:grid-cols-2 lg:gap-6">
+      <!-- Token使用趋势图 -->
       <div class="card p-4 sm:p-6">
         <div class="mb-4 flex items-baseline justify-between gap-3">
           <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
@@ -663,14 +535,12 @@
             {{ effectiveGranularityLabel }}
           </span>
         </div>
-        <div class="sm:h-[300px]" style="height: 250px">
+        <div class="sm:h-[260px]" style="height: 240px">
           <canvas ref="usageTrendChart" />
         </div>
       </div>
-    </div>
 
-    <!-- API Keys 使用趋势图 -->
-    <div class="mb-4 sm:mb-6 md:mb-8">
+      <!-- API Keys 使用趋势图 -->
       <div class="card p-4 sm:p-6">
         <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -712,7 +582,7 @@
             </button>
           </div>
         </div>
-        <div class="sm:h-[350px]" style="height: 300px">
+        <div class="sm:h-[260px]" style="height: 240px">
           <canvas ref="apiKeysUsageTrendChart" />
         </div>
       </div>
@@ -756,7 +626,7 @@
         >
           暂无账号使用数据
         </div>
-        <div v-else class="sm:h-[350px]" style="height: 300px">
+        <div v-else class="sm:h-[300px]" style="height: 260px">
           <canvas ref="accountUsageTrendChart" />
         </div>
       </div>
@@ -773,7 +643,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useThemeStore } from '@/stores/theme'
 import { formatNumber, showToast } from '@/utils/tools'
 
-import { getBalanceSummaryApi } from '@/utils/http_apis'
+import { getBalanceSummaryApi, getUsageStatsApi } from '@/utils/http_apis'
 
 const dashboardStore = useDashboardStore()
 const themeStore = useThemeStore()
@@ -901,11 +771,50 @@ const todayCacheTokens = computed(
     (dashboardData.value.todayCacheReadTokens || 0)
 )
 
-const totalCacheTokens = computed(
+// 今日四类 Token 之和：卡片主值，与「入 / 出 / 缓存」三条辅助信息同源
+const todayTotalTokens = computed(
   () =>
+    (dashboardData.value.todayInputTokens || 0) +
+    (dashboardData.value.todayOutputTokens || 0) +
+    (dashboardData.value.todayCacheCreateTokens || 0) +
+    (dashboardData.value.todayCacheReadTokens || 0)
+)
+
+// 累计 Token：摘要行用，口径与今日卡片一致（四类相加）
+const totalAllTokens = computed(
+  () =>
+    (dashboardData.value.totalInputTokens || 0) +
+    (dashboardData.value.totalOutputTokens || 0) +
     (dashboardData.value.totalCacheCreateTokens || 0) +
     (dashboardData.value.totalCacheReadTokens || 0)
 )
+
+/*
+ * 「今日请求」卡的辅助信息之一：近 7 日日均请求数。
+ *
+ * 必须独立取数，不能复用 trendData：后者跟随用户在图表区选择的日期筛选
+ * （默认预设为「今日」时只有当天的按小时数据），拿它算「7 日均」会得到
+ * 与标签不符的数字，且用户切换筛选时这张 KPI 卡的含义会跟着变。
+ * KPI 卡的口径必须稳定，因此这里单独拉一次固定 7 天的按天趋势。
+ */
+const avgDailyRequests = ref(0)
+
+const loadAvgDailyRequests = async () => {
+  try {
+    const response = await getUsageStatsApi('/admin/usage-trend?granularity=day&days=7')
+    const rows = Array.isArray(response?.data) ? response.data : []
+    if (rows.length === 0) {
+      avgDailyRequests.value = 0
+      return
+    }
+    const total = rows.reduce((sum, row) => sum + (Number(row?.requests) || 0), 0)
+    avgDailyRequests.value = Math.round(total / rows.length)
+  } catch (error) {
+    // 辅助信息取数失败不应影响整页，退回 0 并保留日志
+    console.debug('加载近 7 日日均请求失败:', error)
+    avgDailyRequests.value = 0
+  }
+}
 
 // 与 store 的 getEffectiveGranularity 保持同一规则：预设为「今日」且选择按天时，
 // 实际按小时取数，因此标题附注需报告生效粒度而非原始选择，避免与横轴矛盾
@@ -1690,7 +1599,12 @@ async function refreshAllData() {
 
   isRefreshing.value = true
   try {
-    await Promise.all([loadDashboardData(), refreshChartsData(), loadBalanceSummary()])
+    await Promise.all([
+      loadDashboardData(),
+      refreshChartsData(),
+      loadBalanceSummary(),
+      loadAvgDailyRequests()
+    ])
   } finally {
     isRefreshing.value = false
   }
@@ -1818,8 +1732,28 @@ onUnmounted(() => {
 
 <style scoped>
 /* 日期选择器基本样式调整 - 让Element Plus官方暗黑模式生效 */
+/*
+ * 日期选择器收到与 .btn-md / .seg 相同的 32px / r8px 基线。
+ * Element Plus 的 size="default" 给的是 32px 外框但内部 wrapper 会被内容顶高，
+ * 因此 wrapper 高度写死并清零上下 padding，否则与相邻分段器差 2~6px。
+ */
 .custom-date-picker {
   font-size: 13px;
+}
+
+.custom-date-picker :deep(.el-input__wrapper),
+.custom-date-picker :deep(.el-range-editor.el-input__wrapper) {
+  height: var(--ctl-h-md);
+  min-height: var(--ctl-h-md);
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: var(--ctl-radius);
+}
+
+.custom-date-picker :deep(.el-range-input) {
+  font-size: 12px;
+  line-height: 1;
 }
 
 /* 旋转动画 */

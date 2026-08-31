@@ -1,62 +1,11 @@
 <template>
-  <!-- 底色改用管理台一致的中性面：原为品牌紫渐变，与管理台视觉割裂 -->
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-    <!-- 吊顶：与管理台 admin-nav 同基线（齐边通栏 + 底部描边 + 毛玻璃），
-         替换原「浮动圆角卡片」写法 —— 那是唯一没跟上归统改造的区块 -->
-    <header class="stats-nav">
-      <div class="stats-nav__inner">
-        <!-- 品牌区可点回首页：与管理台 .admin-nav__brand 一致。
-             原先是纯展示组件，本页又无任何导航项，进来就退不回去 -->
-        <router-link class="stats-nav__brand" to="/">
-          <LogoTitle
-            :loading="oemLoading"
-            :logo-src="oemSettings.siteIconData || oemSettings.siteIcon"
-            :subtitle="currentTab === 'stats' ? 'API Key 使用统计' : '使用教程'"
-            :title="oemSettings.siteName"
-          />
-        </router-link>
+    <!-- 与首页 / 快速开始 / 使用教程 共用同一个对外页顶栏。
+         本页同为免登录公开页，此前自造了一套只有「管理后台」出口的顶栏，
+         未登录进来无法导航回任何公开页。 -->
+    <PublicNav />
 
-        <!-- 返回首页：公开页唯一出口不能只有需要登录的「管理后台」 -->
-        <router-link class="stats-nav__link" to="/">
-          <i class="fas fa-home" />
-          <span>首页</span>
-        </router-link>
-
-        <div class="ml-auto flex items-center gap-2 md:gap-4">
-          <!-- 主题切换按钮 -->
-          <div class="flex items-center">
-            <ThemeToggle />
-          </div>
-
-          <!-- 分隔线 -->
-          <div
-            v-if="oemSettings.ldapEnabled || oemSettings.showAdminButton !== false"
-            class="h-8 w-px bg-gradient-to-b from-transparent via-gray-300 to-transparent opacity-50 dark:via-gray-600"
-          />
-
-          <!-- 用户登录按钮 (仅在 LDAP 启用时显示) -->
-          <router-link
-            v-if="oemSettings.ldapEnabled"
-            class="user-login-button nav-ctl"
-            to="/user-login"
-          >
-            <i class="fas fa-user" />
-            <span>用户登录</span>
-          </router-link>
-          <!-- 管理后台按钮 -->
-          <router-link
-            v-if="oemSettings.showAdminButton !== false"
-            class="admin-button-refined nav-ctl"
-            to="/dashboard"
-          >
-            <i class="fas fa-shield-alt" />
-            <span>管理后台</span>
-          </router-link>
-        </div>
-      </div>
-    </header>
-
-    <div class="stats-body p-2 sm:p-4 md:p-6">
+    <div class="stats-body">
       <!-- Tab 切换 -->
       <div class="mb-4 sm:mb-6 md:mb-8">
         <div class="flex justify-center">
@@ -336,8 +285,7 @@ import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useApiStatsStore } from '@/stores/apistats'
 
-import LogoTitle from '@/components/common/LogoTitle.vue'
-import ThemeToggle from '@/components/common/ThemeToggle.vue'
+import PublicNav from '@/components/public/PublicNav.vue'
 import ApiKeyInput from '@/components/apistats/ApiKeyInput.vue'
 import StatsOverview from '@/components/apistats/StatsOverview.vue'
 import TokenDistribution from '@/components/apistats/TokenDistribution.vue'
@@ -360,7 +308,6 @@ const {
   apiKey,
   apiId,
   loading,
-  oemLoading,
   error,
   statsPeriod,
   statsData,
@@ -580,114 +527,17 @@ watch(apiKey, (newValue) => {
 </script>
 
 <style scoped>
-/* ---------- 吊顶：与管理台 .admin-nav 同基线 ---------- */
-.stats-nav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  height: 48px;
-  background: rgba(245, 245, 247, 0.8);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-:root.dark .stats-nav {
-  background: rgba(29, 29, 31, 0.85);
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-.stats-nav__inner {
-  max-width: 1400px;
-  margin: 0 auto;
-  height: 100%;
-  padding: 0 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
+/* 顶栏由 PublicNav 提供（.apple-nav 为 fixed，需为其留出 48px 顶部空间），
+   与首页 / 快速开始 / 使用教程 完全一致 */
 .stats-body {
   max-width: 1400px;
   margin: 0 auto;
+  padding: 68px 20px 40px;
 }
-
-/* 品牌区与首页链接 */
-.stats-nav__brand {
-  text-decoration: none;
-  color: inherit;
-  border-radius: 8px;
-  transition: opacity 0.2s;
-}
-.stats-nav__brand:hover {
-  opacity: 0.75;
-}
-.stats-nav__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #374151;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background 0.2s;
-}
-.stats-nav__link:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-:root.dark .stats-nav__link {
-  color: #d1d5db;
-}
-:root.dark .stats-nav__link:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-/* 吊顶内控件统一到 32px / r8px（原为 46px / r16px 的渐变胶囊） */
-.stats-nav .nav-ctl {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  text-decoration: none;
-}
-.stats-nav .nav-ctl i {
-  font-size: 13px;
-}
-
-/* 吊顶内 LogoTitle 压到 48px 定高：品牌 15px/600，与管理台一致 */
-.stats-nav :deep(.flex.items-center.gap-4) {
-  gap: 10px;
-}
-.stats-nav :deep(.h-12.w-12) {
-  height: 28px;
-  width: 28px;
-  border-radius: 8px;
-}
-.stats-nav :deep(.h-12.w-12 img),
-.stats-nav :deep(.h-12.w-12 > div) {
-  height: 18px;
-  width: 18px;
-}
-.stats-nav :deep(.h-12.w-12 i) {
-  font-size: 14px;
-}
-.stats-nav :deep(.min-h-\[48px\]) {
-  min-height: 0;
-}
-.stats-nav :deep(.header-title) {
-  font-size: 15px;
-  line-height: 1.2;
-}
-.stats-nav :deep(p) {
-  font-size: 11px;
-  margin-top: 0;
-  line-height: 1.2;
+@media (max-width: 640px) {
+  .stats-body {
+    padding: 60px 12px 24px;
+  }
 }
 
 /* 渐变背景 */

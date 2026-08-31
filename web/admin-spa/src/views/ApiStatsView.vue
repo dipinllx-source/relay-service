@@ -5,12 +5,23 @@
          替换原「浮动圆角卡片」写法 —— 那是唯一没跟上归统改造的区块 -->
     <header class="stats-nav">
       <div class="stats-nav__inner">
-        <LogoTitle
-          :loading="oemLoading"
-          :logo-src="oemSettings.siteIconData || oemSettings.siteIcon"
-          :subtitle="currentTab === 'stats' ? 'API Key 使用统计' : '使用教程'"
-          :title="oemSettings.siteName"
-        />
+        <!-- 品牌区可点回首页：与管理台 .admin-nav__brand 一致。
+             原先是纯展示组件，本页又无任何导航项，进来就退不回去 -->
+        <router-link class="stats-nav__brand" to="/">
+          <LogoTitle
+            :loading="oemLoading"
+            :logo-src="oemSettings.siteIconData || oemSettings.siteIcon"
+            :subtitle="currentTab === 'stats' ? 'API Key 使用统计' : '使用教程'"
+            :title="oemSettings.siteName"
+          />
+        </router-link>
+
+        <!-- 返回首页：公开页唯一出口不能只有需要登录的「管理后台」 -->
+        <router-link class="stats-nav__link" to="/">
+          <i class="fas fa-home" />
+          <span>首页</span>
+        </router-link>
+
         <div class="ml-auto flex items-center gap-2 md:gap-4">
           <!-- 主题切换按钮 -->
           <div class="flex items-center">
@@ -81,9 +92,10 @@
 
       <!-- 统计内容 -->
       <div v-if="currentTab === 'stats'" class="tab-content">
-        <!-- 查询前的公共概览：避免首屏除输入框外无任何内容 -->
+        <!-- 公共概览：查询前后都展示。
+             原为 !hasQueried，查询成功后整块消失 —— 而倍率恰恰是看懂费用的前提 -->
         <div
-          v-if="!hasQueried && platformRates.length"
+          v-if="platformRates.length"
           class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
         >
           <div class="mb-3 flex items-baseline justify-between gap-3">
@@ -380,8 +392,6 @@ const platformRates = computed(() => {
   }))
 })
 
-const hasQueried = computed(() => !!statsData.value)
-
 const {
   queryStats,
   switchPeriod,
@@ -597,6 +607,40 @@ watch(apiKey, (newValue) => {
 .stats-body {
   max-width: 1400px;
   margin: 0 auto;
+}
+
+/* 品牌区与首页链接 */
+.stats-nav__brand {
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  transition: opacity 0.2s;
+}
+.stats-nav__brand:hover {
+  opacity: 0.75;
+}
+.stats-nav__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.stats-nav__link:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+:root.dark .stats-nav__link {
+  color: #d1d5db;
+}
+:root.dark .stats-nav__link:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* 吊顶内控件统一到 32px / r8px（原为 46px / r16px 的渐变胶囊） */

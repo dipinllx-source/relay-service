@@ -89,17 +89,17 @@
               实时吞吐
               <span class="font-normal text-gray-400">({{ dashboardData.metricsWindow }}分钟)</span>
             </p>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2">
               <div class="min-w-0">
-                <p class="text-2xl font-bold text-orange-600 sm:text-3xl">
+                <p class="truncate text-xl font-bold text-orange-600 sm:text-2xl">
                   {{ dashboardData.realtimeRPM || 0 }}
                 </p>
                 <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
                   RPM · 均 {{ dashboardData.systemRPM || 0 }}
                 </p>
               </div>
-              <div class="min-w-0 border-l border-gray-100 pl-3 dark:border-gray-700/60">
-                <p class="text-2xl font-bold text-rose-600 sm:text-3xl">
+              <div class="min-w-0 border-l border-gray-100 pl-2 dark:border-gray-700/60">
+                <p class="truncate text-xl font-bold text-rose-600 sm:text-2xl">
                   {{ formatNumber(dashboardData.realtimeTPM || 0) }}
                 </p>
                 <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">

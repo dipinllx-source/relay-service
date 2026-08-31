@@ -247,6 +247,7 @@ out/
 
 # Runtime files
 *.sock
+nohup.out
 
 # Old admin interface (deprecated)
 web/admin/

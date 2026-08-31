@@ -289,6 +289,44 @@
       </div>
     </section>
 
+    <!-- Preview：控制台实拍（演示数据） -->
+    <section id="preview" class="preview">
+      <h2 class="section-title reveal">看看它长什么样</h2>
+      <p class="section-sub reveal">看板、API Key 与账户管理，三块日常最常用的界面。</p>
+
+      <div class="preview__tabs reveal">
+        <button
+          v-for="s in shots"
+          :key="s.key"
+          class="preview__tab"
+          :class="{ 'preview__tab--active': activeShot === s.key }"
+          type="button"
+          @click="activeShot = s.key"
+        >
+          {{ s.label }}
+        </button>
+      </div>
+
+      <figure class="preview__frame reveal">
+        <div class="preview__bar">
+          <span class="preview__dot preview__dot--r" />
+          <span class="preview__dot preview__dot--y" />
+          <span class="preview__dot preview__dot--g" />
+          <span class="preview__crumb">{{ currentShot.label }}</span>
+        </div>
+        <img
+          :key="currentShot.key"
+          :alt="currentShot.alt"
+          class="preview__img"
+          decoding="async"
+          loading="lazy"
+          :src="currentShot.src"
+        />
+        <figcaption class="preview__cap">{{ currentShot.desc }}</figcaption>
+      </figure>
+      <p class="preview__note">截图中的账号、用量与费用均为演示数据。</p>
+    </section>
+
     <!-- Stats -->
     <section id="stats" class="stats">
       <div class="stats__inner reveal">
@@ -316,11 +354,38 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import PublicFooter from '@/components/public/PublicFooter.vue'
 import PublicNav from '@/components/public/PublicNav.vue'
 
 const bars = [40, 70, 55, 85, 60, 90, 50, 75, 65, 95, 70, 80]
+
+// 控制台截图（演示数据，非真实账号/用量）
+const shots = [
+  {
+    key: 'dashboard',
+    label: '看板',
+    src: 'screenshots/dashboard.jpg',
+    alt: 'Relay Service 看板：请求量、Token 用量、实时吞吐与模型分布',
+    desc: '请求量、Token 用量、实时吞吐与模型分布一屏掌握。'
+  },
+  {
+    key: 'api-keys',
+    label: 'API Keys',
+    src: 'screenshots/api-keys.jpg',
+    alt: 'Relay Service API Key 管理：费用、Token、请求数与最后使用时间',
+    desc: '每把 Key 的费用、用量与最后使用时间一目了然。'
+  },
+  {
+    key: 'accounts',
+    label: '账户管理',
+    src: 'screenshots/accounts.jpg',
+    alt: 'Relay Service 账户管理：多平台账户、会话窗口与调度优先级',
+    desc: '多平台账户、会话窗口与调度优先级集中管理。'
+  }
+]
+const activeShot = ref('dashboard')
+const currentShot = computed(() => shots.find((s) => s.key === activeShot.value) || shots[0])
 
 const platforms = [
   { name: 'Claude', icon: 'C', color: 'linear-gradient(135deg,#d97757,#b85a3c)' },
@@ -815,6 +880,137 @@ onBeforeUnmount(() => {
     padding: 28px;
     min-height: 320px;
   }
+}
+
+/* ---------- Preview ---------- */
+.preview {
+  padding: 100px 22px 110px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.preview__tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 28px 0 26px;
+  flex-wrap: wrap;
+}
+.preview__tab {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  color: #1d1d1f;
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+.preview__tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.preview__tab--active {
+  background: #1d1d1f;
+  border-color: #1d1d1f;
+  color: #fff;
+}
+.preview__frame {
+  margin: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.28);
+}
+.preview__bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.preview__dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: 0 0 11px;
+}
+.preview__dot--r {
+  background: #ff5f57;
+}
+.preview__dot--y {
+  background: #febc2e;
+}
+.preview__dot--g {
+  background: #28c840;
+}
+.preview__crumb {
+  margin-left: 10px;
+  font-size: 12.5px;
+  color: #6e6e73;
+}
+.preview__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  animation: shotFade 0.35s ease;
+}
+@keyframes shotFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.preview__cap {
+  padding: 16px 20px;
+  font-size: 15px;
+  color: #6e6e73;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+.preview__note {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: #86868b;
+}
+@media (max-width: 640px) {
+  .preview {
+    padding: 70px 16px 76px;
+  }
+  .preview__cap {
+    font-size: 14px;
+    padding: 13px 15px;
+  }
+}
+.dark .preview__tab {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f5f5f7;
+}
+.dark .preview__tab--active {
+  background: #f5f5f7;
+  border-color: #f5f5f7;
+  color: #1d1d1f;
+}
+.dark .preview__frame {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .preview__bar {
+  background: #2c2c2e;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+.dark .preview__cap {
+  border-top-color: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
 }
 
 /* ---------- Stats ---------- */

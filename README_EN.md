@@ -89,6 +89,30 @@ If you have any of these concerns, this project might be suitable for you.
 
 ---
 
+## 🖼️ Interface Preview
+
+> All account names, usage and cost figures below are demo data.
+
+### Dashboard
+
+Request volume, token usage, real-time throughput and model distribution at a glance.
+
+![Dashboard](web/admin-spa/public/screenshots/dashboard.jpg)
+
+### API Keys
+
+Per-key cost, usage and last-used time, all in one list.
+
+![API Keys](web/admin-spa/public/screenshots/api-keys.jpg)
+
+### Accounts
+
+Multi-platform accounts, session windows and scheduling priority in one place.
+
+![Accounts](web/admin-spa/public/screenshots/accounts.jpg)
+
+---
+
 ## 📋 Deployment Requirements
 
 ### Hardware Requirements (Minimum Configuration)

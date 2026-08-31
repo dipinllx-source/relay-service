@@ -70,37 +70,37 @@
                 </div>
                 <div class="flex w-full items-center gap-2 md:w-auto">
                   <button
-                    class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
+                    class="flex flex-1 items-center justify-center gap-1.5 md:flex-none"
                     :class="['period-btn', { active: statsPeriod === 'daily' }]"
                     :disabled="loading"
                     @click="switchPeriod('daily')"
                   >
-                    <i class="fas fa-calendar-day text-xs md:text-sm" />
+                    <i class="fas fa-calendar-day" />
                     今日
                   </button>
                   <button
-                    class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
+                    class="flex flex-1 items-center justify-center gap-1.5 md:flex-none"
                     :class="['period-btn', { active: statsPeriod === 'monthly' }]"
                     :disabled="loading"
                     @click="switchPeriod('monthly')"
                   >
-                    <i class="fas fa-calendar-alt text-xs md:text-sm" />
+                    <i class="fas fa-calendar-alt" />
                     本月
                   </button>
                   <button
-                    class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
+                    class="flex flex-1 items-center justify-center gap-1.5 md:flex-none"
                     :class="['period-btn', { active: statsPeriod === 'alltime' }]"
                     :disabled="loading"
                     @click="switchPeriod('alltime')"
                   >
-                    <i class="fas fa-infinity text-xs md:text-sm" />
+                    <i class="fas fa-infinity" />
                     全部
                   </button>
                   <!-- 测试按钮下拉菜单 - 仅在单Key模式下显示 -->
                   <div v-if="!multiKeyMode" class="relative">
                     <button
                       :class="[
-                        'test-btn flex items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:gap-2 md:px-6 md:text-sm',
+                        'test-btn flex items-center justify-center gap-1.5',
                         !hasAnyTestPermission ? 'cursor-not-allowed opacity-50' : ''
                       ]"
                       :disabled="loading || !hasAnyTestPermission"
@@ -111,9 +111,9 @@
                       "
                       @click="toggleTestMenu"
                     >
-                      <i class="fas fa-vial text-xs md:text-sm" />
+                      <i class="fas fa-vial" />
                       测试
-                      <i class="fas fa-chevron-down ml-1 text-xs" />
+                      <i class="fas fa-chevron-down text-xs opacity-60" />
                     </button>
                     <!-- 下拉菜单 -->
                     <div
@@ -520,14 +520,17 @@ watch(apiKey, (newValue) => {
     inset 0 1px 0 rgba(75, 85, 99, 0.2);
 }
 
-/* 标题渐变 */
+/* 卡片标题取消渐变裁字，回到实色 —— 与其余卡片标题（Token 使用分布、
+   限制配置等）保持一致，避免同页两种标题形态 */
 .header-title {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-weight: 700;
-  letter-spacing: -0.025em;
+  background: none;
+  -webkit-text-fill-color: currentcolor;
+  color: #111827;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+:global(html.dark) .header-title {
+  color: #f3f4f6;
 }
 
 /* 用户登录按钮 */
@@ -663,79 +666,55 @@ watch(apiKey, (newValue) => {
   z-index: 1;
 }
 
-/* 时间范围按钮 */
-.period-btn {
-  position: relative;
-  overflow: hidden;
-  border-radius: 12px;
+/* 时间范围与测试按钮：归到管理台控件基线
+   32px(--ctl-h-md) / r8px(--ctl-radius)，取消渐变、外发光与 hover 位移 */
+.period-btn,
+.test-btn {
+  height: var(--ctl-h-md);
+  padding: 0 12px;
+  border-radius: var(--ctl-radius);
+  font-size: var(--ctl-fs-sm);
   font-weight: 500;
-  letter-spacing: 0.025em;
-  transition: all 0.3s ease;
-  border: none;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .period-btn.active {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  color: white;
-  box-shadow:
-    0 10px 15px -3px rgba(var(--primary-rgb), 0.3),
-    0 4px 6px -2px rgba(var(--primary-rgb), 0.05);
-  transform: translateY(-1px);
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  color: #fff;
 }
 
-.period-btn:not(.active) {
-  color: #374151;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(229, 231, 235, 0.5);
-}
-
-:global(html.dark) .period-btn:not(.active) {
-  color: #e5e7eb;
-  background: rgba(55, 65, 81, 0.4);
-  border: 1px solid rgba(75, 85, 99, 0.5);
-}
-
-.period-btn:not(.active):hover {
-  background: rgba(255, 255, 255, 0.8);
-  color: #1f2937;
-  border-color: rgba(209, 213, 219, 0.8);
-}
-
-:global(html.dark) .period-btn:not(.active):hover {
-  background: rgba(75, 85, 99, 0.6);
-  color: #ffffff;
-  border-color: rgba(107, 114, 128, 0.8);
-}
-
-/* 测试按钮样式 */
+.period-btn:not(.active),
 .test-btn {
-  position: relative;
-  overflow: hidden;
-  border-radius: 12px;
-  font-weight: 500;
-  letter-spacing: 0.025em;
-  transition: all 0.3s ease;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-  color: white;
-  box-shadow:
-    0 4px 10px -2px rgba(6, 182, 212, 0.3),
-    0 2px 4px -1px rgba(6, 182, 212, 0.1);
+  color: #374151;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
+.period-btn:not(.active):hover:not(:disabled),
 .test-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow:
-    0 8px 15px -3px rgba(6, 182, 212, 0.4),
-    0 4px 6px -2px rgba(6, 182, 212, 0.15);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+:global(html.dark) .period-btn:not(.active),
+:global(html.dark) .test-btn {
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:global(html.dark) .period-btn:not(.active):hover:not(:disabled),
+:global(html.dark) .test-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .test-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* Tab 内容切换动画 */

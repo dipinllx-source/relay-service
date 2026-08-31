@@ -308,6 +308,9 @@
       </div>
 
       <figure class="preview__frame reveal">
+        <!-- 图片给定固定宽高比，避免未加载时高度塌成 0：
+             .reveal 靠 IntersectionObserver 触发入场，而零高元素永远不与
+             视口相交，会卡在 opacity:0 —— 图片与动画互相死锁 -->
         <div class="preview__bar">
           <span class="preview__dot preview__dot--r" />
           <span class="preview__dot preview__dot--y" />
@@ -319,8 +322,9 @@
           :alt="currentShot.alt"
           class="preview__img"
           decoding="async"
-          loading="lazy"
+          height="1434"
           :src="currentShot.src"
+          width="3024"
         />
         <figcaption class="preview__cap">{{ currentShot.desc }}</figcaption>
       </figure>
@@ -959,7 +963,12 @@ onBeforeUnmount(() => {
   display: block;
   width: 100%;
   height: auto;
+  aspect-ratio: 3024 / 1434;
+  background: #f5f5f7;
   animation: shotFade 0.35s ease;
+}
+.dark .preview__img {
+  background: #2c2c2e;
 }
 @keyframes shotFade {
   from {

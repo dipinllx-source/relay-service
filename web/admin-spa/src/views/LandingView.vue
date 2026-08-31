@@ -287,48 +287,41 @@
           </div>
         </article>
       </div>
-    </section>
 
-    <!-- Preview：控制台实拍（演示数据） -->
-    <section id="preview" class="preview">
-      <h2 class="section-title reveal">看看它长什么样</h2>
-      <p class="section-sub reveal">看板、API Key 与账户管理，三块日常最常用的界面。</p>
-
-      <div class="preview__tabs reveal">
-        <button
-          v-for="s in shots"
-          :key="s.key"
-          class="preview__tab"
-          :class="{ 'preview__tab--active': activeShot === s.key }"
-          type="button"
-          @click="activeShot = s.key"
-        >
-          {{ s.label }}
-        </button>
+      <!-- 截图跟随各自功能展示，而非集中陈列 -->
+      <div
+        v-for="(s, i) in shots"
+        :key="s.key"
+        class="showcase"
+        :class="{ 'showcase--alt': i % 2 === 1 }"
+      >
+        <div class="showcase__text pop">
+          <div class="showcase__tag">{{ s.tag }}</div>
+          <h3 class="showcase__title">{{ s.title }}</h3>
+          <p class="showcase__desc">{{ s.desc }}</p>
+          <ul class="showcase__points">
+            <li v-for="p in s.points" :key="p">{{ p }}</li>
+          </ul>
+        </div>
+        <figure class="showcase__frame pop pop--late">
+          <div class="showcase__bar">
+            <span class="showcase__dot showcase__dot--r" />
+            <span class="showcase__dot showcase__dot--y" />
+            <span class="showcase__dot showcase__dot--g" />
+            <span class="showcase__crumb">{{ s.label }}</span>
+          </div>
+          <img
+            :alt="s.alt"
+            class="showcase__img"
+            decoding="async"
+            height="1434"
+            :src="s.src"
+            width="3024"
+          />
+        </figure>
       </div>
 
-      <figure class="preview__frame reveal">
-        <!-- 图片给定固定宽高比，避免未加载时高度塌成 0：
-             .reveal 靠 IntersectionObserver 触发入场，而零高元素永远不与
-             视口相交，会卡在 opacity:0 —— 图片与动画互相死锁 -->
-        <div class="preview__bar">
-          <span class="preview__dot preview__dot--r" />
-          <span class="preview__dot preview__dot--y" />
-          <span class="preview__dot preview__dot--g" />
-          <span class="preview__crumb">{{ currentShot.label }}</span>
-        </div>
-        <img
-          :key="currentShot.key"
-          :alt="currentShot.alt"
-          class="preview__img"
-          decoding="async"
-          height="1434"
-          :src="currentShot.src"
-          width="3024"
-        />
-        <figcaption class="preview__cap">{{ currentShot.desc }}</figcaption>
-      </figure>
-      <p class="preview__note">截图中的账号、用量与费用均为演示数据。</p>
+      <p class="showcase__note">截图中的账号、用量与费用均为演示数据。</p>
     </section>
 
     <!-- Stats -->
@@ -358,38 +351,53 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { onMounted, onBeforeUnmount } from 'vue'
 import PublicFooter from '@/components/public/PublicFooter.vue'
 import PublicNav from '@/components/public/PublicNav.vue'
 
 const bars = [40, 70, 55, 85, 60, 90, 50, 75, 65, 95, 70, 80]
 
-// 控制台截图（演示数据，非真实账号/用量）
+// 截图跟随各自对应的功能展示（演示数据，非真实账号/用量）
 const shots = [
   {
     key: 'dashboard',
+    tag: '实时观测',
+    title: '毫秒级使用统计',
     label: '看板',
     src: 'screenshots/dashboard.jpg',
     alt: 'Relay Service 看板：请求量、Token 用量、实时吞吐与模型分布',
-    desc: '请求量、Token 用量、实时吞吐与模型分布一屏掌握。'
+    desc: '流式响应中实时捕获 Token 使用与成本，仪表盘秒级刷新。',
+    points: [
+      '今日请求、Token 与费用实时汇总',
+      '5 分钟窗口的 RPM / TPM 吞吐',
+      '模型维度分布与趋势曲线'
+    ]
   },
   {
     key: 'api-keys',
+    tag: '精细计量',
+    title: '每把 Key 都算得清',
     label: 'API Keys',
     src: 'screenshots/api-keys.jpg',
     alt: 'Relay Service API Key 管理：费用、Token、请求数与最后使用时间',
-    desc: '每把 Key 的费用、用量与最后使用时间一目了然。'
+    desc: '给每个人发独立 Key，费用、用量与最后使用时间逐条入账。',
+    points: [
+      '按 Key 统计费用与 Token 消耗',
+      '支持标签、模型与名称多维筛选',
+      '限额与过期策略逐把配置'
+    ]
   },
   {
     key: 'accounts',
+    tag: '智能调度',
+    title: '多平台账户统一编排',
     label: '账户管理',
     src: 'screenshots/accounts.jpg',
     alt: 'Relay Service 账户管理：多平台账户、会话窗口与调度优先级',
-    desc: '多平台账户、会话窗口与调度优先级集中管理。'
+    desc: 'Claude、Gemini、OpenAI 等账户集中管理，会话窗口一目了然。',
+    points: ['多平台账户与分组调度', '会话窗口剩余量实时可见', '优先级与代理逐账户配置']
   }
 ]
-const activeShot = ref('dashboard')
-const currentShot = computed(() => shots.find((s) => s.key === activeShot.value) || shots[0])
 
 const platforms = [
   { name: 'Claude', icon: 'C', color: 'linear-gradient(135deg,#d97757,#b85a3c)' },
@@ -410,6 +418,7 @@ const stats = [
 ]
 
 let observer
+let popObserver
 
 onMounted(() => {
   observer = new IntersectionObserver(
@@ -424,10 +433,26 @@ onMounted(() => {
     { threshold: 0.12 }
   )
   document.querySelectorAll('.reveal').forEach((el) => observer.observe(el))
+
+  // 截图区弹出：图片较高，用比例阈值容易在小视口永不满足，
+  // 故改用 0 阈值 + 底部负 margin，滚到接近时才触发
+  popObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('pop--in')
+          popObserver.unobserve(entry.target)
+        }
+      })
+    },
+    { threshold: 0, rootMargin: '0px 0px -12% 0px' }
+  )
+  document.querySelectorAll('.pop').forEach((el) => popObserver.observe(el))
 })
 
 onBeforeUnmount(() => {
   observer && observer.disconnect()
+  popObserver && popObserver.disconnect()
 })
 </script>
 
@@ -886,140 +911,166 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ---------- Preview ---------- */
-.preview {
-  padding: 100px 22px 110px;
+/* ---------- Showcase：截图跟随功能 ---------- */
+.showcase {
   max-width: 1180px;
-  margin: 0 auto;
+  margin: 96px auto 0;
+  padding: 0 22px;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(0, 1.35fr);
+  align-items: center;
+  gap: 56px;
 }
-.preview__tabs {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin: 28px 0 26px;
-  flex-wrap: wrap;
+.showcase--alt .showcase__text {
+  order: 2;
 }
-.preview__tab {
-  height: 36px;
-  padding: 0 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #fff;
-  color: #1d1d1f;
-  font-size: 15px;
-  font-family: inherit;
-  cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+.showcase__tag {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0071e3;
+  margin-bottom: 12px;
 }
-.preview__tab:hover {
-  background: rgba(0, 0, 0, 0.04);
+.showcase__title {
+  font-size: clamp(28px, 3.4vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 14px;
 }
-.preview__tab--active {
-  background: #1d1d1f;
-  border-color: #1d1d1f;
-  color: #fff;
+.showcase__desc {
+  font-size: 18px;
+  line-height: 1.55;
+  color: #6e6e73;
+  margin: 0 0 18px;
 }
-.preview__frame {
+.showcase__points {
   margin: 0;
-  border-radius: 18px;
+  padding: 0;
+  list-style: none;
+}
+.showcase__points li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 15.5px;
+  line-height: 1.9;
+  color: #1d1d1f;
+}
+.showcase__points li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0071e3;
+}
+.showcase__frame {
+  margin: 0;
+  border-radius: 16px;
   overflow: hidden;
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.3);
 }
-.preview__bar {
+.showcase__bar {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 38px;
-  padding: 0 14px;
+  height: 34px;
+  padding: 0 13px;
   background: #f5f5f7;
   border-bottom: 1px solid rgba(0, 0, 0, 0.07);
 }
-.preview__dot {
-  width: 11px;
-  height: 11px;
+.showcase__dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  flex: 0 0 11px;
+  flex: 0 0 10px;
 }
-.preview__dot--r {
+.showcase__dot--r {
   background: #ff5f57;
 }
-.preview__dot--y {
+.showcase__dot--y {
   background: #febc2e;
 }
-.preview__dot--g {
+.showcase__dot--g {
   background: #28c840;
 }
-.preview__crumb {
-  margin-left: 10px;
-  font-size: 12.5px;
+.showcase__crumb {
+  margin-left: 8px;
+  font-size: 12px;
   color: #6e6e73;
 }
-.preview__img {
+.showcase__img {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 3024 / 1434;
   background: #f5f5f7;
-  animation: shotFade 0.35s ease;
 }
-.dark .preview__img {
-  background: #2c2c2e;
-}
-@keyframes shotFade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.preview__cap {
-  padding: 16px 20px;
-  font-size: 15px;
-  color: #6e6e73;
-  border-top: 1px solid rgba(0, 0, 0, 0.07);
-}
-.preview__note {
-  margin: 14px 0 0;
+.showcase__note {
+  max-width: 1180px;
+  margin: 34px auto 0;
+  padding: 0 22px;
   text-align: center;
   font-size: 13px;
   color: #86868b;
 }
-@media (max-width: 640px) {
-  .preview {
-    padding: 70px 16px 76px;
-  }
-  .preview__cap {
-    font-size: 14px;
-    padding: 13px 15px;
+
+/* 俏皮的慢速弹出：滚动到位后带轻微回弹，1.5s */
+.pop {
+  opacity: 0;
+  transform: translateY(52px) scale(0.94);
+  transition:
+    opacity 1.5s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.pop--late {
+  transition-delay: 0.22s;
+}
+.pop--in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
-.dark .preview__tab {
-  background: #1c1c1e;
-  border-color: rgba(255, 255, 255, 0.14);
+
+@media (max-width: 900px) {
+  .showcase {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 68px;
+  }
+  .showcase--alt .showcase__text {
+    order: 0;
+  }
+  .showcase__desc {
+    font-size: 16px;
+  }
+}
+
+.dark .showcase__points li {
   color: #f5f5f7;
 }
-.dark .preview__tab--active {
-  background: #f5f5f7;
-  border-color: #f5f5f7;
-  color: #1d1d1f;
-}
-.dark .preview__frame {
+.dark .showcase__frame {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.1);
 }
-.dark .preview__bar {
+.dark .showcase__bar {
   background: #2c2c2e;
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-.dark .preview__cap {
-  border-top-color: rgba(255, 255, 255, 0.08);
-  color: #a1a1a6;
+.dark .showcase__img {
+  background: #2c2c2e;
 }
 
 /* ---------- Stats ---------- */

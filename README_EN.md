@@ -93,21 +93,21 @@ If you have any of these concerns, this project might be suitable for you.
 
 > All account names, usage and cost figures below are demo data.
 
-### Dashboard
+### Real-time Observability · Dashboard
 
-Request volume, token usage, real-time throughput and model distribution at a glance.
+Token usage and cost captured live from streaming responses; the dashboard refreshes by the second.
 
 ![Dashboard](web/admin-spa/public/screenshots/dashboard.jpg)
 
-### API Keys
+### Fine-grained Metering · API Keys
 
-Per-key cost, usage and last-used time, all in one list.
+Issue a dedicated key per person; cost, usage and last-used time are all itemised.
 
 ![API Keys](web/admin-spa/public/screenshots/api-keys.jpg)
 
-### Accounts
+### Smart Scheduling · Accounts
 
-Multi-platform accounts, session windows and scheduling priority in one place.
+Claude, Gemini, OpenAI and more managed in one place, with session windows at a glance.
 
 ![Accounts](web/admin-spa/public/screenshots/accounts.jpg)
 

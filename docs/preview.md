@@ -4,7 +4,7 @@
 >
 > 以下截图中的账号、用量与费用均为演示数据。
 
-## Dashboard / 看板
+## Real-time Observability / 实时观测 · 看板
 
 Request volume, token usage, real-time throughput and model distribution at a glance.
 
@@ -12,7 +12,7 @@ Request volume, token usage, real-time throughput and model distribution at a gl
 
 ![Dashboard](../web/admin-spa/public/screenshots/dashboard.jpg)
 
-## API Keys
+## Fine-grained Metering / 精细计量 · API Keys
 
 Per-key cost, usage and last-used time, all in one list.
 
@@ -20,7 +20,7 @@ Per-key cost, usage and last-used time, all in one list.
 
 ![API Keys](../web/admin-spa/public/screenshots/api-keys.jpg)
 
-## Accounts / 账户管理
+## Smart Scheduling / 智能调度 · 账户管理
 
 Multi-platform accounts, session windows and scheduling priority in one place.
 
@@ -30,6 +30,6 @@ Multi-platform accounts, session windows and scheduling priority in one place.
 
 ---
 
-The same screenshots are shown in the "看看它长什么样" section on the landing page.
+On the landing page each screenshot sits next to the feature it illustrates.
 
-首页「看看它长什么样」一节展示的是同一组截图。
+首页上每张截图都跟随它所对应的功能展示。

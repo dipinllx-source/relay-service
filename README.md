@@ -85,21 +85,21 @@
 
 > 以下截图中的账号、用量与费用均为演示数据。
 
-### 看板
+### 实时观测 · 看板
 
-请求量、Token 用量、实时吞吐与模型分布一屏掌握。
+流式响应中实时捕获 Token 使用与成本，仪表盘秒级刷新。
 
 ![看板](web/admin-spa/public/screenshots/dashboard.jpg)
 
-### API Keys
+### 精细计量 · API Keys
 
-每把 Key 的费用、用量与最后使用时间一目了然。
+给每个人发独立 Key，费用、用量与最后使用时间逐条入账。
 
 ![API Keys](web/admin-spa/public/screenshots/api-keys.jpg)
 
-### 账户管理
+### 智能调度 · 账户管理
 
-多平台账户、会话窗口与调度优先级集中管理。
+Claude、Gemini、OpenAI 等账户集中管理，会话窗口一目了然。
 
 ![账户管理](web/admin-spa/public/screenshots/accounts.jpg)
 

@@ -520,19 +520,6 @@ watch(apiKey, (newValue) => {
     inset 0 1px 0 rgba(75, 85, 99, 0.2);
 }
 
-/* 卡片标题取消渐变裁字，回到实色 —— 与其余卡片标题（Token 使用分布、
-   限制配置等）保持一致，避免同页两种标题形态 */
-.header-title {
-  background: none;
-  -webkit-text-fill-color: currentcolor;
-  color: #111827;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-:global(html.dark) .header-title {
-  color: #f3f4f6;
-}
-
 /* 用户登录按钮 */
 .user-login-button {
   background: #fff;

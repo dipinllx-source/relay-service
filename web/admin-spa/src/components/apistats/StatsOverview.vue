@@ -553,8 +553,13 @@ const getCodexWindowLabel = (type) => (type === 'secondary' ? '周限' : '5h')
   @apply text-base md:text-lg;
 }
 
+/* global.css 的 .header-title 用渐变裁字（background-clip:text +
+   透明 text-fill-color），仅设 color 会被透明填充盖住。这里显式复位，
+   与本页其余卡片标题（Token 使用分布、限制配置等）统一为实色 */
 .header-title {
   @apply text-lg font-semibold md:text-xl;
+  background: none;
+  -webkit-text-fill-color: currentcolor;
   color: var(--text-primary, #1e293b);
 }
 

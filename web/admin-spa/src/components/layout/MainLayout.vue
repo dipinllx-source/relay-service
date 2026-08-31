@@ -444,7 +444,10 @@
               }}</code>
             </li>
           </ul>
+        </div>
 
+        <!-- 固定操作区：变更清单再长也不会把按钮挤出视口 -->
+        <div class="admin-modal__footer">
           <div class="admin-modal__actions">
             <button class="admin-btn admin-btn--ghost" type="button" @click="closeUpgradeModal">
               关闭
@@ -1551,11 +1554,16 @@ onUnmounted(() => {
   border-radius: 20px;
   box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  /* 内容超长时钳制在视口内，由 body 滚动，避免操作按钮被挤出屏幕 */
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
 }
 :root.dark .admin-modal {
   background: #2c2c2e;
 }
 .admin-modal__header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1592,10 +1600,27 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.1);
 }
 .admin-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.admin-modal__footer {
+  flex: 0 0 auto;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: #fff;
+}
+:root.dark .admin-modal__footer {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #2c2c2e;
+}
+.admin-modal__footer .admin-modal__actions {
+  padding-top: 0;
 }
 .admin-modal__actions {
   display: flex;

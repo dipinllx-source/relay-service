@@ -1,18 +1,17 @@
 <template>
   <!-- 底色改用管理台一致的中性面：原为品牌紫渐变，与管理台视觉割裂 -->
-  <div class="min-h-screen bg-gray-50 p-2 dark:bg-gray-900 sm:p-4 md:p-6">
-    <!-- 顶部导航 -->
-    <div
-      class="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-6 sm:p-4 md:mb-8 md:p-6"
-    >
-      <div class="flex flex-col items-center justify-between gap-3 sm:gap-4 md:flex-row">
+  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- 吊顶：与管理台 admin-nav 同基线（齐边通栏 + 底部描边 + 毛玻璃），
+         替换原「浮动圆角卡片」写法 —— 那是唯一没跟上归统改造的区块 -->
+    <header class="stats-nav">
+      <div class="stats-nav__inner">
         <LogoTitle
           :loading="oemLoading"
           :logo-src="oemSettings.siteIconData || oemSettings.siteIcon"
           :subtitle="currentTab === 'stats' ? 'API Key 使用统计' : '使用教程'"
           :title="oemSettings.siteName"
         />
-        <div class="flex items-center gap-2 md:gap-4">
+        <div class="ml-auto flex items-center gap-2 md:gap-4">
           <!-- 主题切换按钮 -->
           <div class="flex items-center">
             <ThemeToggle />
@@ -44,216 +43,220 @@
           </router-link>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Tab 切换 -->
-    <div class="mb-4 sm:mb-6 md:mb-8">
-      <div class="flex justify-center">
-        <!-- 与聚合切换器共用 .seg 分段控件基线，替换原半透明玻璃胶囊 -->
-        <div class="seg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-          <button
-            class="seg-item"
-            :class="
-              currentTab === 'stats'
-                ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
-            "
-            @click="currentTab = 'stats'"
-          >
-            <i class="fas fa-chart-line" />
-            <span>统计查询</span>
-          </button>
-          <button
-            class="seg-item"
-            :class="
-              currentTab === 'tutorial'
-                ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
-            "
-            @click="currentTab = 'tutorial'"
-          >
-            <i class="fas fa-graduation-cap" />
-            <span>使用教程</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 统计内容 -->
-    <div v-if="currentTab === 'stats'" class="tab-content">
-      <!-- 查询前的公共概览：避免首屏除输入框外无任何内容 -->
-      <div
-        v-if="!hasQueried && platformRates.length"
-        class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
-      >
-        <div class="mb-3 flex items-baseline justify-between gap-3">
-          <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">可接入平台与计费倍率</p>
-          <span class="text-xs text-gray-500 dark:text-gray-400">
-            共 {{ platformRates.length }} 个平台
-          </span>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <div
-            v-for="item in platformRates"
-            :key="item.key"
-            class="flex items-baseline gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40"
-          >
-            <span class="text-xs text-gray-600 dark:text-gray-300">{{ item.label }}</span>
-            <span class="text-sm font-bold tabular-nums text-blue-600 dark:text-blue-400">
-              ×{{ item.rate }}
-            </span>
+    <div class="stats-body p-2 sm:p-4 md:p-6">
+      <!-- Tab 切换 -->
+      <div class="mb-4 sm:mb-6 md:mb-8">
+        <div class="flex justify-center">
+          <!-- 与聚合切换器共用 .seg 分段控件基线，替换原半透明玻璃胶囊 -->
+          <div class="seg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+            <button
+              class="seg-item"
+              :class="
+                currentTab === 'stats'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+              "
+              @click="currentTab = 'stats'"
+            >
+              <i class="fas fa-chart-line" />
+              <span>统计查询</span>
+            </button>
+            <button
+              class="seg-item"
+              :class="
+                currentTab === 'tutorial'
+                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
+              "
+              @click="currentTab = 'tutorial'"
+            >
+              <i class="fas fa-graduation-cap" />
+              <span>使用教程</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- API Key 输入区域 -->
-      <ApiKeyInput />
-
-      <!-- 错误提示 -->
-      <div v-if="error" class="mb-4 sm:mb-6 md:mb-8">
+      <!-- 统计内容 -->
+      <div v-if="currentTab === 'stats'" class="tab-content">
+        <!-- 查询前的公共概览：避免首屏除输入框外无任何内容 -->
         <div
-          class="rounded-xl border border-red-500/30 bg-red-500/20 p-3 text-sm text-red-800 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200 md:p-4 md:text-base"
+          v-if="!hasQueried && platformRates.length"
+          class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
         >
-          <i class="fas fa-exclamation-triangle mr-2" />
-          {{ error }}
-        </div>
-      </div>
-
-      <!-- 统计数据展示区域 -->
-      <div v-if="statsData" class="fade-in">
-        <div
-          class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4 md:p-6"
-        >
-          <!-- 时间范围选择器 -->
-          <div
-            class="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 sm:mb-4 sm:pb-4 md:mb-6 md:pb-6"
-          >
+          <div class="mb-3 flex items-baseline justify-between gap-3">
+            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              可接入平台与计费倍率
+            </p>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              共 {{ platformRates.length }} 个平台
+            </span>
+          </div>
+          <div class="flex flex-wrap gap-2">
             <div
-              class="flex flex-col items-start justify-between gap-2 sm:gap-3 md:flex-row md:items-center md:gap-4"
+              v-for="item in platformRates"
+              :key="item.key"
+              class="flex items-baseline gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40"
             >
-              <div class="flex items-center gap-2 md:gap-3">
-                <i class="fas fa-clock text-base text-blue-500 md:text-lg" />
-                <span class="text-base font-medium text-gray-700 dark:text-gray-200 md:text-lg"
-                  >统计时间范围</span
-                >
-              </div>
-              <div class="flex w-full items-center gap-2 md:w-auto">
-                <button
-                  class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
-                  :class="['period-btn', { active: statsPeriod === 'daily' }]"
-                  :disabled="loading"
-                  @click="switchPeriod('daily')"
-                >
-                  <i class="fas fa-calendar-day text-xs md:text-sm" />
-                  今日
-                </button>
-                <button
-                  class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
-                  :class="['period-btn', { active: statsPeriod === 'monthly' }]"
-                  :disabled="loading"
-                  @click="switchPeriod('monthly')"
-                >
-                  <i class="fas fa-calendar-alt text-xs md:text-sm" />
-                  本月
-                </button>
-                <button
-                  class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
-                  :class="['period-btn', { active: statsPeriod === 'alltime' }]"
-                  :disabled="loading"
-                  @click="switchPeriod('alltime')"
-                >
-                  <i class="fas fa-infinity text-xs md:text-sm" />
-                  全部
-                </button>
-                <!-- 测试按钮下拉菜单 - 仅在单Key模式下显示 -->
-                <div v-if="!multiKeyMode" class="relative">
+              <span class="text-xs text-gray-600 dark:text-gray-300">{{ item.label }}</span>
+              <span class="text-sm font-bold tabular-nums text-blue-600 dark:text-blue-400">
+                ×{{ item.rate }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- API Key 输入区域 -->
+        <ApiKeyInput />
+
+        <!-- 错误提示 -->
+        <div v-if="error" class="mb-4 sm:mb-6 md:mb-8">
+          <div
+            class="rounded-xl border border-red-500/30 bg-red-500/20 p-3 text-sm text-red-800 backdrop-blur-sm dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200 md:p-4 md:text-base"
+          >
+            <i class="fas fa-exclamation-triangle mr-2" />
+            {{ error }}
+          </div>
+        </div>
+
+        <!-- 统计数据展示区域 -->
+        <div v-if="statsData" class="fade-in">
+          <div
+            class="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4 md:p-6"
+          >
+            <!-- 时间范围选择器 -->
+            <div
+              class="mb-3 border-b border-gray-200 pb-3 dark:border-gray-700 sm:mb-4 sm:pb-4 md:mb-6 md:pb-6"
+            >
+              <div
+                class="flex flex-col items-start justify-between gap-2 sm:gap-3 md:flex-row md:items-center md:gap-4"
+              >
+                <div class="flex items-center gap-2 md:gap-3">
+                  <i class="fas fa-clock text-base text-blue-500 md:text-lg" />
+                  <span class="text-base font-medium text-gray-700 dark:text-gray-200 md:text-lg"
+                    >统计时间范围</span
+                  >
+                </div>
+                <div class="flex w-full items-center gap-2 md:w-auto">
                   <button
-                    :class="[
-                      'test-btn flex items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:gap-2 md:px-6 md:text-sm',
-                      !hasAnyTestPermission ? 'cursor-not-allowed opacity-50' : ''
-                    ]"
-                    :disabled="loading || !hasAnyTestPermission"
-                    :title="
-                      hasAnyTestPermission
-                        ? '测试 API'
-                        : `当前 Key 可用服务: ${availableServicesText}`
-                    "
-                    @click="toggleTestMenu"
+                    class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
+                    :class="['period-btn', { active: statsPeriod === 'daily' }]"
+                    :disabled="loading"
+                    @click="switchPeriod('daily')"
                   >
-                    <i class="fas fa-vial text-xs md:text-sm" />
-                    测试
-                    <i class="fas fa-chevron-down ml-1 text-xs" />
+                    <i class="fas fa-calendar-day text-xs md:text-sm" />
+                    今日
                   </button>
-                  <!-- 下拉菜单 -->
-                  <div
-                    v-if="showTestMenu"
-                    class="absolute right-0 top-full z-50 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                  <button
+                    class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
+                    :class="['period-btn', { active: statsPeriod === 'monthly' }]"
+                    :disabled="loading"
+                    @click="switchPeriod('monthly')"
                   >
+                    <i class="fas fa-calendar-alt text-xs md:text-sm" />
+                    本月
+                  </button>
+                  <button
+                    class="flex flex-1 items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:flex-none md:gap-2 md:px-6 md:text-sm"
+                    :class="['period-btn', { active: statsPeriod === 'alltime' }]"
+                    :disabled="loading"
+                    @click="switchPeriod('alltime')"
+                  >
+                    <i class="fas fa-infinity text-xs md:text-sm" />
+                    全部
+                  </button>
+                  <!-- 测试按钮下拉菜单 - 仅在单Key模式下显示 -->
+                  <div v-if="!multiKeyMode" class="relative">
                     <button
-                      v-if="canTestClaude"
-                      class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                      @click="openTestModal('claude')"
+                      :class="[
+                        'test-btn flex items-center justify-center gap-1 px-4 py-2 text-xs font-medium md:gap-2 md:px-6 md:text-sm',
+                        !hasAnyTestPermission ? 'cursor-not-allowed opacity-50' : ''
+                      ]"
+                      :disabled="loading || !hasAnyTestPermission"
+                      :title="
+                        hasAnyTestPermission
+                          ? '测试 API'
+                          : `当前 Key 可用服务: ${availableServicesText}`
+                      "
+                      @click="toggleTestMenu"
                     >
-                      <i class="fas fa-robot text-orange-500" />
-                      Claude
+                      <i class="fas fa-vial text-xs md:text-sm" />
+                      测试
+                      <i class="fas fa-chevron-down ml-1 text-xs" />
                     </button>
-                    <button
-                      v-if="canTestGemini"
-                      class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                      @click="openTestModal('gemini')"
+                    <!-- 下拉菜单 -->
+                    <div
+                      v-if="showTestMenu"
+                      class="absolute right-0 top-full z-50 mt-1 min-w-[140px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                     >
-                      <i class="fas fa-gem text-blue-500" />
-                      Gemini
-                    </button>
-                    <button
-                      v-if="canTestOpenAI"
-                      class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
-                      @click="openTestModal('openai')"
-                    >
-                      <i class="fas fa-code text-green-500" />
-                      Codex
-                    </button>
+                      <button
+                        v-if="canTestClaude"
+                        class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        @click="openTestModal('claude')"
+                      >
+                        <i class="fas fa-robot text-orange-500" />
+                        Claude
+                      </button>
+                      <button
+                        v-if="canTestGemini"
+                        class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        @click="openTestModal('gemini')"
+                      >
+                        <i class="fas fa-gem text-blue-500" />
+                        Gemini
+                      </button>
+                      <button
+                        v-if="canTestOpenAI"
+                        class="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        @click="openTestModal('openai')"
+                      >
+                        <i class="fas fa-code text-green-500" />
+                        Codex
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- 基本信息和统计概览 -->
-          <StatsOverview />
+            <!-- 基本信息和统计概览 -->
+            <StatsOverview />
 
-          <!-- Token 分布和限制配置 -->
-          <div
-            class="mb-4 mt-4 grid grid-cols-1 gap-3 sm:mb-6 sm:mt-6 sm:gap-4 md:mb-8 md:mt-8 md:gap-6 xl:grid-cols-2 xl:items-stretch"
-          >
-            <TokenDistribution class="h-full" />
-            <template v-if="multiKeyMode">
-              <AggregatedStatsCard class="h-full" />
-            </template>
-            <template v-else>
-              <LimitConfig class="h-full" />
-            </template>
-          </div>
+            <!-- Token 分布和限制配置 -->
+            <div
+              class="mb-4 mt-4 grid grid-cols-1 gap-3 sm:mb-6 sm:mt-6 sm:gap-4 md:mb-8 md:mt-8 md:gap-6 xl:grid-cols-2 xl:items-stretch"
+            >
+              <TokenDistribution class="h-full" />
+              <template v-if="multiKeyMode">
+                <AggregatedStatsCard class="h-full" />
+              </template>
+              <template v-else>
+                <LimitConfig class="h-full" />
+              </template>
+            </div>
 
-          <!-- 服务费用统计卡片 -->
-          <ServiceCostCards class="mb-4 sm:mb-6" />
+            <!-- 服务费用统计卡片 -->
+            <ServiceCostCards class="mb-4 sm:mb-6" />
 
-          <!-- 模型使用统计 - 三个时间段 -->
-          <div class="space-y-4 sm:space-y-6">
-            <ModelUsageStats period="daily" />
-            <ModelUsageStats period="monthly" />
-            <ModelUsageStats period="alltime" />
+            <!-- 模型使用统计 - 三个时间段 -->
+            <div class="space-y-4 sm:space-y-6">
+              <ModelUsageStats period="daily" />
+              <ModelUsageStats period="monthly" />
+              <ModelUsageStats period="alltime" />
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 教程内容 -->
-    <div v-if="currentTab === 'tutorial'" class="tab-content">
-      <div
-        class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
-      >
-        <TutorialView />
+      <!-- 教程内容 -->
+      <div v-if="currentTab === 'tutorial'" class="tab-content">
+        <div
+          class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
+        >
+          <TutorialView />
+        </div>
       </div>
     </div>
 
@@ -567,6 +570,35 @@ watch(apiKey, (newValue) => {
 </script>
 
 <style scoped>
+/* ---------- 吊顶：与管理台 .admin-nav 同基线 ---------- */
+.stats-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 48px;
+  background: rgba(245, 245, 247, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+:root.dark .stats-nav {
+  background: rgba(29, 29, 31, 0.85);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.stats-nav__inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stats-body {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
 /* 渐变背景 */
 
 /* 暗色模式的渐变背景 */

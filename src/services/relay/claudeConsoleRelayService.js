@@ -1496,24 +1496,44 @@ class ClaudeConsoleRelayService {
                   }
 
                   // Tool name 逆转换：PascalCase → snake_case
-                  // SSE 中 content_block_start 含 "type":"tool_use","name":"PascalName"
+                  // SSE 中 content_block_start 含 type:"tool_use" 的 block.name
+                  // 方案 3: 按行解析 JSON 后修改 name 字段，不依赖字段顺序
                   if (
                     dataToWrite &&
                     requestOptions.toolNameMap &&
                     Object.keys(requestOptions.toolNameMap).length > 0
                   ) {
                     const nameMap = requestOptions.toolNameMap
-                    dataToWrite = dataToWrite.replace(
-                      /"type"\s*:\s*"tool_use"\s*,\s*"id"\s*:\s*"[^"]*"\s*,\s*"name"\s*:\s*"([^"]*)"/g,
-                      (match, toolName) => {
-                        if (nameMap[toolName]) {
-                          return match
-                            .replace(`"name":"${toolName}"`, `"name":"${nameMap[toolName]}"`)
-                            .replace(`"name": "${toolName}"`, `"name": "${nameMap[toolName]}"`)
+                    dataToWrite = dataToWrite
+                      .split('\n')
+                      .map((line) => {
+                        if (!line.startsWith('data:')) {
+                          return line
                         }
-                        return match
-                      }
-                    )
+                        const jsonStr = line.slice(5).trimStart()
+                        if (!jsonStr || jsonStr === '[DONE]') {
+                          return line
+                        }
+                        try {
+                          const data = JSON.parse(jsonStr)
+                          // content_block_start with tool_use
+                          if (
+                            data.type === 'content_block_start' &&
+                            data.content_block &&
+                            data.content_block.type === 'tool_use' &&
+                            nameMap[data.content_block.name]
+                          ) {
+                            const originalName = data.content_block.name
+                            data.content_block.name = nameMap[originalName]
+                            return `data: ${JSON.stringify(data)}`
+                          }
+                        } catch (e) {
+                          // 不是完整 JSON（可能是跨 chunk 的不完整数据），保持原样
+                          // buffer 机制会确保下次拼接后再处理
+                        }
+                        return line
+                      })
+                      .join('\n')
                   }
 
                   if (dataToWrite) {

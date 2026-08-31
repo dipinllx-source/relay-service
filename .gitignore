@@ -106,7 +106,9 @@ jspm_packages/
 .nuxt
 # Gatsby files
 .cache/
-public
+# 必须锚定到仓库根：裸 public 会匹配任意层级的 public/ 目录，
+# 曾误吞源码目录 web/admin-spa/src/components/public/ 导致 tag 构建失败
+/public
 
 # Vuepress build output
 .vuepress/dist

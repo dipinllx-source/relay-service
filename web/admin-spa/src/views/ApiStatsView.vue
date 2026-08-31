@@ -6,41 +6,9 @@
     <PublicNav />
 
     <div class="stats-body">
-      <!-- Tab 切换 -->
-      <div class="mb-4 sm:mb-6 md:mb-8">
-        <div class="flex justify-center">
-          <!-- 与聚合切换器共用 .seg 分段控件基线，替换原半透明玻璃胶囊 -->
-          <div class="seg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-            <button
-              class="seg-item"
-              :class="
-                currentTab === 'stats'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
-              "
-              @click="currentTab = 'stats'"
-            >
-              <i class="fas fa-chart-line" />
-              <span>统计查询</span>
-            </button>
-            <button
-              class="seg-item"
-              :class="
-                currentTab === 'tutorial'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-700'
-                  : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100'
-              "
-              @click="currentTab = 'tutorial'"
-            >
-              <i class="fas fa-graduation-cap" />
-              <span>使用教程</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 统计内容 -->
-      <div v-if="currentTab === 'stats'" class="tab-content">
+      <!-- 统计内容。原先此处有「统计查询 / 使用教程」页内 Tab，
+           与顶栏 PublicNav 的「使用教程」重复；教程完整版在 /tutorial，故移除 -->
+      <div class="tab-content">
         <!-- 公共概览：查询前后都展示。
              原为 !hasQueried，查询成功后整块消失 —— 而倍率恰恰是看懂费用的前提 -->
         <div
@@ -210,15 +178,6 @@
           </div>
         </div>
       </div>
-
-      <!-- 教程内容 -->
-      <div v-if="currentTab === 'tutorial'" class="tab-content">
-        <div
-          class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
-        >
-          <TutorialView />
-        </div>
-      </div>
     </div>
 
     <!-- API Key 测试弹窗 -->
@@ -293,16 +252,10 @@ import LimitConfig from '@/components/apistats/LimitConfig.vue'
 import AggregatedStatsCard from '@/components/apistats/AggregatedStatsCard.vue'
 import ModelUsageStats from '@/components/apistats/ModelUsageStats.vue'
 import ServiceCostCards from '@/components/apistats/ServiceCostCards.vue'
-import TutorialView from './TutorialView.vue'
 import UnifiedTestModal from '@/components/common/UnifiedTestModal.vue'
 
 const route = useRoute()
 const apiStatsStore = useApiStatsStore()
-
-// 当前标签页
-const currentTab = ref('stats')
-
-// 主题相关
 
 const {
   apiKey,

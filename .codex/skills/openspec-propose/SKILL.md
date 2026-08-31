@@ -1,110 +1,110 @@
 ---
 name: openspec-propose
-description: "一步生成新 change 的完整 artifacts。适用于用户想快速描述要构建的内容，并获得可用于实现的 proposal、design、specs 和 tasks 的场景。"
+description: Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
 license: MIT
-compatibility: "需要 openspec CLI。"
+compatibility: Requires openspec CLI.
 metadata:
   author: openspec
   version: "1.0"
-  generatedBy: "1.3.0"
+  generatedBy: "1.3.1"
 ---
 
-提出一个新 change：创建 change，并一步生成所有 artifacts。
+Propose a new change - create the change and generate all artifacts in one step.
 
-我会创建包含以下 artifacts 的 change：
-- `proposal.md`（做什么以及为什么）
-- `design.md`（如何实现）
-- `tasks.md`（实现步骤）
+I'll create a change with artifacts:
+- proposal.md (what & why)
+- design.md (how)
+- tasks.md (implementation steps)
 
-准备实现时，运行 `/opsx:apply`。
+When ready to implement, run /opsx:apply
 
 ---
 
-**输入**：用户请求应包含一个 change 名称（kebab-case），或描述他们想构建的内容。
+**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
 
-**步骤**
+**Steps**
 
-1. **如果未提供清晰输入，询问用户想构建什么**
+1. **If no clear input provided, ask what they want to build**
 
-   使用 **AskUserQuestion 工具**（开放式问题，无预设选项）询问：
-   > “你想处理什么 change？请描述你想构建或修复的内容。”
+   Use the **AskUserQuestion tool** (open-ended, no preset options) to ask:
+   > "What change do you want to work on? Describe what you want to build or fix."
 
-   根据用户描述推导一个 kebab-case 名称（例如 “add user authentication” → `add-user-auth`）。
+   From their description, derive a kebab-case name (e.g., "add user authentication" → `add-user-auth`).
 
-   **重要**：在理解用户想构建什么之前，不要继续。
+   **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
 
-2. **创建 change 目录**
+2. **Create the change directory**
    ```bash
    openspec new change "<name>"
    ```
-   这会在 `openspec/changes/<name>/` 创建带 `.openspec.yaml` 的 change 脚手架。
+   This creates a scaffolded change at `openspec/changes/<name>/` with `.openspec.yaml`.
 
-3. **获取 artifact 构建顺序**
+3. **Get the artifact build order**
    ```bash
    openspec status --change "<name>" --json
    ```
-   解析 JSON 以获取：
-   - `applyRequires`：实现前需要的 artifact ID 数组（例如 `["tasks"]`）
-   - `artifacts`：所有 artifacts 的列表，以及它们的状态和依赖
+   Parse the JSON to get:
+   - `applyRequires`: array of artifact IDs needed before implementation (e.g., `["tasks"]`)
+   - `artifacts`: list of all artifacts with their status and dependencies
 
-4. **按顺序创建 artifacts，直到可 apply**
+4. **Create artifacts in sequence until apply-ready**
 
-   使用 **TodoWrite 工具**跟踪 artifacts 的推进进度。
+   Use the **TodoWrite tool** to track progress through the artifacts.
 
-   按依赖顺序循环 artifacts（先处理没有待完成依赖的 artifacts）：
+   Loop through artifacts in dependency order (artifacts with no pending dependencies first):
 
-   a. **对于每个 `ready`（依赖已满足）的 artifact：**
-      - 获取指令：
+   a. **For each artifact that is `ready` (dependencies satisfied)**:
+      - Get instructions:
         ```bash
         openspec instructions <artifact-id> --change "<name>" --json
         ```
-      - instructions JSON 包含：
-        - `context`：项目背景（给你的约束，不要写入输出）
-        - `rules`：artifact 特定规则（给你的约束，不要写入输出）
-        - `template`：输出文件应使用的结构
-        - `instruction`：该 artifact 类型的 schema 特定指导
-        - `outputPath`：artifact 写入位置
-        - `dependencies`：需要读取作为上下文的已完成 artifacts
-      - 读取任何已完成的依赖文件作为上下文
-      - 使用 `template` 作为结构创建 artifact 文件
-      - 将 `context` 和 `rules` 作为约束应用，但不要复制到文件中
-      - 简短展示进度：`已创建 <artifact-id>`
+      - The instructions JSON includes:
+        - `context`: Project background (constraints for you - do NOT include in output)
+        - `rules`: Artifact-specific rules (constraints for you - do NOT include in output)
+        - `template`: The structure to use for your output file
+        - `instruction`: Schema-specific guidance for this artifact type
+        - `outputPath`: Where to write the artifact
+        - `dependencies`: Completed artifacts to read for context
+      - Read any completed dependency files for context
+      - Create the artifact file using `template` as the structure
+      - Apply `context` and `rules` as constraints - but do NOT copy them into the file
+      - Show brief progress: "Created <artifact-id>"
 
-   b. **继续直到所有 `applyRequires` artifacts 完成**
-      - 每创建一个 artifact 后，重新运行 `openspec status --change "<name>" --json`
-      - 检查 `applyRequires` 中的每个 artifact ID 是否都在 artifacts 数组中处于 `status: "done"`
-      - 当所有 `applyRequires` artifacts 都完成时停止
+   b. **Continue until all `applyRequires` artifacts are complete**
+      - After creating each artifact, re-run `openspec status --change "<name>" --json`
+      - Check if every artifact ID in `applyRequires` has `status: "done"` in the artifacts array
+      - Stop when all `applyRequires` artifacts are done
 
-   c. **如果某个 artifact 需要用户输入**（上下文不明确）：
-      - 使用 **AskUserQuestion 工具**澄清
-      - 然后继续创建
+   c. **If an artifact requires user input** (unclear context):
+      - Use **AskUserQuestion tool** to clarify
+      - Then continue with creation
 
-5. **展示最终状态**
+5. **Show final status**
    ```bash
    openspec status --change "<name>"
    ```
 
-**输出**
+**Output**
 
-完成所有 artifacts 后，总结：
-- Change 名称和位置
-- 已创建 artifacts 列表及其简短说明
-- 就绪状态：“所有 artifacts 已创建！可以开始实现。”
-- 提示：“运行 `/opsx:apply`，或直接让我实现以开始处理任务。”
+After completing all artifacts, summarize:
+- Change name and location
+- List of artifacts created with brief descriptions
+- What's ready: "All artifacts created! Ready for implementation."
+- Prompt: "Run `/opsx:apply` or ask me to implement to start working on the tasks."
 
-**Artifact 创建准则**
+**Artifact Creation Guidelines**
 
-- 遵循每种 artifact 类型的 `openspec instructions` 返回的 `instruction` 字段
-- schema 定义了每个 artifact 应包含什么；遵循它
-- 创建新 artifact 前，先读取依赖 artifacts 作为上下文
-- 使用 `template` 作为输出文件结构，并填充各部分
-- **重要**：`context` 和 `rules` 是给你的约束，不是文件内容
-  - 不要将 `<context>`、`<rules>`、`<project_context>` 块复制到 artifact 中
-  - 它们用于指导你写作，但绝不应出现在输出文件中
+- Follow the `instruction` field from `openspec instructions` for each artifact type
+- The schema defines what each artifact should contain - follow it
+- Read dependency artifacts for context before creating new ones
+- Use `template` as the structure for your output file - fill in its sections
+- **IMPORTANT**: `context` and `rules` are constraints for YOU, not content for the file
+  - Do NOT copy `<context>`, `<rules>`, `<project_context>` blocks into the artifact
+  - These guide what you write, but should never appear in the output
 
-**护栏**
-- 创建实现所需的全部 artifacts（由 schema 的 `apply.requires` 定义）
-- 创建新 artifact 前，始终读取依赖 artifacts
-- 如果上下文严重不清楚，询问用户；但优先做出合理决策以保持推进
-- 如果已存在同名 change，询问用户是继续它还是创建新的 change
-- 继续下一个 artifact 前，验证每个 artifact 文件确实存在
+**Guardrails**
+- Create ALL artifacts needed for implementation (as defined by schema's `apply.requires`)
+- Always read dependency artifacts before creating a new one
+- If context is critically unclear, ask the user - but prefer making reasonable decisions to keep momentum
+- If a change with that name already exists, ask if user wants to continue it or create a new one
+- Verify each artifact file exists after writing before proceeding to next

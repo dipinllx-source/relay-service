@@ -26,20 +26,20 @@
           <!-- 用户登录按钮 (仅在 LDAP 启用时显示) -->
           <router-link
             v-if="oemSettings.ldapEnabled"
-            class="user-login-button flex items-center gap-2 rounded-2xl px-4 py-2 text-white transition-all duration-300 md:px-5 md:py-2.5"
+            class="user-login-button nav-ctl"
             to="/user-login"
           >
-            <i class="fas fa-user text-sm md:text-base" />
-            <span class="text-xs font-semibold tracking-wide md:text-sm">用户登录</span>
+            <i class="fas fa-user" />
+            <span>用户登录</span>
           </router-link>
           <!-- 管理后台按钮 -->
           <router-link
             v-if="oemSettings.showAdminButton !== false"
-            class="admin-button-refined flex items-center gap-2 rounded-2xl px-4 py-2 transition-all duration-300 md:px-5 md:py-2.5"
+            class="admin-button-refined nav-ctl"
             to="/dashboard"
           >
-            <i class="fas fa-shield-alt text-sm md:text-base" />
-            <span class="text-xs font-semibold tracking-wide md:text-sm">管理后台</span>
+            <i class="fas fa-shield-alt" />
+            <span>管理后台</span>
           </router-link>
         </div>
       </div>
@@ -599,6 +599,53 @@ watch(apiKey, (newValue) => {
   margin: 0 auto;
 }
 
+/* 吊顶内控件统一到 32px / r8px（原为 46px / r16px 的渐变胶囊） */
+.stats-nav .nav-ctl {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.stats-nav .nav-ctl i {
+  font-size: 13px;
+}
+
+/* 吊顶内 LogoTitle 压到 48px 定高：品牌 15px/600，与管理台一致 */
+.stats-nav :deep(.flex.items-center.gap-4) {
+  gap: 10px;
+}
+.stats-nav :deep(.h-12.w-12) {
+  height: 28px;
+  width: 28px;
+  border-radius: 8px;
+}
+.stats-nav :deep(.h-12.w-12 img),
+.stats-nav :deep(.h-12.w-12 > div) {
+  height: 18px;
+  width: 18px;
+}
+.stats-nav :deep(.h-12.w-12 i) {
+  font-size: 14px;
+}
+.stats-nav :deep(.min-h-\[48px\]) {
+  min-height: 0;
+}
+.stats-nav :deep(.header-title) {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.stats-nav :deep(p) {
+  font-size: 11px;
+  margin-top: 0;
+  line-height: 1.2;
+}
+
 /* 渐变背景 */
 
 /* 暗色模式的渐变背景 */
@@ -638,13 +685,10 @@ watch(apiKey, (newValue) => {
 
 /* 用户登录按钮 */
 .user-login-button {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #374151;
   text-decoration: none;
-  box-shadow:
-    0 4px 12px rgba(52, 211, 153, 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
   position: relative;
   overflow: hidden;
   font-weight: 600;
@@ -705,14 +749,11 @@ watch(apiKey, (newValue) => {
 
 /* 管理后台按钮 - 精致版本 */
 .admin-button-refined {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* 品牌紫保留为主按钮实色，不再做渐变+外发光胶囊 */
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
   color: white;
   text-decoration: none;
-  box-shadow:
-    0 4px 12px rgba(var(--primary-rgb), 0.25),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
   position: relative;
   overflow: hidden;
   font-weight: 600;

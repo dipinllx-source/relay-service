@@ -5194,11 +5194,26 @@ const handleSaveAccountExpiry = async ({ accountId, expiresAt }) => {
   }
 }
 
-// 检测表格是否需要横向滚动
+// 操作列平铺所需的容器宽度。
+// 实测（9 列，1440~3200 视口）：其余列 852px + 平铺操作列 476px = 1328px，
+// 收起形态则为 1066 + 242 = 1308px。取 1340 留 12px 余量。
+const FLAT_ACTIONS_MIN_WIDTH = 1340
+
+// 检测操作列是否需要收起为「调度 + 编辑 + ⋮」
+//
+// 【为什么不用 scrollWidth > clientWidth】
+// 操作列有两种形态，而 scrollWidth 恰恰由当前形态决定，于是形成反馈环：
+//   平铺(7 按钮)  scrollWidth 1328 > clientWidth 1308 → 判定"该收起"
+//   收起(3 按钮)  scrollWidth 1308 = clientWidth 1308 → 判定"可平铺"
+// 两个状态互相否定 → 每次 resize / ResizeObserver 回调都翻转一次，
+// 表现为"账号页面偶现操作按钮平铺开"。
+//
+// 改用与形态无关的输入：clientWidth 只由容器决定（实测 1440/1920/2560/3200
+// 视口下恒为 1308，两种形态下均一致），判定结果不再反过来影响输入，
+// 因此单调收敛、不再振荡。
 const checkHorizontalScroll = () => {
   if (tableContainerRef.value) {
-    needsHorizontalScroll.value =
-      tableContainerRef.value.scrollWidth > tableContainerRef.value.clientWidth
+    needsHorizontalScroll.value = tableContainerRef.value.clientWidth < FLAT_ACTIONS_MIN_WIDTH
   }
 }
 

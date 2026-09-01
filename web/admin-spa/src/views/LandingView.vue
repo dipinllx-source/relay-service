@@ -313,15 +313,15 @@
       </div>
     </section>
 
-    <!-- Stats -->
-    <section id="stats" class="stats">
-      <div class="stats__inner reveal">
-        <div v-for="s in stats" :key="s.label" class="stats__item">
-          <div class="stats__value">{{ s.value }}</div>
-          <div class="stats__label">{{ s.label }}</div>
+    <!-- 事实条：只留可核实的，低调呈现 + 数字滚动入场 -->
+    <div ref="factsRef" class="facts">
+      <div class="facts__inner">
+        <div v-for="(s, i) in stats" :key="s.label" class="facts__item">
+          <div class="facts__value">{{ statDisplay[i] }}</div>
+          <div class="facts__label">{{ s.label }}</div>
         </div>
       </div>
-    </section>
+    </div>
 
     <!-- CTA -->
     <section id="start" class="cta">
@@ -340,7 +340,7 @@
 </template>
 
 <script setup>
-import { onMounted, onBeforeUnmount } from 'vue'
+import { onMounted, onBeforeUnmount, ref } from 'vue'
 import PublicFooter from '@/components/public/PublicFooter.vue'
 import PublicNav from '@/components/public/PublicNav.vue'
 
@@ -406,10 +406,14 @@ const platforms = [
 // 只保留可核实的事实。'99.9% 可用性目标' / '< 50ms 调度开销' / '∞ 并发扩展'
 // 均无来源支撑，属宣传话术，已删。
 const stats = [
-  { value: '8', label: '接入平台' },
-  { value: '11+', label: '账户类型' },
-  { value: '100%', label: '自建可控' }
+  { to: 8, suffix: '', label: '接入平台' },
+  { to: 11, suffix: '+', label: '账户类型' },
+  { to: 100, suffix: '%', label: '自建可控' }
 ]
+// 滚动到位后从 0 递增到目标值；未触发时显示 0，避免先闪出终值再跳回
+const statDisplay = ref(stats.map((s) => '0' + s.suffix))
+const factsRef = ref(null)
+let countObserver
 
 // 无界面可截图的能力（原 features 四卡中不与 showcase 重名的部分）
 const coreCards = [
@@ -467,11 +471,45 @@ onMounted(() => {
     { threshold: 0, rootMargin: '0px 0px -12% 0px' }
   )
   document.querySelectorAll('.pop').forEach((el) => popObserver.observe(el))
+
+  // chip 逐个弹入：延迟写在行内，避免为 8 个 chip 写 8 条 CSS 规则
+  document.querySelectorAll('.rail__chip').forEach((c, i) => {
+    c.style.transitionDelay = i * 0.07 + 's'
+  })
+
+  // 事实条数字滚动（0 → 目标值，1.4s，三次缓出）
+  if (factsRef.value) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduce) {
+      statDisplay.value = stats.map((s) => s.to + s.suffix)
+    } else {
+      countObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return
+            countObserver.unobserve(entry.target)
+            const t0 = performance.now()
+            const dur = 1400
+            const tick = (now) => {
+              const prog = Math.min(1, (now - t0) / dur)
+              const eased = 1 - Math.pow(1 - prog, 3)
+              statDisplay.value = stats.map((s) => Math.round(s.to * eased) + s.suffix)
+              if (prog < 1) requestAnimationFrame(tick)
+            }
+            requestAnimationFrame(tick)
+          })
+        },
+        { threshold: 0.4 }
+      )
+      countObserver.observe(factsRef.value)
+    }
+  }
 })
 
 onBeforeUnmount(() => {
   observer && observer.disconnect()
   popObserver && popObserver.disconnect()
+  countObserver && countObserver.disconnect()
 })
 </script>
 
@@ -790,7 +828,17 @@ onBeforeUnmount(() => {
   background: #fff;
   font-size: 14px;
   color: #424245;
-  transition: border-color 0.32s ease;
+  /* 逐个弹入；每个 chip 的 transition-delay 由脚本按索引写入 */
+  opacity: 0;
+  transform: translateY(16px) scale(0.9);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.32s ease;
+}
+.rail.reveal--in .rail__chip {
+  opacity: 1;
+  transform: none;
 }
 .rail__chip:hover {
   border-color: rgba(0, 0, 0, 0.28);
@@ -840,14 +888,30 @@ onBeforeUnmount(() => {
   gap: 20px;
   margin-top: 52px;
 }
+/* 逐张错峰入场：容器拿到 reveal--in 后，三张卡依次弹出（0 / .14s / .28s）。
+   原先只有容器整体淡入，三张同时出现、无缩放，动感明显弱于 demo。 */
 .core__card {
   border: 1px solid rgba(0, 0, 0, 0.09);
   border-radius: 18px;
   padding: 26px 24px;
   background: #fbfbfd;
+  opacity: 0;
+  transform: translateY(38px) scale(0.96);
   transition:
+    opacity 1s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 1s cubic-bezier(0.34, 1.56, 0.64, 1),
     border-color 0.32s ease,
     box-shadow 0.32s ease;
+}
+.core__grid.reveal--in .core__card {
+  opacity: 1;
+  transform: none;
+}
+.core__grid.reveal--in .core__card:nth-child(2) {
+  transition-delay: 0.14s;
+}
+.core__grid.reveal--in .core__card:nth-child(3) {
+  transition-delay: 0.28s;
 }
 .core__card:hover {
   border-color: rgba(0, 0, 0, 0.2);
@@ -1148,6 +1212,13 @@ onBeforeUnmount(() => {
     transform: none !important;
     transition: none !important;
   }
+  /* 这些元素初始态是 opacity:0，动画关掉后必须强制可见，否则整段消失 */
+  .core__card,
+  .rail__chip {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 @media (max-width: 900px) {
@@ -1228,37 +1299,41 @@ onBeforeUnmount(() => {
   background: #2c2c2e;
 }
 
-/* ---------- Stats ---------- */
-.stats {
-  background: #1d1d1f;
-  color: #f5f5f7;
-  padding: 100px 22px;
+/* ---------- 事实条 ----------
+ * 原先是整块深色大字宣传条（padding 100px、数字 clamp(40~72px)）。
+ * 数字换成可核实的事实后，视觉也降级为低调的浅色细边条，不再喧宾夺主。
+ */
+.facts {
+  margin-top: 104px;
+  border-top: 1px solid rgba(0, 0, 0, 0.09);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.09);
+  background: #fbfbfd;
 }
-.stats__inner {
-  max-width: 1100px;
+.facts__inner {
+  max-width: 900px;
   margin: 0 auto;
+  padding: 38px 22px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 32px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
   text-align: center;
 }
-.stats__value {
-  font-size: clamp(40px, 6vw, 72px);
+.facts__value {
+  font-size: 30px;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  background: linear-gradient(180deg, #fff, #a1a1a6);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  letter-spacing: -0.02em;
+  /* 等宽数字：滚动时宽度不跳动 */
+  font-variant-numeric: tabular-nums;
 }
-.stats__label {
-  font-size: 17px;
-  color: #a1a1a6;
-  margin-top: 8px;
+.facts__label {
+  font-size: 13.5px;
+  color: #6e6e73;
+  margin-top: 5px;
 }
-@media (max-width: 720px) {
-  .stats__inner {
-    grid-template-columns: repeat(2, 1fr);
+@media (max-width: 900px) {
+  .facts__inner {
+    grid-template-columns: 1fr;
+    gap: 26px;
   }
 }
 
@@ -1288,7 +1363,7 @@ onBeforeUnmount(() => {
 }
 /* ---------- 暗色变体 ----------
  * 本页原无任何暗色规则，深色模式下整页为浅底。仅覆盖表面、文字与边框；
- * .stats 本就是刻意的深色区块，.btn--primary 为品牌色，均不改。
+ * .btn--primary 为品牌色，不改。
  */
 .dark .apple-landing {
   background: #0b1220;
@@ -1319,6 +1394,14 @@ onBeforeUnmount(() => {
   border-color: rgba(255, 255, 255, 0.1);
 }
 .dark .core__card p {
+  color: #a1a1a6;
+}
+.dark .facts {
+  background: #111827;
+  border-top-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+.dark .facts__label {
   color: #a1a1a6;
 }
 .dark .cta {

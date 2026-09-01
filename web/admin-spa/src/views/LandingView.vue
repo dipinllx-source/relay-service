@@ -238,55 +238,23 @@
             </g>
           </svg>
         </div>
-      </div>
-    </section>
 
-    <!-- Platforms strip -->
-    <section id="platforms" class="platforms reveal">
-      <h2 class="section-title">支持你的全部模型供应商</h2>
-      <p class="section-sub">通过单一 API Key 接入业内主流 AI 平台。</p>
-      <div class="platforms__grid">
-        <div v-for="p in platforms" :key="p.name" class="platforms__item">
-          <div class="platforms__icon" :style="{ background: p.color }">{{ p.icon }}</div>
-          <span>{{ p.name }}</span>
+        <!-- 供应商降级为一条 chip rail：省一屏，且全站只列举这一次 -->
+        <div class="rail reveal">
+          <span v-for="p in platforms" :key="p.name" class="rail__chip">
+            <i class="rail__icon" :style="{ background: p.color }">{{ p.icon }}</i
+            >{{ p.name }}
+          </span>
         </div>
+        <p class="rail__note reveal">8 类账户接入 · 统一调度与计费</p>
       </div>
     </section>
 
     <!-- Feature cards (Apple bento style) -->
     <section id="features" class="features">
-      <h2 class="section-title reveal">为生产环境而生</h2>
-      <div class="features__grid">
-        <article class="feat feat--lg feat--dark reveal">
-          <div class="feat__tag">智能调度</div>
-          <h3>粘性会话 + 自动故障转移</h3>
-          <p>基于请求内容哈希绑定账户，智能识别 529 过载，自动切换可用上游。</p>
-          <div class="feat__chart">
-            <div v-for="(b, i) in bars" :key="i" :style="{ height: b + '%' }"></div>
-          </div>
-        </article>
-
-        <article class="feat feat--light reveal">
-          <div class="feat__tag">企业级安全</div>
-          <h3>AES 加密<br />SHA-256 哈希</h3>
-          <p>OAuth Token 与凭据全程加密存储，API Key 哈希校验，零明文。</p>
-        </article>
-
-        <article class="feat feat--accent reveal">
-          <div class="feat__tag">实时观测</div>
-          <h3>毫秒级<br />使用统计</h3>
-          <p>流式响应中实时捕获 Token 使用、计算成本，仪表盘秒级刷新。</p>
-        </article>
-
-        <article class="feat feat--lg feat--dark reveal">
-          <div class="feat__tag">并发控制</div>
-          <h3>Redis 排队，不再 429</h3>
-          <p>基于 Sorted Set 的分布式并发限制，请求排队等待而非直接拒绝，平滑应对峰值。</p>
-          <div class="feat__queue">
-            <span v-for="i in 8" :key="i" :style="{ animationDelay: i * 0.12 + 's' }"></span>
-          </div>
-        </article>
-      </div>
+      <p class="section-kicker reveal">看得见的部分</p>
+      <h2 class="section-title reveal">打开就能用的控制台</h2>
+      <p class="section-sub reveal">三块日常最常用的界面，都是真实运行中的样子。</p>
 
       <!-- 截图跟随各自功能展示，而非集中陈列 -->
       <div
@@ -331,6 +299,20 @@
       <p class="showcase__note">截图中的账号、用量与费用均为演示数据。</p>
     </section>
 
+    <!-- 看不见的部分：没有界面可截图，但决定能不能长期跑 -->
+    <section id="core" class="core">
+      <p class="section-kicker reveal">看不见的部分</p>
+      <h2 class="section-title reveal">撑住生产流量的地方</h2>
+      <p class="section-sub reveal">这些能力没有界面可以截图，但决定了它能不能长期跑。</p>
+      <div class="core__grid reveal">
+        <article v-for="c in coreCards" :key="c.title" class="core__card">
+          <div class="core__icon" :style="{ background: c.bg, color: c.fg }">{{ c.icon }}</div>
+          <h3>{{ c.title }}</h3>
+          <p>{{ c.desc }}</p>
+        </article>
+      </div>
+    </section>
+
     <!-- Stats -->
     <section id="stats" class="stats">
       <div class="stats__inner reveal">
@@ -361,8 +343,6 @@
 import { onMounted, onBeforeUnmount } from 'vue'
 import PublicFooter from '@/components/public/PublicFooter.vue'
 import PublicNav from '@/components/public/PublicNav.vue'
-
-const bars = [40, 70, 55, 85, 60, 90, 50, 75, 65, 95, 70, 80]
 
 // 截图跟随各自对应的功能展示（演示数据，非真实账号/用量）
 const shots = [
@@ -423,11 +403,37 @@ const platforms = [
   { name: 'Console', icon: 'K', color: 'linear-gradient(135deg,#6366f1,#4f46e5)' }
 ]
 
+// 只保留可核实的事实。'99.9% 可用性目标' / '< 50ms 调度开销' / '∞ 并发扩展'
+// 均无来源支撑，属宣传话术，已删。
 const stats = [
+  { value: '8', label: '接入平台' },
   { value: '11+', label: '账户类型' },
-  { value: '99.9%', label: '可用性目标' },
-  { value: '< 50ms', label: '调度开销' },
-  { value: '∞', label: '并发扩展' }
+  { value: '100%', label: '自建可控' }
+]
+
+// 无界面可截图的能力（原 features 四卡中不与 showcase 重名的部分）
+const coreCards = [
+  {
+    icon: '⇄',
+    bg: '#eef2ff',
+    fg: '#4f46e5',
+    title: '粘性会话 + 故障转移',
+    desc: '按请求内容哈希绑定账户，识别 529 过载后自动切到可用上游，会话不断。'
+  },
+  {
+    icon: '⛨',
+    bg: '#ecfdf5',
+    fg: '#059669',
+    title: '凭据零明文',
+    desc: 'OAuth Token 与凭据 AES 加密存储，API Key 仅存 SHA-256 哈希。'
+  },
+  {
+    icon: '≡',
+    bg: '#fff7ed',
+    fg: '#ea580c',
+    title: '排队而非拒绝',
+    desc: '基于 Redis Sorted Set 的分布式并发控制，峰值时排队等待，不返回 429。'
+  }
 ]
 
 let observer
@@ -757,173 +763,124 @@ onBeforeUnmount(() => {
   margin: 0 0 56px;
 }
 
-/* ---------- Platforms ---------- */
-.platforms {
-  padding: 100px 22px;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.platforms__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 20px;
-}
-.platforms__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 28px 12px;
-  background: #fff;
-  border-radius: 18px;
-  transition:
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-}
-.platforms__item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.12);
-}
-.platforms__icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  font-weight: 600;
-  color: #fff;
-  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.2);
-}
-.platforms__item span {
-  font-size: 15px;
-  font-weight: 500;
-  color: #1d1d1f;
-}
-
-/* ---------- Features bento ---------- */
+/* ---------- Features（保留容器：showcase 的负 margin 依赖它的 max-width） ---------- */
 .features {
   padding: 80px 22px 120px;
   max-width: 1100px;
   margin: 0 auto;
 }
-.features__grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-  margin-top: 56px;
-}
-.feat {
-  border-radius: 28px;
-  padding: 40px;
-  min-height: 380px;
+
+/* ---------- 供应商 chip rail（原整屏 platforms 降级而来） ---------- */
+.rail {
+  margin: 52px auto 0;
+  max-width: 1000px;
   display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
 }
-.feat:hover {
-  transform: translateY(-4px);
+.rail__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  background: #fff;
+  font-size: 14px;
+  color: #424245;
+  transition: border-color 0.32s ease;
 }
-.feat--lg {
-  grid-column: span 2;
-  min-height: 420px;
+.rail__chip:hover {
+  border-color: rgba(0, 0, 0, 0.28);
 }
-.feat--dark {
-  background: linear-gradient(135deg, #1d1d1f 0%, #2d2d33 100%);
-  color: #f5f5f7;
-}
-.feat--light {
-  background: linear-gradient(135deg, #f5f5f7 0%, #e8e8ed 100%);
-  color: #1d1d1f;
-}
-.feat--accent {
-  background: linear-gradient(135deg, #0071e3 0%, #0a84ff 100%);
+.rail__icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
   color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-style: normal;
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.feat__tag {
+.rail__chip:hover .rail__icon {
+  transform: rotate(-10deg) scale(1.15);
+}
+.rail__note {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: #86868b;
+}
+
+/* ---------- Section kicker（看得见的 / 看不见的） ---------- */
+.section-kicker {
   font-size: 13px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.08em;
-  opacity: 0.7;
-  margin-bottom: 16px;
+  text-transform: uppercase;
+  color: #0071e3;
+  text-align: center;
+  margin: 0 0 12px;
 }
-.feat h3 {
-  font-size: clamp(28px, 3vw, 40px);
-  font-weight: 700;
-  line-height: 1.1;
+
+/* ---------- 看不见的部分 ---------- */
+.core {
+  padding: 40px 22px 120px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.core__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 52px;
+}
+.core__card {
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 18px;
+  padding: 26px 24px;
+  background: #fbfbfd;
+  transition:
+    border-color 0.32s ease,
+    box-shadow 0.32s ease;
+}
+.core__card:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.24);
+}
+.core__card h3 {
+  font-size: 19px;
+  margin: 0 0 8px;
   letter-spacing: -0.02em;
-  margin: 0 0 16px;
 }
-.feat p {
-  font-size: 17px;
-  line-height: 1.5;
-  opacity: 0.85;
+.core__card p {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #6e6e73;
   margin: 0;
-  max-width: 480px;
 }
-.feat__chart {
-  margin-top: auto;
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 100px;
-  padding-top: 24px;
-}
-.feat__chart > div {
-  flex: 1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.1));
-  border-radius: 4px;
-  animation: rise 1.2s ease-out backwards;
-}
-.feat__chart > div:nth-child(n) {
-  animation-delay: calc(var(--i, 0) * 0.05s);
-}
-@keyframes rise {
-  from {
-    transform: scaleY(0);
-    transform-origin: bottom;
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
-.feat__queue {
-  margin-top: auto;
-  display: flex;
-  gap: 8px;
-  padding-top: 24px;
-}
-.feat__queue span {
-  width: 36px;
-  height: 36px;
+.core__icon {
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  animation: pulse 2s ease-in-out infinite;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  font-size: 15px;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-@keyframes pulse {
-  0%,
-  100% {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  50% {
-    background: rgba(255, 255, 255, 0.35);
-  }
+.core__card:hover .core__icon {
+  transform: rotate(-8deg) scale(1.12);
 }
-@media (max-width: 720px) {
-  .features__grid {
+@media (max-width: 900px) {
+  .core__grid {
     grid-template-columns: 1fr;
-  }
-  .feat--lg {
-    grid-column: span 1;
-  }
-  .feat {
-    padding: 28px;
-    min-height: 320px;
+    gap: 16px;
   }
 }
 
@@ -1331,7 +1288,7 @@ onBeforeUnmount(() => {
 }
 /* ---------- 暗色变体 ----------
  * 本页原无任何暗色规则，深色模式下整页为浅底。仅覆盖表面、文字与边框；
- * .feat--dark 与 .stats 本就是刻意的深色区块，.btn--primary 为品牌色，均不改。
+ * .stats 本就是刻意的深色区块，.btn--primary 为品牌色，均不改。
  */
 .dark .apple-landing {
   background: #0b1220;
@@ -1349,15 +1306,20 @@ onBeforeUnmount(() => {
 .dark .hero__card-bar {
   background: rgba(255, 255, 255, 0.06);
 }
-.dark .platforms__item {
+.dark .rail__chip {
   background: #1f2937;
-}
-.dark .platforms__item span {
+  border-color: rgba(255, 255, 255, 0.12);
   color: #f3f4f6;
 }
-.dark .feat--light {
-  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-  color: #f3f4f6;
+.dark .rail__chip:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.dark .core__card {
+  background: #1c1c1e;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .core__card p {
+  color: #a1a1a6;
 }
 .dark .cta {
   background: linear-gradient(180deg, #0b1220 0%, #111827 100%);

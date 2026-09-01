@@ -7,7 +7,7 @@
     <section id="top" class="hero">
       <div class="hero__inner reveal">
         <p class="hero__eyebrow">Relay Service</p>
-        <h1 class="hero__title">一个简易模型中转服务</h1>
+        <h1 class="hero__title">一个简单的模型网关</h1>
         <p class="hero__sub">
           统一调度 Claude、Gemini、OpenAI、Bedrock、Azure 与更多平台。<br />
           为个人打造的全方面、可观测的 AI API 中转。
@@ -303,21 +303,28 @@
             <li v-for="p in s.points" :key="p">{{ p }}</li>
           </ul>
         </div>
-        <figure class="showcase__frame pop pop--late">
-          <div class="showcase__bar">
-            <span class="showcase__dot showcase__dot--r" />
-            <span class="showcase__dot showcase__dot--y" />
-            <span class="showcase__dot showcase__dot--g" />
-            <span class="showcase__crumb">{{ s.label }}</span>
+        <figure class="showcase__shot pop pop--late" tabindex="0">
+          <div class="showcase__holder">
+            <span aria-hidden="true" class="showcase__clip" />
+            <div class="showcase__frame">
+              <div class="showcase__bar">
+                <span class="showcase__dot showcase__dot--r" />
+                <span class="showcase__dot showcase__dot--y" />
+                <span class="showcase__dot showcase__dot--g" />
+                <span class="showcase__crumb">{{ s.label }}</span>
+              </div>
+              <img
+                :alt="s.alt"
+                class="showcase__img"
+                decoding="async"
+                :height="s.h"
+                loading="lazy"
+                :src="s.src"
+                :width="s.w"
+              />
+            </div>
+            <span aria-hidden="true" class="showcase__pocket" />
           </div>
-          <img
-            :alt="s.alt"
-            class="showcase__img"
-            decoding="async"
-            height="1434"
-            :src="s.src"
-            width="3024"
-          />
         </figure>
       </div>
 
@@ -365,6 +372,8 @@ const shots = [
     title: '毫秒级使用统计',
     label: '看板',
     src: 'screenshots/dashboard.jpg',
+    w: 2400,
+    h: 1666,
     alt: 'Relay Service 看板：请求量、Token 用量、实时吞吐与模型分布',
     desc: '流式响应中实时捕获 Token 使用与成本，仪表盘秒级刷新。',
     points: [
@@ -379,6 +388,8 @@ const shots = [
     title: '每把 Key 都算得清',
     label: 'API Keys',
     src: 'screenshots/api-keys.jpg',
+    w: 2400,
+    h: 933,
     alt: 'Relay Service API Key 管理：费用、Token、请求数与最后使用时间',
     desc: '给每个人发独立 Key，费用、用量与最后使用时间逐条入账。',
     points: [
@@ -393,6 +404,8 @@ const shots = [
     title: '多平台账户统一编排',
     label: '账户管理',
     src: 'screenshots/accounts.jpg',
+    w: 2400,
+    h: 1203,
     alt: 'Relay Service 账户管理：多平台账户、会话窗口与调度优先级',
     desc: 'Claude、Gemini、OpenAI 等账户集中管理，会话窗口一目了然。',
     points: ['多平台账户与分组调度', '会话窗口剩余量实时可见', '优先级与代理逐账户配置']
@@ -487,7 +500,10 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
 }
 .hero__title {
-  font-size: clamp(36px, 5.2vw, 68px);
+  /* 单行 9 个汉字：nowrap 兜底；下限改成随视口缩放，
+     原 36px 定值 x 9 字 ≈ 324px，在窄屏会顶破 nowrap */
+  white-space: nowrap;
+  font-size: clamp(26px, 8.4vw, 68px);
   line-height: 1.1;
   font-weight: 700;
   letter-spacing: -0.035em;
@@ -913,16 +929,29 @@ onBeforeUnmount(() => {
 
 /* ---------- Showcase：截图跟随功能 ---------- */
 .showcase {
-  max-width: 1180px;
-  margin: 96px auto 0;
+  position: relative;
+  /* 本区块在 section.features 内，父级 max-width:1100px。
+     feat 卡片依赖那个宽度不能动，故用负 margin 撑出父容器，
+     再用自己的 max-width 收口，让截图拿到更大展示宽度。 */
+  max-width: 1280px;
+  width: calc(100vw - 44px);
+  margin: 104px calc((1100px - 100vw + 44px) / 2) 0;
   padding: 0 22px;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 1.9fr);
   align-items: center;
-  gap: 56px;
+  gap: 52px;
+}
+/* 交错行列宽不对称（窄 | 宽），只给文字 order:2 会把图挤进窄列，
+   必须同时把列宽镜像翻转，图才始终占宽列 */
+.showcase--alt {
+  grid-template-columns: minmax(0, 1.9fr) minmax(260px, 1fr);
 }
 .showcase--alt .showcase__text {
   order: 2;
+}
+.showcase:hover {
+  z-index: 6;
 }
 .showcase__tag {
   display: inline-block;
@@ -968,13 +997,125 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   background: #0071e3;
 }
-.showcase__frame {
+/* ---------- 书夹：holder(纸套) + clip(金属夹) + pocket(夹口) ----------
+   分层原则：入场动画 .pop 占用 .showcase__shot 的 transform；
+   倾斜与悬停占用 .showcase__frame 的 transform。两者必须在不同元素上，
+   否则 .pop--in{transform:none} 会把倾斜一并清掉。 */
+.showcase__shot {
+  position: relative;
   margin: 0;
-  border-radius: 16px;
+  outline: none;
+}
+.showcase__shot:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 6px;
+  border-radius: 24px;
+}
+.showcase__holder {
+  position: relative;
+  padding: 26px 18px 30px;
+  border-radius: 20px;
+  background: linear-gradient(168deg, #fdfdfe 0%, #f6f7f9 58%, #f1f2f6 100%);
+  border: 1px solid rgba(0, 0, 0, 0.055);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 22px 48px -34px rgba(0, 0, 0, 0.32);
+}
+.showcase__clip {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  margin-left: -58px;
+  width: 116px;
+  height: 22px;
+  z-index: 4;
+  border-radius: 6px;
+  background: linear-gradient(#fcfcfd 0%, #e4e7ec 44%, #c8ccd6 56%, #e9ebf0 100%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 6px 14px -5px rgba(0, 0, 0, 0.34);
+  transition:
+    transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* 中缝：1px 暗线 + 下方 1px 亮线，制造金属折边错觉 */
+.showcase__clip::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  top: 10px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.13);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+/* 夹下沿投影，让夹像「压在纸上」而非贴上去 */
+.showcase__clip::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: -6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.13);
+  filter: blur(3.5px);
+}
+/* 夹口：z-index 高于截图，才看得出「插在里面」 */
+.showcase__pocket {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34px;
+  z-index: 3;
+  border-radius: 0 0 20px 20px;
+  pointer-events: none;
+  background: linear-gradient(#f4f5f8, #e8eaf0);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 6px 10px -8px rgba(0, 0, 0, 0.16);
+}
+/* 阴影拆「近接触影 + 远漫射影」两层，比单层大模糊干净 */
+.showcase__frame {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  border-radius: 12px;
   overflow: hidden;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    0 2px 4px -2px rgba(0, 0, 0, 0.1),
+    0 20px 40px -24px rgba(0, 0, 0, 0.3);
+  transform: rotate(-1.6deg);
+  transition:
+    transform 0.85s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.showcase--alt .showcase__frame {
+  transform: rotate(1.6deg);
+}
+/* 悬停：扯正 + 上提（从夹口抽出）+ 放大 */
+.showcase__shot:hover .showcase__frame,
+.showcase__shot:focus-within .showcase__frame {
+  transform: rotate(0deg) translateY(-30px) scale(1.075);
+  box-shadow:
+    0 4px 8px -4px rgba(0, 0, 0, 0.12),
+    0 48px 88px -32px rgba(0, 0, 0, 0.42);
+}
+.showcase__shot:hover .showcase__clip,
+.showcase__shot:focus-within .showcase__clip {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 7px 14px -5px rgba(0, 0, 0, 0.32);
 }
 .showcase__bar {
   display: flex;
@@ -1005,11 +1146,12 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #6e6e73;
 }
+/* 三张截图高度各异，写死 aspect-ratio 会变形；
+   改由 img 的 width/height 属性各自决定比例 */
 .showcase__img {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 3024 / 1434;
   background: #f5f5f7;
 }
 .showcase__note {
@@ -1042,10 +1184,18 @@ onBeforeUnmount(() => {
     transform: none;
     transition: none;
   }
+  .showcase__frame,
+  .showcase--alt .showcase__frame,
+  .showcase__shot:hover .showcase__frame,
+  .showcase__shot:focus-within .showcase__frame {
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 @media (max-width: 900px) {
-  .showcase {
+  .showcase,
+  .showcase--alt {
     grid-template-columns: 1fr;
     gap: 28px;
     margin-top: 68px;
@@ -1056,6 +1206,29 @@ onBeforeUnmount(() => {
   .showcase__desc {
     font-size: 16px;
   }
+  /* 窄屏取消倾斜与大幅抽出：触控无 hover，且防横向出界 */
+  .showcase__frame,
+  .showcase--alt .showcase__frame {
+    transform: none;
+  }
+  .showcase__shot:hover .showcase__frame,
+  .showcase__shot:focus-within .showcase__frame {
+    transform: translateY(-10px) scale(1.02);
+  }
+  .showcase__holder {
+    padding: 20px 12px 24px;
+    border-radius: 16px;
+  }
+  .showcase__pocket {
+    height: 26px;
+    border-radius: 0 0 16px 16px;
+  }
+  .showcase__clip {
+    width: 84px;
+    margin-left: -42px;
+    height: 12px;
+    top: -6px;
+  }
 }
 
 .dark .showcase__points li {
@@ -1064,6 +1237,31 @@ onBeforeUnmount(() => {
 .dark .showcase__frame {
   background: #1c1c1e;
   border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .showcase__holder {
+  background: linear-gradient(168deg, #242426 0%, #1f1f21 58%, #1a1a1c 100%);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 22px 48px -34px rgba(0, 0, 0, 0.7);
+}
+.dark .showcase__clip {
+  background: linear-gradient(#4a4a4f 0%, #35353a 44%, #2a2a2e 56%, #3d3d42 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 6px 14px -5px rgba(0, 0, 0, 0.6);
+}
+.dark .showcase__clip::before {
+  background: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.dark .showcase__pocket {
+  background: linear-gradient(#2a2a2e, #202024);
+  border-top-color: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 6px 10px -8px rgba(0, 0, 0, 0.5);
 }
 .dark .showcase__bar {
   background: #2c2c2e;

@@ -1631,14 +1631,14 @@ class ClaudeRelayService {
     return { fp: digest.slice(0, 3), cch: digest.slice(3, 8) }
   }
 
-  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.220 形态）：
+  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.259 形态）：
   //   x-anthropic-billing-header: cc_version=2.1.212.{fp}; cc_entrypoint=cli; cch={cch};
   // 必须在 _removeBillingHeaderFromSystem 之后调用，避免被误剥离。
   _injectDynamicBillingHeader(body) {
     if (!body) {
       return
     }
-    const version = '2.1.220'
+    const version = '2.1.259'
     const { fp } = this._computeCcFingerprint(body, version)
     // P0: removed cch= field (new CLI versions no longer send it)
     const billingEntry = {
@@ -1812,7 +1812,7 @@ class ClaudeRelayService {
     this._removeBillingHeaderFromSystem(processedBody)
 
     // 💳 emulation：在剥离客户端 billing 之后，注入本服务动态派生的 billing header 作为 system[0]，
-    // 对齐真实 CLI v2.1.220（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
+    // 对齐真实 CLI v2.1.259（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
     if (shouldEmulate) {
       this._injectDynamicBillingHeader(processedBody)
     }
@@ -2551,7 +2551,7 @@ class ClaudeRelayService {
     if (shouldEmulate) {
       // P2：emulation 只发送精确、版本自洽的 CLI header 集合。
       // 优先使用账号 Redis 缓存中「与当前声明 UA 同版本」的真实抓取 headers；
-      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.220 抓包字节对齐）。
+      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.259 抓包字节对齐）。
       // 关键：不沿用旧版本缓存（避免 x-stainless 与 UA 版本错位），也不保留客户端多余头。
       const declaredVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
         claudeCodeHeadersService.defaultHeaders['user-agent']
@@ -2641,7 +2641,7 @@ class ClaudeRelayService {
     headers['accept-encoding'] = ACCEPT_ENCODING
 
     // 使用统一 User-Agent 或客户端提供的，最后使用默认值
-    const userAgent = unifiedUA || headers['user-agent'] || 'claude-cli/2.1.220 (external, cli)'
+    const userAgent = unifiedUA || headers['user-agent'] || 'claude-cli/2.1.259 (external, cli)'
     const acceptHeader = headers['accept'] || 'application/json'
     delete headers['user-agent']
     delete headers['accept']

@@ -710,6 +710,86 @@ button.switch-track:disabled {
   box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.5);
 }
 
+/* ==========================================================================
+   弹窗基线（管理台简化风格）
+   --------------------------------------------------------------------------
+   .modal-content 默认是 20px 圆角 + 80px 扩散阴影，内部表单又走 .form-input
+   基类（16px 内距 / 16px 字号 / 2px 边框 / 12px 圆角），与已归统的管理页
+   （卡片 16px 圆角 + 轻阴影，控件 32px / r8）明显是两套规格。
+   给弹窗壳加 .modal-baseline 后，壳与其内所有 .form-input 一并收到管理台基线，
+   调用点无需逐个改成 form-input-md（大表单里有上百个输入框）。
+   未加该类的弹窗视觉不变。
+   ========================================================================== */
+.modal-content.modal-baseline {
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .modal-content.modal-baseline {
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.35),
+    0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+.modal-baseline .form-input {
+  box-sizing: border-box;
+  border-width: 1px;
+  border-color: #d1d5db;
+  border-radius: var(--ctl-radius);
+  font-size: var(--ctl-fs-md);
+  line-height: 1.25;
+}
+
+.dark .modal-baseline .form-input {
+  border-color: #4b5563;
+}
+
+.modal-baseline input.form-input,
+.modal-baseline select.form-input {
+  height: var(--ctl-h-md);
+  padding: 0 var(--ctl-px-md);
+}
+
+/* 多行文本保留自然高度，仅收内距与字号 */
+.modal-baseline textarea.form-input {
+  padding: 8px var(--ctl-px-md);
+}
+
+/* 基类聚焦时带 15px 投影，在弹窗内过重，收成与页面输入框一致的细描边 */
+.modal-baseline .form-input:focus {
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.15);
+  transform: none;
+}
+
+/* 弹窗内分区卡：与设置页分区一致的细边框中性卡，不再按功能上色 */
+.modal-baseline .modal-section {
+  border-radius: 12px;
+  border: 1px solid #f3f4f6;
+  padding: 16px;
+}
+
+.dark .modal-baseline .modal-section {
+  border-color: rgba(55, 65, 81, 0.6);
+}
+
+/* 固定在底部的操作区：与滚动区之间以细线分隔，按钮右对齐 */
+.modal-baseline .modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.dark .modal-baseline .modal-footer {
+  border-top-color: rgba(55, 65, 81, 0.6);
+}
+
 .header-title {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
   -webkit-background-clip: text;

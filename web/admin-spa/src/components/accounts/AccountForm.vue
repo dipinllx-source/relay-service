@@ -1,692 +1,2913 @@
 <template>
   <Teleport to="body">
     <div v-if="show" class="modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+      <!--
+        弹窗归统管理台基线：壳 16px 圆角 + 轻阴影（.modal-baseline），标题行与页面卡片同形，
+        表单控件由 .modal-baseline 收到 32px / r8；壳改为纵向 flex，正文单独滚动，
+        编辑态的操作区固定在底部（创建态各步骤仍在正文内自带按钮）。
+      -->
       <div
-        class="modal-content custom-scrollbar mx-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto p-4 sm:p-6 md:p-8"
+        class="modal-content modal-baseline mx-auto flex max-h-[90vh] w-full max-w-2xl flex-col p-4 sm:p-6"
       >
-        <div class="mb-4 flex items-center justify-between sm:mb-6">
-          <div class="flex items-center gap-2 sm:gap-3">
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-green-600 sm:h-10 sm:w-10 sm:rounded-xl"
-            >
-              <i class="fas fa-user-circle text-sm text-white sm:text-base" />
-            </div>
-            <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 sm:text-xl">
+        <div class="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:text-xl">
               {{ isEdit ? '编辑账户' : '添加账户' }}
             </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              {{
+                isEdit
+                  ? '修改账户名称、调度参数、凭据与代理设置'
+                  : '选择平台与接入方式，填写凭据后加入调度'
+              }}
+            </p>
           </div>
           <button
-            class="p-1 text-gray-400 transition-colors hover:text-gray-600"
+            class="icon-btn-md flex-shrink-0 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            title="关闭"
+            type="button"
             @click="$emit('close')"
           >
-            <i class="fas fa-times text-lg sm:text-xl" />
+            <i class="fas fa-times" />
           </button>
         </div>
 
-        <!-- 步骤指示器 -->
-        <div
-          v-if="!isEdit && (form.addType === 'oauth' || form.addType === 'setup-token')"
-          class="mb-4 flex items-center justify-center sm:mb-8"
-        >
-          <div class="flex items-center space-x-2 sm:space-x-4">
-            <div class="flex items-center">
-              <div
-                :class="[
-                  'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-8 sm:w-8 sm:text-sm',
-                  oauthStep >= 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'
-                ]"
-              >
-                1
+        <div class="modal-scroll-content custom-scrollbar min-h-0 flex-1">
+          <!-- 步骤指示器 -->
+          <div
+            v-if="!isEdit && (form.addType === 'oauth' || form.addType === 'setup-token')"
+            class="mb-4 flex items-center justify-center sm:mb-8"
+          >
+            <div class="flex items-center space-x-2 sm:space-x-4">
+              <div class="flex items-center">
+                <div
+                  :class="[
+                    'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-8 sm:w-8 sm:text-sm',
+                    oauthStep >= 1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'
+                  ]"
+                >
+                  1
+                </div>
+                <span
+                  class="ml-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 sm:ml-2 sm:text-sm"
+                  >基本信息</span
+                >
               </div>
-              <span
-                class="ml-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 sm:ml-2 sm:text-sm"
-                >基本信息</span
-              >
-            </div>
-            <div class="h-0.5 w-4 bg-gray-300 sm:w-8" />
-            <div class="flex items-center">
-              <div
-                :class="[
-                  'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-8 sm:w-8 sm:text-sm',
-                  oauthStep >= 2 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'
-                ]"
-              >
-                2
+              <div class="h-0.5 w-4 bg-gray-300 sm:w-8" />
+              <div class="flex items-center">
+                <div
+                  :class="[
+                    'flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-8 sm:w-8 sm:text-sm',
+                    oauthStep >= 2 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'
+                  ]"
+                >
+                  2
+                </div>
+                <span
+                  class="ml-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 sm:ml-2 sm:text-sm"
+                  >授权认证</span
+                >
               </div>
-              <span
-                class="ml-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 sm:ml-2 sm:text-sm"
-                >授权认证</span
-              >
             </div>
           </div>
-        </div>
 
-        <!-- 步骤1: 基本信息和代理设置 -->
-        <div v-if="oauthStep === 1 && !isEdit">
-          <div class="space-y-6">
-            <div v-if="!isEdit">
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >选择平台</label
-              >
-              <!-- 平台分组选择器 -->
-              <div class="space-y-3">
-                <!-- 分组选择器 -->
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <!-- Claude 分组 -->
-                  <div
-                    class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
-                    :class="[
-                      platformGroup === 'claude'
-                        ? 'border-indigo-500 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-md dark:from-indigo-900/20 dark:to-purple-900/20'
-                        : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-600'
-                    ]"
-                    @click="selectPlatformGroup('claude')"
-                  >
-                    <div class="p-3">
-                      <div class="flex items-center justify-between">
-                        <div
-                          class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-purple-600"
-                        >
-                          <i class="fas fa-brain text-sm text-white"></i>
-                        </div>
-                        <div
-                          v-if="platformGroup === 'claude'"
-                          class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </div>
-                      <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        Claude
-                      </h4>
-                      <p class="text-xs text-gray-600 dark:text-gray-400">Anthropic</p>
-                    </div>
-                  </div>
-
-                  <!-- OpenAI 分组 -->
-                  <div
-                    class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
-                    :class="[
-                      platformGroup === 'openai'
-                        ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-md dark:from-emerald-900/20 dark:to-teal-900/20'
-                        : 'border-gray-200 bg-white hover:border-emerald-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-emerald-600'
-                    ]"
-                    @click="selectPlatformGroup('openai')"
-                  >
-                    <div class="p-3">
-                      <div class="flex items-center justify-between">
-                        <div
-                          class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-teal-600"
-                        >
-                          <svg
-                            class="h-5 w-5 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4069-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"
-                            />
-                          </svg>
-                        </div>
-                        <div
-                          v-if="platformGroup === 'openai'"
-                          class="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </div>
-                      <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        OpenAI
-                      </h4>
-                      <p class="text-xs text-gray-600 dark:text-gray-400">GPT 系列</p>
-                    </div>
-                  </div>
-
-                  <!-- Gemini 分组 -->
-                  <div
-                    class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
-                    :class="[
-                      platformGroup === 'gemini'
-                        ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-md dark:from-blue-900/20 dark:to-indigo-900/20'
-                        : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-600'
-                    ]"
-                    @click="selectPlatformGroup('gemini')"
-                  >
-                    <div class="p-3">
-                      <div class="flex items-center justify-between">
-                        <div
-                          class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600"
-                        >
-                          <i class="fab fa-google text-sm text-white"></i>
-                        </div>
-                        <div
-                          v-if="platformGroup === 'gemini'"
-                          class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </div>
-                      <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        Gemini
-                      </h4>
-                      <p class="text-xs text-gray-600 dark:text-gray-400">Google AI</p>
-                    </div>
-                  </div>
-
-                  <!-- Droid 分组 -->
-                  <div
-                    class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
-                    :class="[
-                      platformGroup === 'droid'
-                        ? 'border-rose-500 bg-gradient-to-br from-rose-50 to-orange-50 shadow-md dark:from-rose-900/20 dark:to-orange-900/20'
-                        : 'border-gray-200 bg-white hover:border-rose-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-rose-600'
-                    ]"
-                    @click="selectPlatformGroup('droid')"
-                  >
-                    <div class="p-3">
-                      <div class="flex items-center justify-between">
-                        <div
-                          class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-rose-500 to-orange-500"
-                        >
-                          <i class="fas fa-robot text-sm text-white"></i>
-                        </div>
-                        <div
-                          v-if="platformGroup === 'droid'"
-                          class="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </div>
-                      <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        Droid
-                      </h4>
-                      <p class="text-xs text-gray-600 dark:text-gray-400">Claude Droid</p>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 子平台选择器 -->
-                <div
-                  v-if="platformGroup"
-                  class="animate-fadeIn rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+          <!-- 步骤1: 基本信息和代理设置 -->
+          <div v-if="oauthStep === 1 && !isEdit">
+            <div class="space-y-6">
+              <div v-if="!isEdit">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >选择平台</label
                 >
-                  <p class="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
-                    选择具体平台类型：
+                <!-- 平台分组选择器 -->
+                <div class="space-y-3">
+                  <!-- 分组选择器 -->
+                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <!-- Claude 分组 -->
+                    <div
+                      class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
+                      :class="[
+                        platformGroup === 'claude'
+                          ? 'border-indigo-500 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-md dark:from-indigo-900/20 dark:to-purple-900/20'
+                          : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-600'
+                      ]"
+                      @click="selectPlatformGroup('claude')"
+                    >
+                      <div class="p-3">
+                        <div class="flex items-center justify-between">
+                          <div
+                            class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-purple-600"
+                          >
+                            <i class="fas fa-brain text-sm text-white"></i>
+                          </div>
+                          <div
+                            v-if="platformGroup === 'claude'"
+                            class="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </div>
+                        <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          Claude
+                        </h4>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">Anthropic</p>
+                      </div>
+                    </div>
+
+                    <!-- OpenAI 分组 -->
+                    <div
+                      class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
+                      :class="[
+                        platformGroup === 'openai'
+                          ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-teal-50 shadow-md dark:from-emerald-900/20 dark:to-teal-900/20'
+                          : 'border-gray-200 bg-white hover:border-emerald-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-emerald-600'
+                      ]"
+                      @click="selectPlatformGroup('openai')"
+                    >
+                      <div class="p-3">
+                        <div class="flex items-center justify-between">
+                          <div
+                            class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-teal-600"
+                          >
+                            <svg
+                              class="h-5 w-5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4069-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"
+                              />
+                            </svg>
+                          </div>
+                          <div
+                            v-if="platformGroup === 'openai'"
+                            class="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </div>
+                        <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          OpenAI
+                        </h4>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">GPT 系列</p>
+                      </div>
+                    </div>
+
+                    <!-- Gemini 分组 -->
+                    <div
+                      class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
+                      :class="[
+                        platformGroup === 'gemini'
+                          ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-md dark:from-blue-900/20 dark:to-indigo-900/20'
+                          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-600'
+                      ]"
+                      @click="selectPlatformGroup('gemini')"
+                    >
+                      <div class="p-3">
+                        <div class="flex items-center justify-between">
+                          <div
+                            class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-indigo-600"
+                          >
+                            <i class="fab fa-google text-sm text-white"></i>
+                          </div>
+                          <div
+                            v-if="platformGroup === 'gemini'"
+                            class="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </div>
+                        <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          Gemini
+                        </h4>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">Google AI</p>
+                      </div>
+                    </div>
+
+                    <!-- Droid 分组 -->
+                    <div
+                      class="group relative cursor-pointer overflow-hidden rounded-lg border-2 transition-all duration-200"
+                      :class="[
+                        platformGroup === 'droid'
+                          ? 'border-rose-500 bg-gradient-to-br from-rose-50 to-orange-50 shadow-md dark:from-rose-900/20 dark:to-orange-900/20'
+                          : 'border-gray-200 bg-white hover:border-rose-300 hover:shadow dark:border-gray-700 dark:bg-gray-800 dark:hover:border-rose-600'
+                      ]"
+                      @click="selectPlatformGroup('droid')"
+                    >
+                      <div class="p-3">
+                        <div class="flex items-center justify-between">
+                          <div
+                            class="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-rose-500 to-orange-500"
+                          >
+                            <i class="fas fa-robot text-sm text-white"></i>
+                          </div>
+                          <div
+                            v-if="platformGroup === 'droid'"
+                            class="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </div>
+                        <h4 class="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          Droid
+                        </h4>
+                        <p class="text-xs text-gray-600 dark:text-gray-400">Claude Droid</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 子平台选择器 -->
+                  <div
+                    v-if="platformGroup"
+                    class="animate-fadeIn rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+                  >
+                    <p class="mb-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                      选择具体平台类型：
+                    </p>
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      <!-- Claude 子选项 -->
+                      <template v-if="platformGroup === 'claude'">
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'claude'
+                              ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/30'
+                              : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-indigo-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="claude"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i
+                              class="fas fa-brain text-sm text-indigo-600 dark:text-indigo-400"
+                            ></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Claude Code</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'claude'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'claude-console'
+                              ? 'border-purple-500 bg-purple-50 dark:border-purple-400 dark:bg-purple-900/30'
+                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-purple-500 dark:hover:bg-purple-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="claude-console"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i
+                              class="fas fa-terminal text-sm text-purple-600 dark:text-purple-400"
+                            ></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Claude Console</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">标准API</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'claude-console'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'bedrock'
+                              ? 'border-orange-500 bg-orange-50 dark:border-orange-400 dark:bg-orange-900/30'
+                              : 'border-gray-300 bg-white hover:border-orange-400 hover:bg-orange-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-orange-500 dark:hover:bg-orange-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="bedrock"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i class="fab fa-aws text-sm text-orange-600 dark:text-orange-400"></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Bedrock</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">AWS</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'bedrock'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'ccr'
+                              ? 'border-cyan-500 bg-cyan-50 dark:border-cyan-400 dark:bg-cyan-900/30'
+                              : 'border-gray-300 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-cyan-500 dark:hover:bg-cyan-900/20'
+                          ]"
+                        >
+                          <input v-model="form.platform" class="sr-only" type="radio" value="ccr" />
+                          <div class="flex items-center gap-2">
+                            <i
+                              class="fas fa-code-branch text-sm text-cyan-600 dark:text-cyan-400"
+                            ></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >CCR</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400"
+                                >Claude Code Router</span
+                              >
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'ccr'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+                      </template>
+
+                      <!-- OpenAI 子选项 -->
+                      <template v-if="platformGroup === 'openai'">
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'openai'
+                              ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-900/30'
+                              : 'border-gray-300 bg-white hover:border-emerald-400 hover:bg-emerald-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="openai"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i
+                              class="fas fa-robot text-sm text-emerald-600 dark:text-emerald-400"
+                            ></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Codex Cli</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'openai'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'openai-responses'
+                              ? 'border-teal-500 bg-teal-50 dark:border-teal-400 dark:bg-teal-900/30'
+                              : 'border-gray-300 bg-white hover:border-teal-400 hover:bg-teal-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-teal-500 dark:hover:bg-teal-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="openai-responses"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i class="fas fa-server text-sm text-teal-600 dark:text-teal-400"></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Responses</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400"
+                                >Openai-Responses</span
+                              >
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'openai-responses'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-teal-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'azure_openai'
+                              ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
+                              : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-blue-500 dark:hover:bg-blue-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="azure_openai"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i
+                              class="fab fa-microsoft text-sm text-blue-600 dark:text-blue-400"
+                            ></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Azure</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400"
+                                >Azure Openai</span
+                              >
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'azure_openai'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'openai-compatible'
+                              ? 'border-cyan-500 bg-cyan-50 dark:border-cyan-400 dark:bg-cyan-900/30'
+                              : 'border-gray-300 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-cyan-500 dark:hover:bg-cyan-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="openai-compatible"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i class="fas fa-plug text-sm text-cyan-600 dark:text-cyan-400"></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Compatible</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400"
+                                >GPT for Claude Code</span
+                              >
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'openai-compatible'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+                      </template>
+
+                      <!-- Gemini 子选项 -->
+                      <template v-if="platformGroup === 'gemini'">
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'gemini'
+                              ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
+                              : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-blue-500 dark:hover:bg-blue-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="gemini"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i class="fab fa-google text-sm text-blue-600 dark:text-blue-400"></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Gemini Cli</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'gemini'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'gemini-antigravity'
+                              ? 'border-purple-500 bg-purple-50 dark:border-purple-400 dark:bg-purple-900/30'
+                              : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-purple-500 dark:hover:bg-purple-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="gemini-antigravity"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i
+                              class="fas fa-rocket text-sm text-purple-600 dark:text-purple-400"
+                            ></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Antigravity</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">OAuth</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'gemini-antigravity'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'gemini-api'
+                              ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-900/30'
+                              : 'border-gray-300 bg-white hover:border-amber-400 hover:bg-amber-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-amber-500 dark:hover:bg-amber-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="gemini-api"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i class="fas fa-key text-sm text-amber-600 dark:text-amber-400"></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Gemini API</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">API Key</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'gemini-api'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+                      </template>
+
+                      <!-- Droid 子选项 -->
+                      <template v-if="platformGroup === 'droid'">
+                        <label
+                          class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
+                          :class="[
+                            form.platform === 'droid'
+                              ? 'border-rose-500 bg-rose-50 dark:border-rose-400 dark:bg-rose-900/30'
+                              : 'border-gray-300 bg-white hover:border-rose-400 hover:bg-rose-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-rose-500 dark:hover:bg-rose-900/20'
+                          ]"
+                        >
+                          <input
+                            v-model="form.platform"
+                            class="sr-only"
+                            type="radio"
+                            value="droid"
+                          />
+                          <div class="flex items-center gap-2">
+                            <i class="fas fa-robot text-sm text-rose-600 dark:text-rose-400"></i>
+                            <div>
+                              <span
+                                class="block text-xs font-medium text-gray-900 dark:text-gray-100"
+                                >Droid 专属</span
+                              >
+                              <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
+                            </div>
+                          </div>
+                          <div
+                            v-if="form.platform === 'droid'"
+                            class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500"
+                          >
+                            <i class="fas fa-check text-xs text-white"></i>
+                          </div>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="
+                  !isEdit &&
+                  form.platform !== 'claude-console' &&
+                  form.platform !== 'ccr' &&
+                  form.platform !== 'bedrock' &&
+                  form.platform !== 'azure_openai' &&
+                  form.platform !== 'openai-responses' &&
+                  form.platform !== 'gemini-api'
+                "
+              >
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >添加方式</label
+                >
+                <div class="flex flex-wrap gap-4">
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.addType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="manual"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >手动输入 Access Token</span
+                    >
+                  </label>
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.addType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="oauth"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                      OAuth 授权<span
+                        v-if="form.platform === 'claude' || form.platform === 'openai'"
+                      >
+                        (用量可视化)</span
+                      >
+                    </span>
+                  </label>
+                  <label v-if="form.platform === 'claude'" class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.addType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="setup-token"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >Setup Token (效期长)</span
+                    >
+                  </label>
+                  <label v-if="form.platform === 'droid'" class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.addType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="apikey"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300"
+                      >使用 API Key (支持多个)</span
+                    >
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >账户名称</label
+                >
+                <input
+                  v-model="form.name"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  :class="{ 'border-red-500': errors.name }"
+                  placeholder="为账户设置一个易识别的名称"
+                  required
+                  type="text"
+                />
+                <p v-if="errors.name" class="mt-1 text-xs text-red-500">
+                  {{ errors.name }}
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >描述 (可选)</label
+                >
+                <textarea
+                  v-model="form.description"
+                  class="form-input w-full resize-none border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="账户用途说明..."
+                  rows="3"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >账户类型</label
+                >
+                <div class="flex gap-4">
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.accountType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="shared"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">共享账户</span>
+                  </label>
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.accountType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="dedicated"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">专属账户</span>
+                  </label>
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.accountType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="group"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">分组调度</span>
+                  </label>
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  共享账户：供所有API Key使用；专属账户：仅供特定API
+                  Key使用；分组调度：加入分组供分组内调度
+                </p>
+              </div>
+
+              <!-- 到期时间 - 仅在创建账户时显示，编辑时使用独立的过期时间编辑弹窗，Gemini API 不需要 -->
+              <div v-if="!isEdit && form.platform !== 'gemini-api'">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >到期时间 (可选)</label
+                >
+                <div
+                  class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <select
+                    v-model="form.expireDuration"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                    @change="updateAccountExpireAt"
+                  >
+                    <option value="">永不过期</option>
+                    <option value="30d">30 天</option>
+                    <option value="90d">90 天</option>
+                    <option value="180d">180 天</option>
+                    <option value="365d">365 天</option>
+                    <option value="custom">自定义日期</option>
+                  </select>
+                  <div v-if="form.expireDuration === 'custom'" class="mt-3">
+                    <input
+                      v-model="form.customExpireDate"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      :min="minDateTime"
+                      type="datetime-local"
+                      @change="updateAccountCustomExpireAt"
+                    />
+                  </div>
+                  <p v-if="form.expiresAt" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <i class="fas fa-calendar-alt mr-1" />
+                    将于 {{ formatExpireDate(form.expiresAt) }} 过期
                   </p>
-                  <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <!-- Claude 子选项 -->
-                    <template v-if="platformGroup === 'claude'">
+                  <p v-else class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <i class="fas fa-infinity mr-1" />
+                    账户永不过期
+                  </p>
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  设置 Claude Max/Pro 订阅的到期时间，到期后将停止调度此账户
+                </p>
+              </div>
+
+              <!-- 分组选择器 -->
+              <div v-if="form.accountType === 'group'">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >选择分组 *</label
+                >
+                <div class="flex gap-2">
+                  <div class="flex-1">
+                    <!-- 多选分组界面 -->
+                    <div
+                      class="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3 dark:border-gray-600 dark:bg-gray-700"
+                    >
+                      <div
+                        v-if="filteredGroups.length === 0"
+                        class="text-sm text-gray-500 dark:text-gray-400"
+                      >
+                        暂无可用分组
+                      </div>
                       <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'claude'
-                            ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-900/30'
-                            : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-indigo-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-indigo-500 dark:hover:bg-indigo-900/20'
-                        ]"
+                        v-for="group in filteredGroups"
+                        :key="group.id"
+                        class="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50 dark:hover:bg-gray-600"
                       >
                         <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="claude"
+                          v-model="form.groupIds"
+                          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                          type="checkbox"
+                          :value="group.id"
                         />
-                        <div class="flex items-center gap-2">
-                          <i class="fas fa-brain text-sm text-indigo-600 dark:text-indigo-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Claude Code</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'claude'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
+                        <span class="text-sm text-gray-700 dark:text-gray-200">
+                          {{ group.name }} ({{ group.memberCount || 0 }} 个成员)
+                        </span>
                       </label>
+                      <!-- 新建分组选项 -->
+                      <div class="border-t pt-2 dark:border-gray-600">
+                        <button
+                          class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                          type="button"
+                          @click="handleNewGroup"
+                        >
+                          <i class="fas fa-plus" />
+                          新建分组
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    class="icon-btn-md flex-shrink-0 border border-gray-200 bg-white text-gray-700 transition-colors hover:border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                    type="button"
+                    @click="refreshGroups"
+                  >
+                    <i class="fas fa-sync-alt" :class="{ 'animate-spin': loadingGroups }" />
+                  </button>
+                </div>
+              </div>
 
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'claude-console'
-                            ? 'border-purple-500 bg-purple-50 dark:border-purple-400 dark:bg-purple-900/30'
-                            : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-purple-500 dark:hover:bg-purple-900/20'
-                        ]"
+              <!-- Gemini 项目 ID 字段 -->
+              <div v-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >项目 ID (可选)</label
+                >
+                <input
+                  v-model="form.projectId"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="例如：verdant-wares-464411-k9"
+                  type="text"
+                />
+                <div class="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                  <div class="flex items-start gap-2">
+                    <i class="fas fa-info-circle mt-0.5 text-yellow-600" />
+                    <div class="text-xs text-yellow-700">
+                      <p class="mb-1 font-medium">Google Cloud/Workspace 账号需要提供项目 ID</p>
+                      <p>
+                        某些 Google 账号（特别是绑定了 Google Cloud 的账号）会被识别为 Workspace
+                        账号，需要提供额外的项目 ID。
+                      </p>
+                      <div class="mt-2 rounded border border-yellow-300 bg-white p-2">
+                        <p class="mb-1 font-medium">如何获取项目 ID：</p>
+                        <ol class="ml-2 list-inside list-decimal space-y-1">
+                          <li>
+                            访问
+                            <a
+                              class="font-medium text-blue-600 hover:underline"
+                              href="https://console.cloud.google.com/welcome"
+                              target="_blank"
+                              >Google Cloud Console</a
+                            >
+                          </li>
+                          <li>
+                            复制<span class="font-semibold text-red-600">项目 ID（Project ID）</span
+                            >，通常是字符串格式
+                          </li>
+                          <li class="text-red-600">
+                            ⚠️ 注意：要复制项目 ID（Project ID），不要复制项目编号（Project
+                            Number）！
+                          </li>
+                        </ol>
+                      </div>
+                      <p class="mt-2">
+                        <strong>提示：</strong>如果您的账号是普通个人账号（未绑定 Google
+                        Cloud），请留空此字段。
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bedrock 特定字段 -->
+              <div v-if="form.platform === 'bedrock'" class="space-y-4">
+                <!-- 凭证类型选择器 -->
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >凭证类型 *</label
+                  >
+                  <div v-if="!isEdit" class="flex gap-4">
+                    <label class="flex cursor-pointer items-center">
+                      <input
+                        v-model="form.credentialType"
+                        class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        type="radio"
+                        value="access_key"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300"
+                        >AWS Access Key（访问密钥）</span
                       >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="claude-console"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i
-                            class="fas fa-terminal text-sm text-purple-600 dark:text-purple-400"
-                          ></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Claude Console</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">标准API</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'claude-console'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'bedrock'
-                            ? 'border-orange-500 bg-orange-50 dark:border-orange-400 dark:bg-orange-900/30'
-                            : 'border-gray-300 bg-white hover:border-orange-400 hover:bg-orange-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-orange-500 dark:hover:bg-orange-900/20'
-                        ]"
+                    </label>
+                    <label class="flex cursor-pointer items-center">
+                      <input
+                        v-model="form.credentialType"
+                        class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        type="radio"
+                        value="bearer_token"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300"
+                        >Bearer Token（长期令牌）</span
                       >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="bedrock"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i class="fab fa-aws text-sm text-orange-600 dark:text-orange-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Bedrock</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">AWS</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'bedrock'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'ccr'
-                            ? 'border-cyan-500 bg-cyan-50 dark:border-cyan-400 dark:bg-cyan-900/30'
-                            : 'border-gray-300 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-cyan-500 dark:hover:bg-cyan-900/20'
-                        ]"
+                    </label>
+                  </div>
+                  <div v-else class="flex gap-4">
+                    <label class="flex items-center opacity-60">
+                      <input
+                        v-model="form.credentialType"
+                        class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        disabled
+                        type="radio"
+                        value="access_key"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300"
+                        >AWS Access Key（访问密钥）</span
                       >
-                        <input v-model="form.platform" class="sr-only" type="radio" value="ccr" />
-                        <div class="flex items-center gap-2">
-                          <i
-                            class="fas fa-code-branch text-sm text-cyan-600 dark:text-cyan-400"
-                          ></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >CCR</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400"
-                              >Claude Code Router</span
-                            >
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'ccr'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-                    </template>
-
-                    <!-- OpenAI 子选项 -->
-                    <template v-if="platformGroup === 'openai'">
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'openai'
-                            ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-400 dark:bg-emerald-900/30'
-                            : 'border-gray-300 bg-white hover:border-emerald-400 hover:bg-emerald-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/20'
-                        ]"
+                    </label>
+                    <label class="flex items-center opacity-60">
+                      <input
+                        v-model="form.credentialType"
+                        class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        disabled
+                        type="radio"
+                        value="bearer_token"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300"
+                        >Bearer Token（长期令牌）</span
                       >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="openai"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i
-                            class="fas fa-robot text-sm text-emerald-600 dark:text-emerald-400"
-                          ></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Codex Cli</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'openai'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
+                    </label>
+                  </div>
+                  <div
+                    class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
+                  >
+                    <div class="flex items-start gap-2">
+                      <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
+                      <div class="text-xs text-blue-700 dark:text-blue-300">
+                        <p v-if="form.credentialType === 'access_key'" class="font-medium">
+                          使用 AWS Access Key ID 和 Secret Access Key 进行身份验证（支持临时凭证）
+                        </p>
+                        <p v-else class="font-medium">
+                          使用 AWS Bedrock API Keys 生成的 Bearer Token
+                          进行身份验证，更简单、权限范围更小
+                        </p>
+                        <p v-if="isEdit" class="mt-1 text-xs italic">
+                          💡 编辑模式下凭证类型不可更改，如需切换类型请重新创建账户
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'openai-responses'
-                            ? 'border-teal-500 bg-teal-50 dark:border-teal-400 dark:bg-teal-900/30'
-                            : 'border-gray-300 bg-white hover:border-teal-400 hover:bg-teal-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-teal-500 dark:hover:bg-teal-900/20'
-                        ]"
-                      >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="openai-responses"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i class="fas fa-server text-sm text-teal-600 dark:text-teal-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Responses</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400"
-                              >Openai-Responses</span
-                            >
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'openai-responses'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-teal-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
+                <!-- AWS Access Key 字段（仅在 access_key 模式下显示）-->
+                <div v-if="form.credentialType === 'access_key'">
+                  <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >AWS 访问密钥 ID {{ isEdit ? '' : '*' }}</label
+                    >
+                    <input
+                      v-model="form.accessKeyId"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      :class="{ 'border-red-500': errors.accessKeyId }"
+                      :placeholder="isEdit ? '留空则保持原有凭证不变' : '请输入 AWS Access Key ID'"
+                      :required="!isEdit"
+                      type="text"
+                    />
+                    <p v-if="errors.accessKeyId" class="mt-1 text-xs text-red-500">
+                      {{ errors.accessKeyId }}
+                    </p>
+                    <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      💡 编辑模式下，留空则保持原有 Access Key ID 不变
+                    </p>
+                  </div>
 
+                  <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >AWS 秘密访问密钥 {{ isEdit ? '' : '*' }}</label
+                    >
+                    <input
+                      v-model="form.secretAccessKey"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      :class="{ 'border-red-500': errors.secretAccessKey }"
+                      :placeholder="
+                        isEdit ? '留空则保持原有凭证不变' : '请输入 AWS Secret Access Key'
+                      "
+                      :required="!isEdit"
+                      type="password"
+                    />
+                    <p v-if="errors.secretAccessKey" class="mt-1 text-xs text-red-500">
+                      {{ errors.secretAccessKey }}
+                    </p>
+                    <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      💡 编辑模式下，留空则保持原有 Secret Access Key 不变
+                    </p>
+                  </div>
+
+                  <div>
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >会话令牌 (可选)</label
+                    >
+                    <input
+                      v-model="form.sessionToken"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      :placeholder="
+                        isEdit
+                          ? '留空则保持原有 Session Token 不变'
+                          : '如果使用临时凭证，请输入会话令牌'
+                      "
+                      type="password"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      仅在使用临时 AWS 凭证时需要填写
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Bearer Token 字段（仅在 bearer_token 模式下显示）-->
+                <div v-if="form.credentialType === 'bearer_token'">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >Bearer Token {{ isEdit ? '' : '*' }}</label
+                  >
+                  <input
+                    v-model="form.bearerToken"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.bearerToken }"
+                    :placeholder="
+                      isEdit ? '留空则保持原有 Bearer Token 不变' : '请输入 AWS Bearer Token'
+                    "
+                    :required="!isEdit"
+                    type="password"
+                  />
+                  <p v-if="errors.bearerToken" class="mt-1 text-xs text-red-500">
+                    {{ errors.bearerToken }}
+                  </p>
+                  <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    💡 编辑模式下，留空则保持原有 Bearer Token 不变
+                  </p>
+                  <div
+                    class="mt-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-700 dark:bg-green-900/30"
+                  >
+                    <div class="flex items-start gap-2">
+                      <i class="fas fa-key mt-0.5 text-green-600 dark:text-green-400" />
+                      <div class="text-xs text-green-700 dark:text-green-300">
+                        <p class="mb-1 font-medium">Bearer Token 说明：</p>
+                        <ul class="list-inside list-disc space-y-1 text-xs">
+                          <li>输入 AWS Bedrock API Keys 生成的 Bearer Token</li>
+                          <li>Bearer Token 仅限 Bedrock 服务访问，权限范围更小</li>
+                          <li>相比 Access Key 更简单，无需 Secret Key</li>
+                          <li>
+                            参考：<a
+                              class="text-green-600 underline dark:text-green-400"
+                              href="https://aws.amazon.com/cn/blogs/machine-learning/accelerate-ai-development-with-amazon-bedrock-api-keys/"
+                              target="_blank"
+                              >AWS 官方文档</a
+                            >
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- AWS 区域（两种凭证类型都需要）-->
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >AWS 区域 *</label
+                  >
+                  <input
+                    v-model="form.region"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.region }"
+                    placeholder="例如：us-east-1"
+                    required
+                    type="text"
+                  />
+                  <p v-if="errors.region" class="mt-1 text-xs text-red-500">
+                    {{ errors.region }}
+                  </p>
+                  <div
+                    class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
+                  >
+                    <div class="flex items-start gap-2">
+                      <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
+                      <div class="text-xs text-blue-700 dark:text-blue-300">
+                        <p class="mb-1 font-medium">常用 AWS 区域参考：</p>
+                        <div class="grid grid-cols-2 gap-1 text-xs">
+                          <span>• us-east-1 (美国东部)</span>
+                          <span>• us-west-2 (美国西部)</span>
+                          <span>• eu-west-1 (欧洲爱尔兰)</span>
+                          <span>• ap-southeast-1 (新加坡)</span>
+                          <span>• ap-northeast-1 (东京)</span>
+                          <span>• eu-central-1 (法兰克福)</span>
+                        </div>
+                        <p class="mt-2 text-blue-600 dark:text-blue-400">
+                          💡 请输入完整的区域代码，如 us-east-1
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >默认主模型 (可选)</label
+                  >
+                  <input
+                    v-model="form.defaultModel"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="例如：us.anthropic.claude-sonnet-4-20250514-v1:0"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    留空将使用系统默认模型。支持 inference profile ID 或 ARN
+                  </p>
+                  <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <div class="flex items-start gap-2">
+                      <i class="fas fa-info-circle mt-0.5 text-amber-600" />
+                      <div class="text-xs text-amber-700">
+                        <p class="mb-1 font-medium">Bedrock 模型配置说明：</p>
+                        <ul class="list-inside list-disc space-y-1 text-xs">
+                          <li>支持 Inference Profile ID（推荐）</li>
+                          <li>支持 Application Inference Profile ARN</li>
+                          <li>常用模型：us.anthropic.claude-sonnet-4-20250514-v1:0</li>
+                          <li>留空将使用系统配置的默认模型</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >小快速模型 (可选)</label
+                  >
+                  <input
+                    v-model="form.smallFastModel"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="例如：us.anthropic.claude-3-5-haiku-20241022-v1:0"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    用于快速响应的轻量级模型，留空将使用系统默认
+                  </p>
+                </div>
+              </div>
+
+              <!-- Azure OpenAI 特定字段 -->
+              <div v-if="form.platform === 'azure_openai' && !isEdit" class="space-y-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >Azure Endpoint *</label
+                  >
+                  <input
+                    v-model="form.azureEndpoint"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.azureEndpoint }"
+                    placeholder="https://your-resource.openai.azure.com"
+                    required
+                    type="url"
+                  />
+                  <p v-if="errors.azureEndpoint" class="mt-1 text-xs text-red-500">
+                    {{ errors.azureEndpoint }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Azure OpenAI 资源的终结点 URL，格式：https://your-resource.openai.azure.com
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 版本</label
+                  >
+                  <input
+                    v-model="form.apiVersion"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="2024-02-01"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Azure OpenAI API 版本，默认使用最新稳定版本 2024-02-01
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >部署名称 *</label
+                  >
+                  <input
+                    v-model="form.deploymentName"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.deploymentName }"
+                    placeholder="gpt-4"
+                    required
+                    type="text"
+                  />
+                  <p v-if="errors.deploymentName" class="mt-1 text-xs text-red-500">
+                    {{ errors.deploymentName }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    在 Azure OpenAI Studio 中创建的部署名称
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API Key *</label
+                  >
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.apiKey }"
+                    placeholder="请输入 Azure OpenAI API Key"
+                    required
+                    type="password"
+                  />
+                  <p v-if="errors.apiKey" class="mt-1 text-xs text-red-500">
+                    {{ errors.apiKey }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    从 Azure 门户获取的 API 密钥
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >支持的模型</label
+                  >
+                  <div class="flex flex-wrap gap-2">
+                    <label
+                      v-for="model in [
+                        'gpt-4',
+                        'gpt-4-turbo',
+                        'gpt-4o',
+                        'gpt-4o-mini',
+                        'gpt-5',
+                        'gpt-5-mini',
+                        'gpt-35-turbo',
+                        'gpt-35-turbo-16k',
+                        'codex-mini'
+                      ]"
+                      :key="model"
+                      class="flex cursor-pointer items-center"
+                    >
+                      <input
+                        v-model="form.supportedModels"
+                        class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        type="checkbox"
+                        :value="model"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">{{ model }}</span>
+                    </label>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    选择此部署支持的模型类型
+                  </p>
+                </div>
+              </div>
+
+              <div v-if="form.platform === 'bedrock' && !isEdit">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >限流机制</label
+                  >
+                  <div class="mb-3">
+                    <label class="inline-flex cursor-pointer items-center">
+                      <input
+                        v-model="form.enableRateLimit"
+                        class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                        type="checkbox"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">启用限流机制</span>
+                    </label>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      启用后，当账号返回429错误时将暂停调度一段时间
+                    </p>
+                  </div>
+
+                  <div v-if="form.enableRateLimit">
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >限流时间 (分钟)</label
+                    >
+                    <input
+                      v-model.number="form.rateLimitDuration"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      min="1"
+                      placeholder="默认60分钟"
+                      type="number"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      账号被限流后暂停调度的时间（分钟）
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Claude Console 和 CCR 特定字段 -->
+              <div
+                v-if="(form.platform === 'claude-console' || form.platform === 'ccr') && !isEdit"
+                class="space-y-4"
+              >
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API URL *</label
+                  >
+                  <input
+                    v-model="form.apiUrl"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.apiUrl }"
+                    placeholder="例如：https://api.example.com"
+                    required
+                    type="text"
+                  />
+                  <p v-if="errors.apiUrl" class="mt-1 text-xs text-red-500">
+                    {{ errors.apiUrl }}
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API Key *</label
+                  >
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.apiKey }"
+                    placeholder="请输入API Key"
+                    required
+                    type="password"
+                  />
+                  <p v-if="errors.apiKey" class="mt-1 text-xs text-red-500">
+                    {{ errors.apiKey }}
+                  </p>
+                </div>
+
+                <!-- 额度管理字段 -->
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      每日额度限制 ($)
+                    </label>
+                    <input
+                      v-model.number="form.dailyQuota"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      min="0"
+                      placeholder="0 表示不限制"
+                      step="0.01"
+                      type="number"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      设置每日使用额度，0 表示不限制
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      额度重置时间
+                    </label>
+                    <input
+                      v-model="form.quotaResetTime"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                      placeholder="00:00"
+                      type="time"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      每日自动重置额度的时间
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 并发控制字段 -->
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    最大并发任务数
+                  </label>
+                  <input
+                    v-model.number="form.maxConcurrentTasks"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                    min="0"
+                    placeholder="0 表示不限制"
+                    type="number"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    限制该账户的并发请求数量，0 表示不限制
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >模型限制 (可选)</label
+                  >
+
+                  <!-- 模式切换 -->
+                  <div class="mb-4 flex gap-2">
+                    <button
+                      class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+                      :class="
+                        modelRestrictionMode === 'whitelist'
+                          ? 'bg-blue-500 text-white shadow-md'
+                          : 'border border-gray-300 text-gray-600 hover:border-blue-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-blue-500'
+                      "
+                      type="button"
+                      @click="modelRestrictionMode = 'whitelist'"
+                    >
+                      <i class="fas fa-check-circle mr-2" />
+                      模型白名单
+                    </button>
+                    <button
+                      class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+                      :class="
+                        modelRestrictionMode === 'mapping'
+                          ? 'bg-purple-500 text-white shadow-md'
+                          : 'border border-gray-300 text-gray-600 hover:border-purple-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-purple-500'
+                      "
+                      type="button"
+                      @click="modelRestrictionMode = 'mapping'"
+                    >
+                      <i class="fas fa-random mr-2" />
+                      模型映射
+                    </button>
+                  </div>
+
+                  <!-- 白名单模式 -->
+                  <div v-if="modelRestrictionMode === 'whitelist'">
+                    <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
+                      <p class="text-xs text-blue-700 dark:text-blue-400">
+                        <i class="fas fa-info-circle mr-1" />
+                        选择允许使用此账户的模型。留空表示支持所有模型。
+                      </p>
+                    </div>
+
+                    <!-- 模型复选框列表 -->
+                    <div class="mb-3 grid grid-cols-2 gap-2">
                       <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'azure_openai'
+                        v-for="model in commonModels"
+                        :key="model.value"
+                        class="flex cursor-pointer items-center rounded-lg border p-3 transition-all hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
+                        :class="
+                          allowedModels.includes(model.value)
                             ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
-                            : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-blue-500 dark:hover:bg-blue-900/20'
-                        ]"
+                            : 'border-gray-300'
+                        "
                       >
                         <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="azure_openai"
+                          v-model="allowedModels"
+                          class="mr-2 text-blue-600 focus:ring-blue-500"
+                          type="checkbox"
+                          :value="model.value"
                         />
-                        <div class="flex items-center gap-2">
-                          <i class="fab fa-microsoft text-sm text-blue-600 dark:text-blue-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Azure</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400"
-                              >Azure Openai</span
-                            >
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'azure_openai'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{
+                          model.label
+                        }}</span>
                       </label>
+                    </div>
 
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'openai-compatible'
-                            ? 'border-cyan-500 bg-cyan-50 dark:border-cyan-400 dark:bg-cyan-900/30'
-                            : 'border-gray-300 bg-white hover:border-cyan-400 hover:bg-cyan-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-cyan-500 dark:hover:bg-cyan-900/20'
-                        ]"
-                      >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="openai-compatible"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i class="fas fa-plug text-sm text-cyan-600 dark:text-cyan-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Compatible</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400"
-                              >GPT for Claude Code</span
-                            >
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'openai-compatible'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-                    </template>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      已选择 {{ allowedModels.length }} 个模型
+                      <span v-if="allowedModels.length === 0">（支持所有模型）</span>
+                    </p>
+                  </div>
 
-                    <!-- Gemini 子选项 -->
-                    <template v-if="platformGroup === 'gemini'">
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'gemini'
-                            ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
-                            : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-blue-500 dark:hover:bg-blue-900/20'
-                        ]"
-                      >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="gemini"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i class="fab fa-google text-sm text-blue-600 dark:text-blue-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Gemini Cli</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'gemini'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'gemini-antigravity'
-                            ? 'border-purple-500 bg-purple-50 dark:border-purple-400 dark:bg-purple-900/30'
-                            : 'border-gray-300 bg-white hover:border-purple-400 hover:bg-purple-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-purple-500 dark:hover:bg-purple-900/20'
-                        ]"
-                      >
-                        <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="gemini-antigravity"
-                        />
-                        <div class="flex items-center gap-2">
-                          <i class="fas fa-rocket text-sm text-purple-600 dark:text-purple-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Antigravity</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">OAuth</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'gemini-antigravity'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
+                  <!-- 映射模式 -->
+                  <div v-else>
+                    <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
+                      <p class="text-xs text-purple-700 dark:text-purple-400">
+                        <i class="fas fa-info-circle mr-1" />
+                        配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给API的模型。
+                      </p>
+                    </div>
 
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'gemini-api'
-                            ? 'border-amber-500 bg-amber-50 dark:border-amber-400 dark:bg-amber-900/30'
-                            : 'border-gray-300 bg-white hover:border-amber-400 hover:bg-amber-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-amber-500 dark:hover:bg-amber-900/20'
-                        ]"
+                    <!-- 模型映射表 -->
+                    <div class="mb-3 space-y-2">
+                      <div
+                        v-for="(mapping, index) in modelMappings"
+                        :key="index"
+                        class="flex items-center gap-2"
                       >
                         <input
-                          v-model="form.platform"
-                          class="sr-only"
-                          type="radio"
-                          value="gemini-api"
+                          v-model="mapping.from"
+                          class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                          placeholder="原始模型名称"
+                          type="text"
                         />
-                        <div class="flex items-center gap-2">
-                          <i class="fas fa-key text-sm text-amber-600 dark:text-amber-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Gemini API</span
-                            >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">API Key</span>
-                          </div>
-                        </div>
-                        <div
-                          v-if="form.platform === 'gemini-api'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500"
+                        <i class="fas fa-arrow-right text-gray-400 dark:text-gray-500" />
+                        <input
+                          v-model="mapping.to"
+                          class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                          placeholder="映射后的模型名称"
+                          type="text"
+                        />
+                        <button
+                          class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
+                          type="button"
+                          @click="removeModelMapping(index)"
                         >
-                          <i class="fas fa-check text-xs text-white"></i>
-                        </div>
-                      </label>
-                    </template>
+                          <i class="fas fa-trash" />
+                        </button>
+                      </div>
+                    </div>
 
-                    <!-- Droid 子选项 -->
-                    <template v-if="platformGroup === 'droid'">
-                      <label
-                        class="group relative flex cursor-pointer items-center rounded-md border p-2 transition-all"
-                        :class="[
-                          form.platform === 'droid'
-                            ? 'border-rose-500 bg-rose-50 dark:border-rose-400 dark:bg-rose-900/30'
-                            : 'border-gray-300 bg-white hover:border-rose-400 hover:bg-rose-50/50 dark:border-gray-600 dark:bg-gray-700 dark:hover:border-rose-500 dark:hover:bg-rose-900/20'
-                        ]"
+                    <!-- 添加映射按钮 -->
+                    <button
+                      class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300"
+                      type="button"
+                      @click="addModelMapping"
+                    >
+                      <i class="fas fa-plus mr-2" />
+                      添加模型映射
+                    </button>
+
+                    <!-- 快捷添加按钮 -->
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      <button
+                        class="rounded-lg bg-violet-100 px-3 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
+                        type="button"
+                        @click="addPresetMapping('claude-opus-4-6', 'claude-opus-4-6')"
                       >
-                        <input v-model="form.platform" class="sr-only" type="radio" value="droid" />
+                        + Opus 4.6
+                      </button>
+                      <button
+                        class="rounded-lg bg-blue-100 px-3 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                        type="button"
+                        @click="
+                          addPresetMapping('claude-opus-4-5-20251101', 'claude-opus-4-5-20251101')
+                        "
+                      >
+                        + Opus 4.5
+                      </button>
+                      <button
+                        class="rounded-lg bg-indigo-100 px-3 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                        type="button"
+                        @click="
+                          addPresetMapping(
+                            'claude-sonnet-4-5-20250929',
+                            'claude-sonnet-4-5-20250929'
+                          )
+                        "
+                      >
+                        + Sonnet 4.5
+                      </button>
+                      <button
+                        class="rounded-lg bg-emerald-100 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+                        type="button"
+                        @click="
+                          addPresetMapping('claude-haiku-4-5-20251001', 'claude-haiku-4-5-20251001')
+                        "
+                      >
+                        + Haiku 4.5
+                      </button>
+                      <button
+                        class="rounded-lg bg-cyan-100 px-3 py-1 text-xs text-cyan-700 transition-colors hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:hover:bg-cyan-900/50"
+                        type="button"
+                        @click="addPresetMapping('deepseek-chat', 'deepseek-chat')"
+                      >
+                        + DeepSeek
+                      </button>
+                      <button
+                        class="rounded-lg bg-orange-100 px-3 py-1 text-xs text-orange-700 transition-colors hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50"
+                        type="button"
+                        @click="addPresetMapping('Qwen', 'Qwen')"
+                      >
+                        + Qwen
+                      </button>
+                      <button
+                        class="rounded-lg bg-pink-100 px-3 py-1 text-xs text-pink-700 transition-colors hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400 dark:hover:bg-pink-900/50"
+                        type="button"
+                        @click="addPresetMapping('Kimi', 'Kimi')"
+                      >
+                        + Kimi
+                      </button>
+                      <button
+                        class="rounded-lg bg-teal-100 px-3 py-1 text-xs text-teal-700 transition-colors hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50"
+                        type="button"
+                        @click="addPresetMapping('GLM', 'GLM')"
+                      >
+                        + GLM
+                      </button>
+                      <button
+                        class="rounded-lg bg-amber-100 px-3 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
+                        type="button"
+                        @click="
+                          addPresetMapping('claude-opus-4-1-20250805', 'claude-sonnet-4-20250514')
+                        "
+                      >
+                        + Opus → Sonnet
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >自定义 User-Agent (可选)</label
+                  >
+                  <input
+                    v-model="form.userAgent"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="留空则透传客户端 User-Agent"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    留空时将自动使用客户端的 User-Agent，仅在需要固定特定 UA 时填写
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >限流机制</label
+                  >
+                  <div class="mb-3">
+                    <label class="inline-flex cursor-pointer items-center">
+                      <input
+                        v-model="form.enableRateLimit"
+                        class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                        type="checkbox"
+                      />
+                      <span class="text-sm text-gray-700 dark:text-gray-300">启用限流机制</span>
+                    </label>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      启用后，当账号返回429错误时将暂停调度一段时间
+                    </p>
+                  </div>
+
+                  <div v-if="form.enableRateLimit">
+                    <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >限流时间 (分钟)</label
+                    >
+                    <input
+                      v-model.number="form.rateLimitDuration"
+                      class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      min="1"
+                      placeholder="默认60分钟"
+                      type="number"
+                    />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      账号被限流后暂停调度的时间（分钟）
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 上游错误处理 -->
+                <div v-if="autoProtectionPlatforms.includes(form.platform)">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >上游错误处理</label
+                  >
+                  <label class="inline-flex cursor-pointer items-center">
+                    <input
+                      v-model="form.disableAutoProtection"
+                      class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                      type="checkbox"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                      上游错误不自动暂停调度
+                    </span>
+                  </label>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
+                  </p>
+                </div>
+
+                <TempUnavailablePolicyFields
+                  v-if="form.platform === 'claude'"
+                  v-model:disable-temp-unavailable="form.disableTempUnavailable"
+                  v-model:temp-unavailable-503-ttl-seconds="form.tempUnavailable503TtlSeconds"
+                  v-model:temp-unavailable-5xx-ttl-seconds="form.tempUnavailable5xxTtlSeconds"
+                />
+              </div>
+
+              <!-- OpenAI-Responses 特定字段 -->
+              <div v-if="form.platform === 'openai-responses' && !isEdit" class="space-y-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 基础地址 *</label
+                  >
+                  <input
+                    v-model="form.baseApi"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="https://api.example.com/v1"
+                    required
+                    type="url"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    第三方 OpenAI 兼容 API 的基础地址，不要包含具体路径
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 密钥 *</label
+                  >
+                  <div class="relative">
+                    <input
+                      v-model="form.apiKey"
+                      class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      placeholder="sk-xxxxxxxxxxxx"
+                      required
+                      :type="showApiKey ? 'text' : 'password'"
+                    />
+                    <button
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                      type="button"
+                      @click="showApiKey = !showApiKey"
+                    >
+                      <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                    </button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    第三方服务提供的 API 密钥
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >自定义 User-Agent (可选)</label
+                  >
+                  <input
+                    v-model="form.userAgent"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="留空则透传原始请求的 User-Agent"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    可选项。如果设置，所有请求将使用此 User-Agent；否则透传客户端的 User-Agent
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >Provider 端点类型</label
+                  >
+                  <select
+                    v-model="form.providerEndpoint"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  >
+                    <option value="responses">Responses（推荐）</option>
+                    <option value="auto">自动（保持原始路径）</option>
+                  </select>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    指定 Provider 支持的端点类型。Responses 会将所有请求路由到（包括来自
+                    /v1/chat/completions 的请求会自动转换）；自动则保持客户端请求的原始路径
+                  </p>
+                </div>
+
+                <!-- 限流时长字段 - 隐藏不显示，使用默认值60 -->
+                <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
+              </div>
+
+              <!-- OpenAI Compatible 配置（Claude Code → GPT） -->
+              <div v-if="form.platform === 'openai-compatible' && !isEdit" class="space-y-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 基础地址 *</label
+                  >
+                  <input
+                    v-model="form.compatibleBaseUrl"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="https://api.openai.com"
+                    required
+                    type="url"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    OpenAI 兼容服务的基础地址，转发到 {baseUrl}/v1/chat/completions
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 密钥 *</label
+                  >
+                  <div class="relative">
+                    <input
+                      v-model="form.apiKey"
+                      class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      placeholder="sk-xxxxxxxxxxxx"
+                      required
+                      :type="showApiKey ? 'text' : 'password'"
+                    />
+                    <button
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                      type="button"
+                      @click="showApiKey = !showApiKey"
+                    >
+                      <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                    </button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    作为 Bearer Token 发送给上游
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >默认模型</label
+                  >
+                  <input
+                    v-model="form.defaultModel"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="gpt-4o-mini"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    当请求未命中头部覆盖与映射表时使用
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >模型映射 (JSON, 可选)</label
+                  >
+                  <textarea
+                    v-model="form.modelMapping"
+                    class="form-input w-full border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder='{"claude-sonnet-*": "gpt-4o", "claude-3-5-haiku-*": "gpt-4o-mini"}'
+                    rows="3"
+                  ></textarea>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    claude 模型名 → 目标 GPT 模型，支持 * 前缀通配
+                  </p>
+                </div>
+              </div>
+
+              <!-- Gemini API 配置 -->
+              <div v-if="form.platform === 'gemini-api' && !isEdit" class="space-y-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 基础地址 *</label
+                  >
+                  <input
+                    v-model="form.baseUrl"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500 dark:border-red-400': errors.baseUrl }"
+                    placeholder="https://generativelanguage.googleapis.com/v1beta/models"
+                    required
+                    type="url"
+                  />
+                  <p v-if="errors.baseUrl" class="mt-1 text-xs text-red-500 dark:text-red-400">
+                    {{ errors.baseUrl }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    支持三种格式，系统自动识别：
+                  </p>
+                  <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    以 /models 结尾:
+                    <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                      >https://proxy.com/v1beta/models</code
+                    >
+                  </p>
+                  <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    模板模式:
+                    <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                      >https://proxy.com/api/{model}:{action}</code
+                    >
+                  </p>
+                  <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    域名:
+                    <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                      >https://generativelanguage.googleapis.com</code
+                    >
+                    (自动拼接 /v1beta/models)
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API 密钥 *</label
+                  >
+                  <div class="relative">
+                    <input
+                      v-model="form.apiKey"
+                      class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      placeholder="AIzaSy..."
+                      required
+                      :type="showApiKey ? 'text' : 'password'"
+                    />
+                    <button
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                      type="button"
+                      @click="showApiKey = !showApiKey"
+                    >
+                      <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                    </button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    从 Google AI Studio 获取的 API 密钥
+                  </p>
+                </div>
+              </div>
+
+              <!-- Claude 订阅类型选择 -->
+              <div v-if="form.platform === 'claude'">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >订阅类型</label
+                >
+                <div class="flex gap-4">
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.subscriptionType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="claude_max"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Claude Max</span>
+                  </label>
+                  <label class="flex cursor-pointer items-center">
+                    <input
+                      v-model="form.subscriptionType"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                      type="radio"
+                      value="claude_pro"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">Claude Pro</span>
+                  </label>
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  <i class="fas fa-info-circle mr-1" />
+                  Pro 账号不支持 Claude Opus 4 模型
+                </p>
+              </div>
+
+              <!-- Claude 5小时限制自动停止调度选项 -->
+              <div v-if="form.platform === 'claude'" class="mt-4">
+                <label class="flex items-start">
+                  <input
+                    v-model="form.autoStopOnWarning"
+                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                  />
+                  <div class="ml-3">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      5小时使用量接近限制时自动停止调度
+                    </span>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      当系统检测到账户接近5小时使用限制时，自动暂停调度该账户。进入新的时间窗口后会自动恢复调度。
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Claude 账户级串行队列开关 -->
+              <div v-if="form.platform === 'claude'" class="mt-4">
+                <label class="flex items-start">
+                  <input
+                    v-model="form.serialQueueEnabled"
+                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                  />
+                  <div class="ml-3">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      启用账户级串行队列
+                    </span>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      开启后强制该账户的用户消息串行处理，忽略全局串行队列设置。适用于并发限制较低的账户。
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <!-- 拦截预热请求开关（Claude 和 Claude Console） -->
+              <div
+                v-if="form.platform === 'claude' || form.platform === 'claude-console'"
+                class="mt-4"
+              >
+                <label class="flex items-start">
+                  <input
+                    v-model="form.interceptWarmup"
+                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                  />
+                  <div class="ml-3">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      拦截预热请求
+                    </span>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      启用后，对标题生成、Warmup 等低价值请求直接返回模拟响应，不消耗上游 API 额度
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Claude User-Agent 版本配置 -->
+              <div v-if="form.platform === 'claude'" class="mt-4">
+                <label class="flex items-start">
+                  <input
+                    v-model="form.useUnifiedUserAgent"
+                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                  />
+                  <div class="ml-3">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      使用统一 Claude Code 版本
+                    </span>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      开启后将使用从真实 Claude Code 客户端捕获的统一 User-Agent，提高兼容性
+                    </p>
+                    <div v-if="unifiedUserAgent" class="mt-1">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs text-green-600 dark:text-green-400">
+                          💡 当前统一版本：{{ unifiedUserAgent }}
+                        </p>
+                        <button
+                          class="ml-2 text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          :disabled="clearingCache"
+                          type="button"
+                          @click="clearUnifiedCache"
+                        >
+                          <i v-if="!clearingCache" class="fas fa-trash-alt mr-1"></i>
+                          <div v-else class="loading-spinner mr-1"></div>
+                          {{ clearingCache ? '清除中...' : '清除缓存' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div v-else class="mt-1">
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        ⏳ 等待从 Claude Code 客户端捕获 User-Agent
+                      </p>
+                      <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                        💡 提示：如果长时间未能捕获，请确认有 Claude Code 客户端正在使用此账户，
+                        或联系开发者检查 User-Agent 格式是否发生变化
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Claude 统一客户端标识配置 -->
+              <div v-if="form.platform === 'claude'" class="mt-4">
+                <label class="flex items-start">
+                  <input
+                    v-model="form.useUnifiedClientId"
+                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                    @change="handleUnifiedClientIdChange"
+                  />
+                  <div class="ml-3 flex-1">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      使用统一的客户端标识
+                    </span>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      开启后将使用固定的客户端标识，使所有请求看起来来自同一个客户端，减少特征
+                    </p>
+                    <div v-if="form.useUnifiedClientId" class="mt-3">
+                      <div
+                        class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+                      >
+                        <div class="mb-2 flex items-center justify-between">
+                          <span class="text-xs font-medium text-gray-600 dark:text-gray-400"
+                            >客户端标识 ID</span
+                          >
+                          <button
+                            class="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                            type="button"
+                            @click="regenerateClientId"
+                          >
+                            <i class="fas fa-sync-alt mr-1" />
+                            重新生成
+                          </button>
+                        </div>
                         <div class="flex items-center gap-2">
-                          <i class="fas fa-robot text-sm text-rose-600 dark:text-rose-400"></i>
-                          <div>
-                            <span class="block text-xs font-medium text-gray-900 dark:text-gray-100"
-                              >Droid 专属</span
+                          <code
+                            class="block w-full select-all break-all rounded bg-gray-100 px-3 py-2 font-mono text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                          >
+                            <span class="text-blue-600 dark:text-blue-400">{{
+                              form.unifiedClientId.substring(0, 8)
+                            }}</span
+                            ><span class="text-gray-500 dark:text-gray-500">{{
+                              form.unifiedClientId.substring(8, 56)
+                            }}</span
+                            ><span class="text-blue-600 dark:text-blue-400">{{
+                              form.unifiedClientId.substring(56)
+                            }}</span>
+                          </code>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <i class="fas fa-info-circle mr-1 text-blue-500" />
+                          此ID将替换请求中的user_id客户端部分，保留session部分用于粘性会话
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Claude 三方工具伪装开关 -->
+              <div v-if="form.platform === 'claude'" class="mt-4">
+                <label class="flex items-start">
+                  <input
+                    v-model="form.enableThirdPartyToolEmulation"
+                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="checkbox"
+                  />
+                  <div class="ml-3">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      启用三方工具伪装（推荐开启）
+                    </span>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      针对非真 Claude Code 客户端的请求，自动重写 system
+                      prompt、清洗工具描述指纹、注入 metadata，模拟真实 CLI。关闭后请求按原样转发。
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Token 刷新策略（仅 Claude OAuth 账户，创建模式）-->
+              <div v-if="form.platform === 'claude'" class="mt-4">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Token 刷新策略
+                </label>
+
+                <!-- CLI 路径：始终启用，不可关 -->
+                <div
+                  class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+                >
+                  <div class="flex items-start">
+                    <i class="fas fa-check-circle mt-0.5 text-green-600 dark:text-green-400"></i>
+                    <div class="ml-2">
+                      <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        通过本地 Claude CLI 刷新（始终启用）
+                      </p>
+                      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        过期时调用 <code>claude -p</code> 触发本地 CLI 从 .credentials.json 完成
+                        OAuth 刷新
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 直连 OAuth 兜底（高级，可折叠）-->
+                <div
+                  class="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-900/10"
+                >
+                  <button
+                    class="flex w-full items-center justify-between p-3 text-left"
+                    type="button"
+                    @click="axiosFallbackPanelOpen = !axiosFallbackPanelOpen"
+                  >
+                    <span
+                      class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      <i class="fas fa-exclamation-triangle mr-2 text-amber-500"></i>
+                      直连 OAuth 兜底（高级）
+                    </span>
+                    <i
+                      class="fas text-xs text-gray-500 dark:text-gray-400"
+                      :class="axiosFallbackPanelOpen ? 'fa-chevron-up' : 'fa-chevron-down'"
+                    ></i>
+                  </button>
+
+                  <div
+                    v-if="axiosFallbackPanelOpen"
+                    class="border-t border-amber-200 p-3 dark:border-amber-700/40"
+                  >
+                    <!-- 风险提示 -->
+                    <div class="mb-3 text-xs text-gray-600 dark:text-gray-400">
+                      <p class="mb-1 font-medium text-gray-700 dark:text-gray-300">风险提示：</p>
+                      <ul class="list-disc space-y-1 pl-4">
+                        <li>
+                          Anthropic OAuth 端点经 Cloudflare WAF 防护，部分数据中心 IP / 被滥用过的
+                          IP 段会被拦截，返回 403
+                        </li>
+                        <li>拦截发生时账号会被错误标记为凭据失效（已识别并独立处置）</li>
+                        <li>
+                          即便开启成功，会导致 .credentials.json 中的 refresh_token 与 Redis
+                          漂移，CLI 路径可能逐步退化
+                        </li>
+                        <li>
+                          建议优先排查 CLI 失败原因（重新登录 / 同步文件态），而非长期依赖 axios
+                          兜底
+                        </li>
+                      </ul>
+                    </div>
+
+                    <!-- 验证方法 -->
+                    <div
+                      class="mb-3 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-700 dark:bg-gray-900/40"
+                    >
+                      <p class="mb-1 font-medium text-gray-700 dark:text-gray-300">
+                        如何验证不被 Cloudflare 拦截：
+                      </p>
+                      <pre
+                        class="overflow-x-auto whitespace-pre-wrap text-[11px] text-gray-600 dark:text-gray-400"
+                      ><code>curl -X POST https://console.anthropic.com/v1/oauth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"grant_type":"refresh_token","refresh_token":"...","client_id":"..."}' -i</code></pre>
+                      <p class="mt-1 text-gray-500 dark:text-gray-400">
+                        返回非 403 且无 cf-ray / cf-mitigated 头表示出口未被拦截
+                      </p>
+                    </div>
+
+                    <!-- 确认勾选 -->
+                    <label class="mb-3 flex items-start">
+                      <input
+                        v-model="form.axiosCloudflareConfirmed"
+                        class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        type="checkbox"
+                        @change="handleAxiosConfirmedChange"
+                      />
+                      <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                        我已确认部署出口 IP 未被 Cloudflare 拦截
+                      </span>
+                    </label>
+
+                    <!-- 启用开关 -->
+                    <label
+                      class="flex items-start"
+                      :class="{ 'opacity-50': !form.axiosCloudflareConfirmed }"
+                    >
+                      <input
+                        v-model="form.axiosRefreshEnabled"
+                        class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                        :disabled="!form.axiosCloudflareConfirmed"
+                        type="checkbox"
+                      />
+                      <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        启用 axios 兜底（CLI 三次失败后调用直连 OAuth）
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 所有平台的优先级设置 -->
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >调度优先级 (1-100)</label
+                >
+                <input
+                  v-model.number="form.priority"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  max="100"
+                  min="1"
+                  placeholder="数字越小优先级越高，默认50"
+                  type="number"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  数字越小优先级越高，建议范围：1-100
+                </p>
+              </div>
+
+              <!-- Claude 平台：从 .credentials.json 读取 -->
+              <div
+                v-if="form.addType === 'manual' && form.platform === 'claude'"
+                class="space-y-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-700 dark:bg-green-900/30"
+              >
+                <div class="mb-4 flex items-start gap-3">
+                  <div
+                    class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500"
+                  >
+                    <i class="fas fa-file-code text-sm text-white" />
+                  </div>
+                  <div>
+                    <h5 class="mb-2 font-semibold text-green-900 dark:text-green-300">
+                      从 .credentials.json 读取凭据
+                    </h5>
+                    <p class="mb-2 text-sm text-green-800 dark:text-green-300">
+                      系统将自动读取服务器上的
+                      <code class="rounded bg-green-100 px-1 py-0.5 font-mono dark:bg-green-900/50"
+                        >~/.claude/.credentials.json</code
+                      >
+                      文件获取 Access Token 和过期时间。
+                    </p>
+                    <p class="text-xs text-green-600 dark:text-green-400">
+                      💡 Token 过期时，系统会自动执行
+                      <code class="font-mono">claude -p "hello world"</code> 刷新凭据。
+                    </p>
+                  </div>
+                </div>
+
+                <!-- 自定义路径输入 -->
+                <div v-if="showCredentialsPathInput">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <i class="fas fa-folder-open mr-1" />
+                    .credentials.json 文件路径
+                  </label>
+                  <div class="flex gap-2">
+                    <input
+                      v-model="credentialsPath"
+                      class="form-input flex-1 border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                      placeholder="请输入 .credentials.json 文件的完整路径..."
+                      type="text"
+                    />
+                    <button
+                      class="rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600"
+                      :disabled="credentialsLoading"
+                      type="button"
+                      @click="handleReadCredentials"
+                    >
+                      <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-1" />
+                      <i v-else class="fas fa-check mr-1" />
+                      确认
+                    </button>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    默认文件不存在，请输入 .credentials.json 的完整路径
+                  </p>
+                </div>
+
+                <!-- 读取按钮 -->
+                <div
+                  v-if="!credentialsLoaded && !showCredentialsPathInput"
+                  class="flex justify-center"
+                >
+                  <button
+                    class="rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-emerald-700 hover:shadow-xl"
+                    :disabled="credentialsLoading"
+                    type="button"
+                    @click="handleReadCredentials"
+                  >
+                    <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-2" />
+                    <i v-else class="fas fa-file-import mr-2" />
+                    {{ credentialsLoading ? '读取中...' : '从 .credentials.json 读取凭据' }}
+                  </button>
+                </div>
+
+                <!-- 读取结果展示 -->
+                <div v-if="credentialsLoaded" class="space-y-3">
+                  <div
+                    class="rounded-lg border border-green-300 bg-white/80 p-4 dark:border-green-600 dark:bg-gray-800/80"
+                  >
+                    <div class="mb-3 flex items-center justify-between">
+                      <h6 class="text-sm font-semibold text-green-800 dark:text-green-300">
+                        <i class="fas fa-check-circle mr-1 text-green-500" />
+                        凭据读取成功
+                      </h6>
+                      <button
+                        class="rounded-lg bg-green-100 px-3 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300"
+                        :disabled="credentialsLoading"
+                        type="button"
+                        @click="handleReadCredentials"
+                      >
+                        <i class="fas fa-sync-alt mr-1" />
+                        重新读取
+                      </button>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                      <div class="flex items-start gap-2">
+                        <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                          >Access Token:</span
+                        >
+                        <code
+                          class="break-all rounded bg-gray-100 px-2 py-0.5 font-mono text-xs dark:bg-gray-700"
+                          >{{ credentialsMaskedToken }}</code
+                        >
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                          >过期时间:</span
+                        >
+                        <span
+                          :class="
+                            credentialsExpired
+                              ? 'font-semibold text-red-600'
+                              : 'text-green-700 dark:text-green-300'
+                          "
+                        >
+                          {{ credentialsExpiresAtFormatted }}
+                          <span v-if="credentialsExpired" class="ml-1 text-xs">(已过期)</span>
+                        </span>
+                      </div>
+                      <div v-if="credentialsScopes.length > 0" class="flex items-start gap-2">
+                        <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                          >权限范围:</span
+                        >
+                        <div class="flex flex-wrap gap-1">
+                          <span
+                            v-for="scope in credentialsScopes"
+                            :key="scope"
+                            class="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                            >{{ scope }}</span
+                          >
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
+                          >文件路径:</span
+                        >
+                        <code
+                          class="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs dark:bg-gray-700"
+                          >{{ credentialsFilePath }}</code
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 错误提示 -->
+                <div
+                  v-if="credentialsError"
+                  class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
+                >
+                  <p class="text-sm text-red-700 dark:text-red-300">
+                    <i class="fas fa-exclamation-triangle mr-1" />
+                    {{ credentialsError }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- API Key 模式输入 -->
+              <div
+                v-if="form.addType === 'apikey' && form.platform === 'droid'"
+                class="space-y-4 rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-900/30"
+              >
+                <div class="mb-4 flex items-start gap-3">
+                  <div
+                    class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-purple-500"
+                  >
+                    <i class="fas fa-key text-sm text-white" />
+                  </div>
+                  <div>
+                    <h5 class="mb-2 font-semibold text-purple-900 dark:text-purple-200">
+                      使用 API Key 调度 Droid
+                    </h5>
+                    <p class="text-sm text-purple-800 dark:text-purple-200">
+                      请填写一个或多个 Factory.ai API
+                      Key，系统会自动在请求时随机挑选并结合会话哈希维持粘性，确保对话上下文保持稳定。
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >API Key 列表 *</label
+                  >
+                  <textarea
+                    v-model="form.apiKeysInput"
+                    class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.apiKeys }"
+                    placeholder="每行一个 API Key，可粘贴多行"
+                    required
+                    rows="6"
+                  />
+                  <p v-if="errors.apiKeys" class="mt-1 text-xs text-red-500">
+                    {{ errors.apiKeys }}
+                  </p>
+                  <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <i class="fas fa-info-circle mr-1" />
+                    建议为每条 Key 提供独立额度；系统会自动去重并忽略空白行。
+                  </p>
+                </div>
+
+                <!-- Droid User-Agent 配置 -->
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >自定义 User-Agent (可选)</label
+                  >
+                  <input
+                    v-model="form.userAgent"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="factory-cli/0.32.1"
+                    type="text"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    留空使用默认值 factory-cli/0.32.1，可根据需要自定义
+                  </p>
+                </div>
+
+                <div
+                  class="rounded-lg border border-purple-200 bg-white/70 p-3 text-xs text-purple-800 dark:border-purple-700 dark:bg-purple-800/20 dark:text-purple-100"
+                >
+                  <p class="font-medium"><i class="fas fa-random mr-1" />分配策略说明</p>
+                  <ul class="mt-1 list-disc space-y-1 pl-4">
+                    <li>新会话将随机命中一个 Key，并在会话有效期内保持粘性。</li>
+                    <li>若某 Key 失效，会自动切换到剩余可用 Key，最大化成功率。</li>
+                    <li>
+                      若上游返回 4xx 错误码，该 Key 会被自动标记为异常；全部 Key
+                      异常后账号将暂停调度。
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- 代理设置 -->
+              <ProxyConfig v-model="form.proxy" />
+
+              <div class="flex gap-3 pt-4">
+                <button
+                  class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  type="button"
+                  @click="$emit('close')"
+                >
+                  取消
+                </button>
+                <button
+                  v-if="
+                    (form.addType === 'oauth' || form.addType === 'setup-token') &&
+                    form.platform !== 'claude-console' &&
+                    form.platform !== 'ccr' &&
+                    form.platform !== 'bedrock' &&
+                    form.platform !== 'azure_openai' &&
+                    form.platform !== 'openai-responses' &&
+                    form.platform !== 'gemini-api'
+                  "
+                  class="btn btn-primary flex-1 px-6 py-3 font-semibold"
+                  :disabled="loading"
+                  type="button"
+                  @click="nextStep"
+                >
+                  下一步
+                </button>
+                <button
+                  v-else
+                  class="btn btn-primary flex-1 px-6 py-3 font-semibold"
+                  :disabled="loading"
+                  type="button"
+                  @click="createAccount"
+                >
+                  <div v-if="loading" class="loading-spinner mr-2" />
+                  {{ loading ? '创建中...' : '创建' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 步骤2: OAuth授权 -->
+          <OAuthFlow
+            v-if="oauthStep === 2 && form.addType === 'oauth'"
+            ref="oauthFlowRef"
+            :platform="form.platform"
+            :proxy="form.proxy"
+            @back="oauthStep = 1"
+            @success="handleOAuthSuccess"
+          />
+
+          <!-- 步骤2: Setup Token授权 -->
+          <div v-if="oauthStep === 2 && form.addType === 'setup-token'" class="space-y-6">
+            <!-- Claude Setup Token流程 -->
+            <div v-if="form.platform === 'claude'">
+              <div
+                class="rounded-lg border border-blue-200 bg-blue-50 p-6 dark:border-blue-700 dark:bg-blue-900/30"
+              >
+                <div class="flex items-start gap-4">
+                  <div
+                    class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500"
+                  >
+                    <i class="fas fa-key text-white" />
+                  </div>
+                  <div class="flex-1">
+                    <h4 class="mb-3 font-semibold text-blue-900 dark:text-blue-200">
+                      Claude Setup Token 授权
+                    </h4>
+
+                    <!-- 授权方式选择 -->
+                    <div class="mb-4">
+                      <p class="mb-3 text-sm font-medium text-blue-800 dark:text-blue-300">
+                        选择授权方式：
+                      </p>
+                      <div class="flex flex-wrap gap-4">
+                        <label class="flex cursor-pointer items-center">
+                          <input
+                            v-model="authMethod"
+                            class="mr-2 text-blue-600 focus:ring-blue-500"
+                            type="radio"
+                            value="manual"
+                            @change="onAuthMethodChange"
+                          />
+                          <span class="text-sm text-blue-800 dark:text-blue-300">
+                            <i class="fas fa-link mr-1" />手动授权
+                          </span>
+                        </label>
+                        <label class="flex cursor-pointer items-center">
+                          <input
+                            v-model="authMethod"
+                            class="mr-2 text-blue-600 focus:ring-blue-500"
+                            type="radio"
+                            value="cookie"
+                            @change="onAuthMethodChange"
+                          />
+                          <span class="text-sm text-blue-800 dark:text-blue-300">
+                            <i class="fas fa-cookie mr-1" />Cookie 自动授权
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <!-- 手动授权流程 -->
+                    <div v-if="authMethod === 'manual'" class="space-y-4">
+                      <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
+                        请按照以下步骤通过 Setup Token 完成 Claude 账户的授权：
+                      </p>
+                      <!-- 步骤1: 生成授权链接 -->
+                      <div
+                        class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+                      >
+                        <div class="flex items-start gap-3">
+                          <div
+                            class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white"
+                          >
+                            1
+                          </div>
+                          <div class="flex-1">
+                            <p class="mb-2 font-medium text-blue-900 dark:text-blue-200">
+                              点击下方按钮生成授权链接
+                            </p>
+                            <button
+                              v-if="!setupTokenAuthUrl"
+                              class="btn btn-primary px-4 py-2 text-sm"
+                              :disabled="setupTokenLoading"
+                              @click="generateSetupTokenAuthUrl"
                             >
-                            <span class="text-xs text-gray-500 dark:text-gray-400">官方</span>
+                              <i v-if="!setupTokenLoading" class="fas fa-link mr-2" />
+                              <div v-else class="loading-spinner mr-2" />
+                              {{ setupTokenLoading ? '生成中...' : '生成 Setup Token 授权链接' }}
+                            </button>
+                            <div v-else class="space-y-3">
+                              <div class="flex items-center gap-2">
+                                <input
+                                  class="form-input flex-1 bg-gray-50 font-mono text-xs dark:bg-gray-700"
+                                  readonly
+                                  type="text"
+                                  :value="setupTokenAuthUrl"
+                                />
+                                <button
+                                  class="rounded-lg bg-gray-100 px-3 py-2 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                                  title="复制链接"
+                                  @click="copySetupTokenAuthUrl"
+                                >
+                                  <i
+                                    :class="
+                                      setupTokenCopied
+                                        ? 'fas fa-check text-green-500'
+                                        : 'fas fa-copy'
+                                    "
+                                  />
+                                </button>
+                              </div>
+                              <button
+                                class="text-xs text-blue-600 hover:text-blue-700"
+                                @click="regenerateSetupTokenAuthUrl"
+                              >
+                                <i class="fas fa-sync-alt mr-1" />重新生成
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div
-                          v-if="form.platform === 'droid'"
-                          class="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500"
-                        >
-                          <i class="fas fa-check text-xs text-white"></i>
+                      </div>
+
+                      <!-- 步骤2: 访问链接并授权 -->
+                      <div
+                        class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+                      >
+                        <div class="flex items-start gap-3">
+                          <div
+                            class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white"
+                          >
+                            2
+                          </div>
+                          <div class="flex-1">
+                            <p class="mb-2 font-medium text-blue-900 dark:text-blue-200">
+                              在浏览器中打开链接并完成授权
+                            </p>
+                            <p class="mb-2 text-sm text-blue-700 dark:text-blue-300">
+                              请在新标签页中打开授权链接，登录您的 Claude 账户并授权 Claude Code。
+                            </p>
+                            <div
+                              class="rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
+                            >
+                              <p class="text-xs text-yellow-800 dark:text-yellow-300">
+                                <i class="fas fa-exclamation-triangle mr-1" />
+                                <strong>注意：</strong
+                                >如果您设置了代理，请确保浏览器也使用相同的代理访问授权页面。
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                      </label>
-                    </template>
+                      </div>
+
+                      <!-- 步骤3: 输入授权码 -->
+                      <div
+                        class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+                      >
+                        <div class="flex items-start gap-3">
+                          <div
+                            class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white"
+                          >
+                            3
+                          </div>
+                          <div class="flex-1">
+                            <p class="mb-2 font-medium text-blue-900 dark:text-blue-200">
+                              输入 Authorization Code
+                            </p>
+                            <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
+                              授权完成后，从返回页面复制 Authorization Code，并粘贴到下方输入框：
+                            </p>
+                            <div class="space-y-3">
+                              <div>
+                                <label
+                                  class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                                >
+                                  <i class="fas fa-key mr-2 text-blue-500" />Authorization Code
+                                </label>
+                                <textarea
+                                  v-model="setupTokenAuthCode"
+                                  class="form-input w-full resize-none border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                                  placeholder="粘贴从Claude Code授权页面获取的Authorization Code..."
+                                  rows="3"
+                                />
+                              </div>
+                              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                <i class="fas fa-info-circle mr-1" />
+                                请粘贴从Claude Code授权页面复制的Authorization Code
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Cookie自动授权流程 -->
+                    <div v-if="authMethod === 'cookie'" class="space-y-4">
+                      <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
+                        使用 sessionKey 自动完成授权，无需手动打开链接。
+                      </p>
+
+                      <div
+                        class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
+                      >
+                        <div class="space-y-4">
+                          <div>
+                            <label
+                              class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
+                            >
+                              <i class="fas fa-cookie text-blue-500" />sessionKey
+                              <span
+                                v-if="parsedSessionKeyCount > 1"
+                                class="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white"
+                              >
+                                {{ parsedSessionKeyCount }} 个
+                              </span>
+                            </label>
+                            <textarea
+                              v-model="sessionKey"
+                              class="form-input w-full resize-y border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                              :class="{ 'border-red-500': cookieAuthError }"
+                              placeholder="每行一个 sessionKey，例如：&#10;sk-ant-sid01-xxxxx...&#10;sk-ant-sid01-yyyyy..."
+                              rows="3"
+                            />
+                            <p
+                              v-if="parsedSessionKeyCount > 1"
+                              class="mt-1 text-xs text-blue-600 dark:text-blue-400"
+                            >
+                              <i class="fas fa-info-circle mr-1" />
+                              将批量创建 {{ parsedSessionKeyCount }} 个账户
+                            </p>
+                            <p v-if="cookieAuthError" class="mt-1 text-xs text-red-500">
+                              {{ cookieAuthError }}
+                            </p>
+                          </div>
+
+                          <!-- 帮助说明 -->
+                          <div>
+                            <button
+                              class="flex items-center text-xs text-blue-600 hover:text-blue-700"
+                              type="button"
+                              @click="showSessionKeyHelp = !showSessionKeyHelp"
+                            >
+                              <i
+                                :class="
+                                  showSessionKeyHelp
+                                    ? 'fas fa-chevron-down mr-1'
+                                    : 'fas fa-chevron-right mr-1'
+                                "
+                              />
+                              如何获取 sessionKey？
+                            </button>
+                            <div
+                              v-if="showSessionKeyHelp"
+                              class="mt-3 rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700"
+                            >
+                              <ol class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                                <li>1. 在浏览器中登录 <strong>claude.ai</strong></li>
+                                <li>2. 按 <strong>F12</strong> 打开开发者工具</li>
+                                <li>3. 切换到 <strong>"Application"</strong> (应用) 标签页</li>
+                                <li>
+                                  4. 在左侧选择 <strong>"Cookies"</strong> →
+                                  <strong>"https://claude.ai"</strong>
+                                </li>
+                                <li>5. 找到键为 <strong>"sessionKey"</strong> 的那一行</li>
+                                <li>6. 复制其 <strong>"Value"</strong> (值) 列的内容</li>
+                              </ol>
+                              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                <i class="fas fa-info-circle mr-1" />
+                                sessionKey 通常以 "sk-ant-" 开头
+                              </p>
+                            </div>
+                          </div>
+
+                          <!-- 开始授权按钮 -->
+                          <button
+                            class="btn btn-primary w-full px-4 py-3"
+                            :disabled="cookieAuthLoading || !sessionKey.trim()"
+                            type="button"
+                            @click="handleCookieAuth"
+                          >
+                            <div v-if="cookieAuthLoading" class="loading-spinner mr-2" />
+                            <i v-else class="fas fa-magic mr-2" />
+                            <template v-if="cookieAuthLoading && batchProgress.total > 1">
+                              正在授权 {{ batchProgress.current }}/{{ batchProgress.total }}...
+                            </template>
+                            <template v-else-if="cookieAuthLoading"> 授权中... </template>
+                            <template v-else> 开始自动授权 </template>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div
+                        class="rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
+                      >
+                        <p class="text-xs text-yellow-800 dark:text-yellow-300">
+                          <i class="fas fa-exclamation-triangle mr-1" />
+                          <strong>提示：</strong
+                          >如果您设置了代理，Cookie授权也会使用相同的代理配置。
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div
-              v-if="
-                !isEdit &&
-                form.platform !== 'claude-console' &&
-                form.platform !== 'ccr' &&
-                form.platform !== 'bedrock' &&
-                form.platform !== 'azure_openai' &&
-                form.platform !== 'openai-responses' &&
-                form.platform !== 'gemini-api'
-              "
-            >
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >添加方式</label
+            <div class="flex gap-3 pt-4">
+              <button
+                class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                type="button"
+                @click="oauthStep = 1"
               >
-              <div class="flex flex-wrap gap-4">
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.addType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="manual"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300"
-                    >手动输入 Access Token</span
-                  >
-                </label>
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.addType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="oauth"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">
-                    OAuth 授权<span v-if="form.platform === 'claude' || form.platform === 'openai'">
-                      (用量可视化)</span
-                    >
-                  </span>
-                </label>
-                <label v-if="form.platform === 'claude'" class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.addType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="setup-token"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">Setup Token (效期长)</span>
-                </label>
-                <label v-if="form.platform === 'droid'" class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.addType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="apikey"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300"
-                    >使用 API Key (支持多个)</span
-                  >
-                </label>
-              </div>
+                上一步
+              </button>
+              <button
+                v-if="authMethod === 'manual'"
+                class="btn btn-primary flex-1 px-6 py-3 font-semibold"
+                :disabled="!canExchangeSetupToken || setupTokenExchanging"
+                type="button"
+                @click="exchangeSetupTokenCode"
+              >
+                <div v-if="setupTokenExchanging" class="loading-spinner mr-2" />
+                {{ setupTokenExchanging ? '验证中...' : '完成授权' }}
+              </button>
             </div>
+          </div>
 
+          <!-- 编辑模式 -->
+          <div v-if="isEdit" class="space-y-6">
+            <!-- 基本信息 -->
             <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >账户名称</label
               >
               <input
                 v-model="form.name"
                 class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                :class="{ 'border-red-500': errors.name }"
                 placeholder="为账户设置一个易识别的名称"
                 required
                 type="text"
               />
-              <p v-if="errors.name" class="mt-1 text-xs text-red-500">
-                {{ errors.name }}
-              </p>
             </div>
 
             <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >描述 (可选)</label
               >
               <textarea
@@ -698,7 +2919,7 @@
             </div>
 
             <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >账户类型</label
               >
               <div class="flex gap-4">
@@ -736,9 +2957,9 @@
               </p>
             </div>
 
-            <!-- 到期时间 - 仅在创建账户时显示，编辑时使用独立的过期时间编辑弹窗，Gemini API 不需要 -->
-            <div v-if="!isEdit && form.platform !== 'gemini-api'">
-              <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+            <!-- 到期时间 - 仅在创建账户时显示，编辑时使用独立的过期时间编辑弹窗 -->
+            <div v-if="!isEdit">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >到期时间 (可选)</label
               >
               <div
@@ -781,7 +3002,7 @@
 
             <!-- 分组选择器 -->
             <div v-if="form.accountType === 'group'">
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >选择分组 *</label
               >
               <div class="flex gap-2">
@@ -825,7 +3046,7 @@
                   </div>
                 </div>
                 <button
-                  class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                  class="icon-btn-md flex-shrink-0 border border-gray-200 bg-white text-gray-700 transition-colors hover:border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                   type="button"
                   @click="refreshGroups"
                 >
@@ -836,7 +3057,7 @@
 
             <!-- Gemini 项目 ID 字段 -->
             <div v-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'">
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >项目 ID (可选)</label
               >
               <input
@@ -845,509 +3066,278 @@
                 placeholder="例如：verdant-wares-464411-k9"
                 type="text"
               />
-              <div class="mt-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
-                <div class="flex items-start gap-2">
-                  <i class="fas fa-info-circle mt-0.5 text-yellow-600" />
-                  <div class="text-xs text-yellow-700">
-                    <p class="mb-1 font-medium">Google Cloud/Workspace 账号需要提供项目 ID</p>
-                    <p>
-                      某些 Google 账号（特别是绑定了 Google Cloud 的账号）会被识别为 Workspace
-                      账号，需要提供额外的项目 ID。
-                    </p>
-                    <div class="mt-2 rounded border border-yellow-300 bg-white p-2">
-                      <p class="mb-1 font-medium">如何获取项目 ID：</p>
-                      <ol class="ml-2 list-inside list-decimal space-y-1">
-                        <li>
-                          访问
-                          <a
-                            class="font-medium text-blue-600 hover:underline"
-                            href="https://console.cloud.google.com/welcome"
-                            target="_blank"
-                            >Google Cloud Console</a
-                          >
-                        </li>
-                        <li>
-                          复制<span class="font-semibold text-red-600">项目 ID（Project ID）</span
-                          >，通常是字符串格式
-                        </li>
-                        <li class="text-red-600">
-                          ⚠️ 注意：要复制项目 ID（Project ID），不要复制项目编号（Project Number）！
-                        </li>
-                      </ol>
-                    </div>
-                    <p class="mt-2">
-                      <strong>提示：</strong>如果您的账号是普通个人账号（未绑定 Google
-                      Cloud），请留空此字段。
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Google Cloud/Workspace 账号可能需要提供项目 ID
+              </p>
             </div>
 
-            <!-- Bedrock 特定字段 -->
-            <div v-if="form.platform === 'bedrock'" class="space-y-4">
-              <!-- 凭证类型选择器 -->
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >凭证类型 *</label
-                >
-                <div v-if="!isEdit" class="flex gap-4">
-                  <label class="flex cursor-pointer items-center">
-                    <input
-                      v-model="form.credentialType"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      type="radio"
-                      value="access_key"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300"
-                      >AWS Access Key（访问密钥）</span
-                    >
-                  </label>
-                  <label class="flex cursor-pointer items-center">
-                    <input
-                      v-model="form.credentialType"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      type="radio"
-                      value="bearer_token"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300"
-                      >Bearer Token（长期令牌）</span
-                    >
-                  </label>
-                </div>
-                <div v-else class="flex gap-4">
-                  <label class="flex items-center opacity-60">
-                    <input
-                      v-model="form.credentialType"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      disabled
-                      type="radio"
-                      value="access_key"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300"
-                      >AWS Access Key（访问密钥）</span
-                    >
-                  </label>
-                  <label class="flex items-center opacity-60">
-                    <input
-                      v-model="form.credentialType"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      disabled
-                      type="radio"
-                      value="bearer_token"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300"
-                      >Bearer Token（长期令牌）</span
-                    >
-                  </label>
-                </div>
-                <div
-                  class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
-                >
-                  <div class="flex items-start gap-2">
-                    <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
-                    <div class="text-xs text-blue-700 dark:text-blue-300">
-                      <p v-if="form.credentialType === 'access_key'" class="font-medium">
-                        使用 AWS Access Key ID 和 Secret Access Key 进行身份验证（支持临时凭证）
-                      </p>
-                      <p v-else class="font-medium">
-                        使用 AWS Bedrock API Keys 生成的 Bearer Token
-                        进行身份验证，更简单、权限范围更小
-                      </p>
-                      <p v-if="isEdit" class="mt-1 text-xs italic">
-                        💡 编辑模式下凭证类型不可更改，如需切换类型请重新创建账户
-                      </p>
-                    </div>
-                  </div>
-                </div>
+            <!-- Claude 订阅类型选择（编辑模式） -->
+            <div v-if="form.platform === 'claude'">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >订阅类型</label
+              >
+              <div class="flex gap-4">
+                <label class="flex cursor-pointer items-center">
+                  <input
+                    v-model="form.subscriptionType"
+                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="radio"
+                    value="claude_max"
+                  />
+                  <span class="text-sm text-gray-700 dark:text-gray-300">Claude Max</span>
+                </label>
+                <label class="flex cursor-pointer items-center">
+                  <input
+                    v-model="form.subscriptionType"
+                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                    type="radio"
+                    value="claude_pro"
+                  />
+                  <span class="text-sm text-gray-700 dark:text-gray-300">Claude Pro</span>
+                </label>
               </div>
+              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <i class="fas fa-info-circle mr-1" />
+                Pro 账号不支持 Claude Opus 4 模型
+              </p>
+            </div>
 
-              <!-- AWS Access Key 字段（仅在 access_key 模式下显示）-->
-              <div v-if="form.credentialType === 'access_key'">
-                <div>
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                    >AWS 访问密钥 ID {{ isEdit ? '' : '*' }}</label
-                  >
-                  <input
-                    v-model="form.accessKeyId"
-                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    :class="{ 'border-red-500': errors.accessKeyId }"
-                    :placeholder="isEdit ? '留空则保持原有凭证不变' : '请输入 AWS Access Key ID'"
-                    :required="!isEdit"
-                    type="text"
-                  />
-                  <p v-if="errors.accessKeyId" class="mt-1 text-xs text-red-500">
-                    {{ errors.accessKeyId }}
-                  </p>
-                  <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    💡 编辑模式下，留空则保持原有 Access Key ID 不变
-                  </p>
-                </div>
-
-                <div>
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                    >AWS 秘密访问密钥 {{ isEdit ? '' : '*' }}</label
-                  >
-                  <input
-                    v-model="form.secretAccessKey"
-                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    :class="{ 'border-red-500': errors.secretAccessKey }"
-                    :placeholder="
-                      isEdit ? '留空则保持原有凭证不变' : '请输入 AWS Secret Access Key'
-                    "
-                    :required="!isEdit"
-                    type="password"
-                  />
-                  <p v-if="errors.secretAccessKey" class="mt-1 text-xs text-red-500">
-                    {{ errors.secretAccessKey }}
-                  </p>
-                  <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    💡 编辑模式下，留空则保持原有 Secret Access Key 不变
-                  </p>
-                </div>
-
-                <div>
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                    >会话令牌 (可选)</label
-                  >
-                  <input
-                    v-model="form.sessionToken"
-                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    :placeholder="
-                      isEdit
-                        ? '留空则保持原有 Session Token 不变'
-                        : '如果使用临时凭证，请输入会话令牌'
-                    "
-                    type="password"
-                  />
+            <!-- Claude 5小时限制自动停止调度选项（编辑模式） -->
+            <div v-if="form.platform === 'claude'" class="mt-4">
+              <label class="flex items-start">
+                <input
+                  v-model="form.autoStopOnWarning"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    5小时使用量接近限制时自动停止调度
+                  </span>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    仅在使用临时 AWS 凭证时需要填写
+                    当系统检测到账户接近5小时使用限制时，自动暂停调度该账户。进入新的时间窗口后会自动恢复调度。
                   </p>
                 </div>
-              </div>
-
-              <!-- Bearer Token 字段（仅在 bearer_token 模式下显示）-->
-              <div v-if="form.credentialType === 'bearer_token'">
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Bearer Token {{ isEdit ? '' : '*' }}</label
-                >
-                <input
-                  v-model="form.bearerToken"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.bearerToken }"
-                  :placeholder="
-                    isEdit ? '留空则保持原有 Bearer Token 不变' : '请输入 AWS Bearer Token'
-                  "
-                  :required="!isEdit"
-                  type="password"
-                />
-                <p v-if="errors.bearerToken" class="mt-1 text-xs text-red-500">
-                  {{ errors.bearerToken }}
-                </p>
-                <p v-if="isEdit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  💡 编辑模式下，留空则保持原有 Bearer Token 不变
-                </p>
-                <div
-                  class="mt-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-700 dark:bg-green-900/30"
-                >
-                  <div class="flex items-start gap-2">
-                    <i class="fas fa-key mt-0.5 text-green-600 dark:text-green-400" />
-                    <div class="text-xs text-green-700 dark:text-green-300">
-                      <p class="mb-1 font-medium">Bearer Token 说明：</p>
-                      <ul class="list-inside list-disc space-y-1 text-xs">
-                        <li>输入 AWS Bedrock API Keys 生成的 Bearer Token</li>
-                        <li>Bearer Token 仅限 Bedrock 服务访问，权限范围更小</li>
-                        <li>相比 Access Key 更简单，无需 Secret Key</li>
-                        <li>
-                          参考：<a
-                            class="text-green-600 underline dark:text-green-400"
-                            href="https://aws.amazon.com/cn/blogs/machine-learning/accelerate-ai-development-with-amazon-bedrock-api-keys/"
-                            target="_blank"
-                            >AWS 官方文档</a
-                          >
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- AWS 区域（两种凭证类型都需要）-->
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >AWS 区域 *</label
-                >
-                <input
-                  v-model="form.region"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.region }"
-                  placeholder="例如：us-east-1"
-                  required
-                  type="text"
-                />
-                <p v-if="errors.region" class="mt-1 text-xs text-red-500">
-                  {{ errors.region }}
-                </p>
-                <div
-                  class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
-                >
-                  <div class="flex items-start gap-2">
-                    <i class="fas fa-info-circle mt-0.5 text-blue-600 dark:text-blue-400" />
-                    <div class="text-xs text-blue-700 dark:text-blue-300">
-                      <p class="mb-1 font-medium">常用 AWS 区域参考：</p>
-                      <div class="grid grid-cols-2 gap-1 text-xs">
-                        <span>• us-east-1 (美国东部)</span>
-                        <span>• us-west-2 (美国西部)</span>
-                        <span>• eu-west-1 (欧洲爱尔兰)</span>
-                        <span>• ap-southeast-1 (新加坡)</span>
-                        <span>• ap-northeast-1 (东京)</span>
-                        <span>• eu-central-1 (法兰克福)</span>
-                      </div>
-                      <p class="mt-2 text-blue-600 dark:text-blue-400">
-                        💡 请输入完整的区域代码，如 us-east-1
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >默认主模型 (可选)</label
-                >
-                <input
-                  v-model="form.defaultModel"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="例如：us.anthropic.claude-sonnet-4-20250514-v1:0"
-                  type="text"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  留空将使用系统默认模型。支持 inference profile ID 或 ARN
-                </p>
-                <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <div class="flex items-start gap-2">
-                    <i class="fas fa-info-circle mt-0.5 text-amber-600" />
-                    <div class="text-xs text-amber-700">
-                      <p class="mb-1 font-medium">Bedrock 模型配置说明：</p>
-                      <ul class="list-inside list-disc space-y-1 text-xs">
-                        <li>支持 Inference Profile ID（推荐）</li>
-                        <li>支持 Application Inference Profile ARN</li>
-                        <li>常用模型：us.anthropic.claude-sonnet-4-20250514-v1:0</li>
-                        <li>留空将使用系统配置的默认模型</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >小快速模型 (可选)</label
-                >
-                <input
-                  v-model="form.smallFastModel"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="例如：us.anthropic.claude-3-5-haiku-20241022-v1:0"
-                  type="text"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  用于快速响应的轻量级模型，留空将使用系统默认
-                </p>
-              </div>
+              </label>
             </div>
 
-            <!-- Azure OpenAI 特定字段 -->
-            <div v-if="form.platform === 'azure_openai' && !isEdit" class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Azure Endpoint *</label
-                >
+            <!-- Claude 账户级串行队列开关（编辑模式） -->
+            <div v-if="form.platform === 'claude'" class="mt-4">
+              <label class="flex items-start">
                 <input
-                  v-model="form.azureEndpoint"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.azureEndpoint }"
-                  placeholder="https://your-resource.openai.azure.com"
-                  required
-                  type="url"
+                  v-model="form.serialQueueEnabled"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
                 />
-                <p v-if="errors.azureEndpoint" class="mt-1 text-xs text-red-500">
-                  {{ errors.azureEndpoint }}
-                </p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Azure OpenAI 资源的终结点 URL，格式：https://your-resource.openai.azure.com
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 版本</label
-                >
-                <input
-                  v-model="form.apiVersion"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="2024-02-01"
-                  type="text"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Azure OpenAI API 版本，默认使用最新稳定版本 2024-02-01
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >部署名称 *</label
-                >
-                <input
-                  v-model="form.deploymentName"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.deploymentName }"
-                  placeholder="gpt-4"
-                  required
-                  type="text"
-                />
-                <p v-if="errors.deploymentName" class="mt-1 text-xs text-red-500">
-                  {{ errors.deploymentName }}
-                </p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  在 Azure OpenAI Studio 中创建的部署名称
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API Key *</label
-                >
-                <input
-                  v-model="form.apiKey"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.apiKey }"
-                  placeholder="请输入 Azure OpenAI API Key"
-                  required
-                  type="password"
-                />
-                <p v-if="errors.apiKey" class="mt-1 text-xs text-red-500">
-                  {{ errors.apiKey }}
-                </p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  从 Azure 门户获取的 API 密钥
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >支持的模型</label
-                >
-                <div class="flex flex-wrap gap-2">
-                  <label
-                    v-for="model in [
-                      'gpt-4',
-                      'gpt-4-turbo',
-                      'gpt-4o',
-                      'gpt-4o-mini',
-                      'gpt-5',
-                      'gpt-5-mini',
-                      'gpt-35-turbo',
-                      'gpt-35-turbo-16k',
-                      'codex-mini'
-                    ]"
-                    :key="model"
-                    class="flex cursor-pointer items-center"
-                  >
-                    <input
-                      v-model="form.supportedModels"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      type="checkbox"
-                      :value="model"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ model }}</span>
-                  </label>
-                </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  选择此部署支持的模型类型
-                </p>
-              </div>
-            </div>
-
-            <div v-if="form.platform === 'bedrock' && !isEdit">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >限流机制</label
-                >
-                <div class="mb-3">
-                  <label class="inline-flex cursor-pointer items-center">
-                    <input
-                      v-model="form.enableRateLimit"
-                      class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
-                      type="checkbox"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">启用限流机制</span>
-                  </label>
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    启用账户级串行队列
+                  </span>
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    启用后，当账号返回429错误时将暂停调度一段时间
+                    开启后强制该账户的用户消息串行处理，忽略全局串行队列设置。适用于并发限制较低的账户。
                   </p>
                 </div>
-
-                <div v-if="form.enableRateLimit">
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                    >限流时间 (分钟)</label
-                  >
-                  <input
-                    v-model.number="form.rateLimitDuration"
-                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    min="1"
-                    placeholder="默认60分钟"
-                    type="number"
-                  />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    账号被限流后暂停调度的时间（分钟）
-                  </p>
-                </div>
-              </div>
+              </label>
             </div>
 
-            <!-- Claude Console 和 CCR 特定字段 -->
+            <!-- 拦截预热请求开关（Claude 和 Claude Console 编辑模式） -->
             <div
-              v-if="(form.platform === 'claude-console' || form.platform === 'ccr') && !isEdit"
+              v-if="form.platform === 'claude' || form.platform === 'claude-console'"
+              class="mt-4"
+            >
+              <label class="flex items-start">
+                <input
+                  v-model="form.interceptWarmup"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    拦截预热请求
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    启用后，对标题生成、Warmup 等低价值请求直接返回模拟响应，不消耗上游 API 额度
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <!-- Claude User-Agent 版本配置（编辑模式） -->
+            <div v-if="form.platform === 'claude'" class="mt-4">
+              <label class="flex items-start">
+                <input
+                  v-model="form.useUnifiedUserAgent"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    使用统一 Claude Code 版本
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    开启后将使用从真实 Claude Code 客户端捕获的统一 User-Agent，提高兼容性
+                  </p>
+                  <div v-if="unifiedUserAgent" class="mt-1">
+                    <div class="flex items-center justify-between">
+                      <p class="text-xs text-green-600 dark:text-green-400">
+                        💡 当前统一版本：{{ unifiedUserAgent }}
+                      </p>
+                      <button
+                        class="ml-2 text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        :disabled="clearingCache"
+                        type="button"
+                        @click="clearUnifiedCache"
+                      >
+                        <i v-if="!clearingCache" class="fas fa-trash-alt mr-1"></i>
+                        <div v-else class="loading-spinner mr-1"></div>
+                        {{ clearingCache ? '清除中...' : '清除缓存' }}
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="mt-1">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      ⏳ 等待从 Claude Code 客户端捕获 User-Agent
+                    </p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      💡 提示：如果长时间未能捕获，请确认有 Claude Code 客户端正在使用此账户，
+                      或联系开发者检查 User-Agent 格式是否发生变化
+                    </p>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Claude 统一客户端标识配置（编辑模式） -->
+            <div v-if="form.platform === 'claude'" class="mt-4">
+              <label class="flex items-start">
+                <input
+                  v-model="form.useUnifiedClientId"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                  @change="handleUnifiedClientIdChange"
+                />
+                <div class="ml-3 flex-1">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    使用统一的客户端标识
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    开启后将使用固定的客户端标识，使所有请求看起来来自同一个客户端，减少特征
+                  </p>
+                  <div v-if="form.useUnifiedClientId" class="mt-3">
+                    <div
+                      class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
+                    >
+                      <div class="mb-2 flex items-center justify-between">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400"
+                          >客户端标识 ID</span
+                        >
+                        <button
+                          class="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                          type="button"
+                          @click="regenerateClientId"
+                        >
+                          <i class="fas fa-sync-alt mr-1" />
+                          重新生成
+                        </button>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <code
+                          class="block w-full select-all break-all rounded bg-gray-100 px-3 py-2 font-mono text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                        >
+                          <span class="text-blue-600 dark:text-blue-400">{{
+                            form.unifiedClientId.substring(0, 8)
+                          }}</span
+                          ><span class="text-gray-500 dark:text-gray-500">{{
+                            form.unifiedClientId.substring(8, 56)
+                          }}</span
+                          ><span class="text-blue-600 dark:text-blue-400">{{
+                            form.unifiedClientId.substring(56)
+                          }}</span>
+                        </code>
+                      </div>
+                      <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <i class="fas fa-info-circle mr-1 text-blue-500" />
+                        此ID将替换请求中的user_id客户端部分，保留session部分用于粘性会话
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Claude 三方工具伪装开关（编辑模式） -->
+            <div v-if="form.platform === 'claude'" class="mt-4">
+              <label class="flex items-start">
+                <input
+                  v-model="form.enableThirdPartyToolEmulation"
+                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
+                />
+                <div class="ml-3">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    启用三方工具伪装（推荐开启）
+                  </span>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    针对非真 Claude Code 客户端的请求，自动重写 system
+                    prompt、清洗工具描述指纹、注入 metadata，模拟真实 CLI。关闭后请求按原样转发。
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <!-- 所有平台的优先级设置（编辑模式） -->
+            <div>
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >调度优先级 (1-100)</label
+              >
+              <input
+                v-model.number="form.priority"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                max="100"
+                min="1"
+                placeholder="数字越小优先级越高"
+                type="number"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                数字越小优先级越高，建议范围：1-100
+              </p>
+            </div>
+
+            <!-- Claude Console 和 CCR 特定字段（编辑模式）-->
+            <div
+              v-if="form.platform === 'claude-console' || form.platform === 'ccr'"
               class="space-y-4"
             >
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API URL *</label
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API URL</label
                 >
                 <input
                   v-model="form.apiUrl"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.apiUrl }"
+                  class="form-input w-full"
                   placeholder="例如：https://api.example.com"
                   required
                   type="text"
                 />
-                <p v-if="errors.apiUrl" class="mt-1 text-xs text-red-500">
-                  {{ errors.apiUrl }}
-                </p>
               </div>
 
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API Key *</label
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API Key</label
                 >
                 <input
                   v-model="form.apiKey"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.apiKey }"
-                  placeholder="请输入API Key"
-                  required
+                  class="form-input w-full"
+                  placeholder="留空表示不更新"
                   type="password"
                 />
-                <p v-if="errors.apiKey" class="mt-1 text-xs text-red-500">
-                  {{ errors.apiKey }}
-                </p>
+                <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
               </div>
 
               <!-- 额度管理字段 -->
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     每日额度限制 ($)
                   </label>
                   <input
@@ -1364,7 +3354,7 @@
                 </div>
 
                 <div>
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     额度重置时间
                   </label>
                   <input
@@ -1379,9 +3369,45 @@
                 </div>
               </div>
 
-              <!-- 并发控制字段 -->
+              <!-- 当前使用情况（仅编辑模式显示） -->
+              <div
+                v-if="isEdit && form.dailyQuota > 0"
+                class="rounded-lg bg-gray-50 p-4 dark:bg-gray-800"
+              >
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    今日使用情况
+                  </span>
+                  <span class="text-sm text-gray-500 dark:text-gray-400">
+                    ${{ calculateCurrentUsage().toFixed(4) }} / ${{ form.dailyQuota.toFixed(2) }}
+                  </span>
+                </div>
+                <div class="relative h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div
+                    class="absolute left-0 top-0 h-full rounded-full transition-all"
+                    :class="
+                      usagePercentage >= 90
+                        ? 'bg-red-500'
+                        : usagePercentage >= 70
+                          ? 'bg-yellow-500'
+                          : 'bg-green-500'
+                    "
+                    :style="{ width: `${Math.min(usagePercentage, 100)}%` }"
+                  />
+                </div>
+                <div class="mt-2 flex items-center justify-between text-xs">
+                  <span class="text-gray-500 dark:text-gray-400">
+                    剩余: ${{ Math.max(0, form.dailyQuota - calculateCurrentUsage()).toFixed(2) }}
+                  </span>
+                  <span class="text-gray-500 dark:text-gray-400">
+                    {{ usagePercentage.toFixed(1) }}% 已使用
+                  </span>
+                </div>
+              </div>
+
+              <!-- 并发控制字段（编辑模式）-->
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                   最大并发任务数
                 </label>
                 <input
@@ -1397,7 +3423,7 @@
               </div>
 
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >模型限制 (可选)</label
                 >
 
@@ -1488,14 +3514,14 @@
                     >
                       <input
                         v-model="mapping.from"
-                        class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                        class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                         placeholder="原始模型名称"
                         type="text"
                       />
                       <i class="fas fa-arrow-right text-gray-400 dark:text-gray-500" />
                       <input
                         v-model="mapping.to"
-                        class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                        class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
                         placeholder="映射后的模型名称"
                         type="text"
                       />
@@ -1511,7 +3537,7 @@
 
                   <!-- 添加映射按钮 -->
                   <button
-                    class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-300"
+                    class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
                     type="button"
                     @click="addModelMapping"
                   >
@@ -1522,20 +3548,13 @@
                   <!-- 快捷添加按钮 -->
                   <div class="mt-3 flex flex-wrap gap-2">
                     <button
-                      class="rounded-lg bg-violet-100 px-3 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
-                      type="button"
-                      @click="addPresetMapping('claude-opus-4-6', 'claude-opus-4-6')"
-                    >
-                      + Opus 4.6
-                    </button>
-                    <button
                       class="rounded-lg bg-blue-100 px-3 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
                       type="button"
                       @click="
-                        addPresetMapping('claude-opus-4-5-20251101', 'claude-opus-4-5-20251101')
+                        addPresetMapping('claude-sonnet-4-20250514', 'claude-sonnet-4-20250514')
                       "
                     >
-                      + Opus 4.5
+                      + Sonnet 4
                     </button>
                     <button
                       class="rounded-lg bg-indigo-100 px-3 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
@@ -1545,6 +3564,31 @@
                       "
                     >
                       + Sonnet 4.5
+                    </button>
+                    <button
+                      class="rounded-lg bg-violet-100 px-3 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
+                      type="button"
+                      @click="addPresetMapping('claude-opus-4-6', 'claude-opus-4-6')"
+                    >
+                      + Opus 4.6
+                    </button>
+                    <button
+                      class="rounded-lg bg-purple-100 px-3 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50"
+                      type="button"
+                      @click="
+                        addPresetMapping('claude-opus-4-1-20250805', 'claude-opus-4-1-20250805')
+                      "
+                    >
+                      + Opus 4.1
+                    </button>
+                    <button
+                      class="rounded-lg bg-green-100 px-3 py-1 text-xs text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
+                      type="button"
+                      @click="
+                        addPresetMapping('claude-3-5-haiku-20241022', 'claude-3-5-haiku-20241022')
+                      "
+                    >
+                      + Haiku 3.5
                     </button>
                     <button
                       class="rounded-lg bg-emerald-100 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
@@ -1597,520 +3641,83 @@
               </div>
 
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >自定义 User-Agent (可选)</label
                 >
                 <input
                   v-model="form.userAgent"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  class="form-input w-full"
                   placeholder="留空则透传客户端 User-Agent"
                   type="text"
                 />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <p class="mt-1 text-xs text-gray-500">
                   留空时将自动使用客户端的 User-Agent，仅在需要固定特定 UA 时填写
                 </p>
               </div>
 
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >限流机制</label
                 >
                 <div class="mb-3">
                   <label class="inline-flex cursor-pointer items-center">
                     <input
                       v-model="form.enableRateLimit"
-                      class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                      class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200"
                       type="checkbox"
                     />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">启用限流机制</span>
+                    <span class="text-sm text-gray-700">启用限流机制</span>
                   </label>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p class="mt-1 text-xs text-gray-500">
                     启用后，当账号返回429错误时将暂停调度一段时间
                   </p>
                 </div>
 
                 <div v-if="form.enableRateLimit">
-                  <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
                     >限流时间 (分钟)</label
                   >
                   <input
                     v-model.number="form.rateLimitDuration"
-                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    class="form-input w-full"
                     min="1"
-                    placeholder="默认60分钟"
                     type="number"
                   />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    账号被限流后暂停调度的时间（分钟）
-                  </p>
+                  <p class="mt-1 text-xs text-gray-500">账号被限流后暂停调度的时间（分钟）</p>
                 </div>
-              </div>
-
-              <!-- 上游错误处理 -->
-              <div v-if="autoProtectionPlatforms.includes(form.platform)">
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >上游错误处理</label
-                >
-                <label class="inline-flex cursor-pointer items-center">
-                  <input
-                    v-model="form.disableAutoProtection"
-                    class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
-                    type="checkbox"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">
-                    上游错误不自动暂停调度
-                  </span>
-                </label>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
-                </p>
-              </div>
-
-              <TempUnavailablePolicyFields
-                v-if="form.platform === 'claude'"
-                v-model:disable-temp-unavailable="form.disableTempUnavailable"
-                v-model:temp-unavailable-503-ttl-seconds="form.tempUnavailable503TtlSeconds"
-                v-model:temp-unavailable-5xx-ttl-seconds="form.tempUnavailable5xxTtlSeconds"
-              />
-            </div>
-
-            <!-- OpenAI-Responses 特定字段 -->
-            <div v-if="form.platform === 'openai-responses' && !isEdit" class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 基础地址 *</label
-                >
-                <input
-                  v-model="form.baseApi"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="https://api.example.com/v1"
-                  required
-                  type="url"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  第三方 OpenAI 兼容 API 的基础地址，不要包含具体路径
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 密钥 *</label
-                >
-                <div class="relative">
-                  <input
-                    v-model="form.apiKey"
-                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    placeholder="sk-xxxxxxxxxxxx"
-                    required
-                    :type="showApiKey ? 'text' : 'password'"
-                  />
-                  <button
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
-                    type="button"
-                    @click="showApiKey = !showApiKey"
-                  >
-                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                  </button>
-                </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  第三方服务提供的 API 密钥
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >自定义 User-Agent (可选)</label
-                >
-                <input
-                  v-model="form.userAgent"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="留空则透传原始请求的 User-Agent"
-                  type="text"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  可选项。如果设置，所有请求将使用此 User-Agent；否则透传客户端的 User-Agent
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >Provider 端点类型</label
-                >
-                <select
-                  v-model="form.providerEndpoint"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                >
-                  <option value="responses">Responses（推荐）</option>
-                  <option value="auto">自动（保持原始路径）</option>
-                </select>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  指定 Provider 支持的端点类型。Responses 会将所有请求路由到（包括来自
-                  /v1/chat/completions 的请求会自动转换）；自动则保持客户端请求的原始路径
-                </p>
-              </div>
-
-              <!-- 限流时长字段 - 隐藏不显示，使用默认值60 -->
-              <input v-model.number="form.rateLimitDuration" type="hidden" value="60" />
-            </div>
-
-            <!-- OpenAI Compatible 配置（Claude Code → GPT） -->
-            <div v-if="form.platform === 'openai-compatible' && !isEdit" class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 基础地址 *</label
-                >
-                <input
-                  v-model="form.compatibleBaseUrl"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="https://api.openai.com"
-                  required
-                  type="url"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  OpenAI 兼容服务的基础地址，转发到 {baseUrl}/v1/chat/completions
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 密钥 *</label
-                >
-                <div class="relative">
-                  <input
-                    v-model="form.apiKey"
-                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    placeholder="sk-xxxxxxxxxxxx"
-                    required
-                    :type="showApiKey ? 'text' : 'password'"
-                  />
-                  <button
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
-                    type="button"
-                    @click="showApiKey = !showApiKey"
-                  >
-                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                  </button>
-                </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  作为 Bearer Token 发送给上游
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >默认模型</label
-                >
-                <input
-                  v-model="form.defaultModel"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="gpt-4o-mini"
-                  type="text"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  当请求未命中头部覆盖与映射表时使用
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >模型映射 (JSON, 可选)</label
-                >
-                <textarea
-                  v-model="form.modelMapping"
-                  class="form-input w-full border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder='{"claude-sonnet-*": "gpt-4o", "claude-3-5-haiku-*": "gpt-4o-mini"}'
-                  rows="3"
-                ></textarea>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  claude 模型名 → 目标 GPT 模型，支持 * 前缀通配
-                </p>
               </div>
             </div>
 
-            <!-- Gemini API 配置 -->
-            <div v-if="form.platform === 'gemini-api' && !isEdit" class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 基础地址 *</label
-                >
+            <!-- 上游错误处理（编辑模式）-->
+            <div v-if="autoProtectionPlatforms.includes(form.platform)">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                上游错误处理
+              </label>
+              <label class="inline-flex cursor-pointer items-center">
                 <input
-                  v-model="form.baseUrl"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500 dark:border-red-400': errors.baseUrl }"
-                  placeholder="https://generativelanguage.googleapis.com/v1beta/models"
-                  required
-                  type="url"
+                  v-model="form.disableAutoProtection"
+                  class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
+                  type="checkbox"
                 />
-                <p v-if="errors.baseUrl" class="mt-1 text-xs text-red-500 dark:text-red-400">
-                  {{ errors.baseUrl }}
-                </p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  支持三种格式，系统自动识别：
-                </p>
-                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                  以 /models 结尾:
-                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
-                    >https://proxy.com/v1beta/models</code
-                  >
-                </p>
-                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                  模板模式:
-                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
-                    >https://proxy.com/api/{model}:{action}</code
-                  >
-                </p>
-                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                  域名:
-                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
-                    >https://generativelanguage.googleapis.com</code
-                  >
-                  (自动拼接 /v1beta/models)
-                </p>
-              </div>
-
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API 密钥 *</label
-                >
-                <div class="relative">
-                  <input
-                    v-model="form.apiKey"
-                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    placeholder="AIzaSy..."
-                    required
-                    :type="showApiKey ? 'text' : 'password'"
-                  />
-                  <button
-                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
-                    type="button"
-                    @click="showApiKey = !showApiKey"
-                  >
-                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                  </button>
-                </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  从 Google AI Studio 获取的 API 密钥
-                </p>
-              </div>
-            </div>
-
-            <!-- Claude 订阅类型选择 -->
-            <div v-if="form.platform === 'claude'">
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >订阅类型</label
-              >
-              <div class="flex gap-4">
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.subscriptionType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="claude_max"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">Claude Max</span>
-                </label>
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.subscriptionType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="claude_pro"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">Claude Pro</span>
-                </label>
-              </div>
-              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <i class="fas fa-info-circle mr-1" />
-                Pro 账号不支持 Claude Opus 4 模型
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                  上游错误不自动暂停调度
+                </span>
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
               </p>
             </div>
 
-            <!-- Claude 5小时限制自动停止调度选项 -->
-            <div v-if="form.platform === 'claude'" class="mt-4">
-              <label class="flex items-start">
-                <input
-                  v-model="form.autoStopOnWarning"
-                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="checkbox"
-                />
-                <div class="ml-3">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    5小时使用量接近限制时自动停止调度
-                  </span>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    当系统检测到账户接近5小时使用限制时，自动暂停调度该账户。进入新的时间窗口后会自动恢复调度。
-                  </p>
-                </div>
-              </label>
-            </div>
+            <TempUnavailablePolicyFields
+              v-if="form.platform === 'claude'"
+              v-model:disable-temp-unavailable="form.disableTempUnavailable"
+              v-model:temp-unavailable-503-ttl-seconds="form.tempUnavailable503TtlSeconds"
+              v-model:temp-unavailable-5xx-ttl-seconds="form.tempUnavailable5xxTtlSeconds"
+            />
 
-            <!-- Claude 账户级串行队列开关 -->
-            <div v-if="form.platform === 'claude'" class="mt-4">
-              <label class="flex items-start">
-                <input
-                  v-model="form.serialQueueEnabled"
-                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="checkbox"
-                />
-                <div class="ml-3">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    启用账户级串行队列
-                  </span>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    开启后强制该账户的用户消息串行处理，忽略全局串行队列设置。适用于并发限制较低的账户。
-                  </p>
-                </div>
-              </label>
-            </div>
-
-            <!-- 拦截预热请求开关（Claude 和 Claude Console） -->
-            <div
-              v-if="form.platform === 'claude' || form.platform === 'claude-console'"
-              class="mt-4"
-            >
-              <label class="flex items-start">
-                <input
-                  v-model="form.interceptWarmup"
-                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="checkbox"
-                />
-                <div class="ml-3">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    拦截预热请求
-                  </span>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    启用后，对标题生成、Warmup 等低价值请求直接返回模拟响应，不消耗上游 API 额度
-                  </p>
-                </div>
-              </label>
-            </div>
-
-            <!-- Claude User-Agent 版本配置 -->
-            <div v-if="form.platform === 'claude'" class="mt-4">
-              <label class="flex items-start">
-                <input
-                  v-model="form.useUnifiedUserAgent"
-                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="checkbox"
-                />
-                <div class="ml-3">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    使用统一 Claude Code 版本
-                  </span>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    开启后将使用从真实 Claude Code 客户端捕获的统一 User-Agent，提高兼容性
-                  </p>
-                  <div v-if="unifiedUserAgent" class="mt-1">
-                    <div class="flex items-center justify-between">
-                      <p class="text-xs text-green-600 dark:text-green-400">
-                        💡 当前统一版本：{{ unifiedUserAgent }}
-                      </p>
-                      <button
-                        class="ml-2 text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                        :disabled="clearingCache"
-                        type="button"
-                        @click="clearUnifiedCache"
-                      >
-                        <i v-if="!clearingCache" class="fas fa-trash-alt mr-1"></i>
-                        <div v-else class="loading-spinner mr-1"></div>
-                        {{ clearingCache ? '清除中...' : '清除缓存' }}
-                      </button>
-                    </div>
-                  </div>
-                  <div v-else class="mt-1">
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                      ⏳ 等待从 Claude Code 客户端捕获 User-Agent
-                    </p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      💡 提示：如果长时间未能捕获，请确认有 Claude Code 客户端正在使用此账户，
-                      或联系开发者检查 User-Agent 格式是否发生变化
-                    </p>
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <!-- Claude 统一客户端标识配置 -->
-            <div v-if="form.platform === 'claude'" class="mt-4">
-              <label class="flex items-start">
-                <input
-                  v-model="form.useUnifiedClientId"
-                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="checkbox"
-                  @change="handleUnifiedClientIdChange"
-                />
-                <div class="ml-3 flex-1">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    使用统一的客户端标识
-                  </span>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    开启后将使用固定的客户端标识，使所有请求看起来来自同一个客户端，减少特征
-                  </p>
-                  <div v-if="form.useUnifiedClientId" class="mt-3">
-                    <div
-                      class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
-                    >
-                      <div class="mb-2 flex items-center justify-between">
-                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400"
-                          >客户端标识 ID</span
-                        >
-                        <button
-                          class="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                          type="button"
-                          @click="regenerateClientId"
-                        >
-                          <i class="fas fa-sync-alt mr-1" />
-                          重新生成
-                        </button>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <code
-                          class="block w-full select-all break-all rounded bg-gray-100 px-3 py-2 font-mono text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                        >
-                          <span class="text-blue-600 dark:text-blue-400">{{
-                            form.unifiedClientId.substring(0, 8)
-                          }}</span
-                          ><span class="text-gray-500 dark:text-gray-500">{{
-                            form.unifiedClientId.substring(8, 56)
-                          }}</span
-                          ><span class="text-blue-600 dark:text-blue-400">{{
-                            form.unifiedClientId.substring(56)
-                          }}</span>
-                        </code>
-                      </div>
-                      <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        <i class="fas fa-info-circle mr-1 text-blue-500" />
-                        此ID将替换请求中的user_id客户端部分，保留session部分用于粘性会话
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <!-- Claude 三方工具伪装开关 -->
-            <div v-if="form.platform === 'claude'" class="mt-4">
-              <label class="flex items-start">
-                <input
-                  v-model="form.enableThirdPartyToolEmulation"
-                  class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="checkbox"
-                />
-                <div class="ml-3">
-                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    启用三方工具伪装（推荐开启）
-                  </span>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    针对非真 Claude Code 客户端的请求，自动重写 system
-                    prompt、清洗工具描述指纹、注入 metadata，模拟真实 CLI。关闭后请求按原样转发。
-                  </p>
-                </div>
-              </label>
-            </div>
-
-            <!-- Token 刷新策略（仅 Claude OAuth 账户，创建模式）-->
-            <div v-if="form.platform === 'claude'" class="mt-4">
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <!-- Token 刷新策略（编辑模式，仅 Claude OAuth 账户）-->
+            <div v-if="form.platform === 'claude'">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Token 刷新策略
               </label>
 
@@ -2157,6 +3764,23 @@
                   v-if="axiosFallbackPanelOpen"
                   class="border-t border-amber-200 p-3 dark:border-amber-700/40"
                 >
+                  <!-- CF 拦截历史警告条 -->
+                  <div
+                    v-if="form.axiosLastBlockedAt"
+                    class="mb-3 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-700 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-300"
+                  >
+                    <p class="font-medium">
+                      <i class="fas fa-shield-alt mr-1"></i>
+                      最近一次被 Cloudflare 拦截：{{ formatBlockedAt(form.axiosLastBlockedAt) }}
+                    </p>
+                    <p v-if="form.axiosBlockedReason" class="mt-1">
+                      原因：{{ form.axiosBlockedReason }}
+                    </p>
+                    <p class="mt-1">
+                      系统已自动关闭 axios 兜底。重新启用前请确认部署出口已不再被 Cloudflare 拦截。
+                    </p>
+                  </div>
+
                   <!-- 风险提示 -->
                   <div class="mb-3 text-xs text-gray-600 dark:text-gray-400">
                     <p class="mb-1 font-medium text-gray-700 dark:text-gray-300">风险提示：</p>
@@ -2225,2036 +3849,489 @@
               </div>
             </div>
 
-            <!-- 所有平台的优先级设置 -->
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >调度优先级 (1-100)</label
-              >
-              <input
-                v-model.number="form.priority"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                max="100"
-                min="1"
-                placeholder="数字越小优先级越高，默认50"
-                type="number"
-              />
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                数字越小优先级越高，建议范围：1-100
-              </p>
-            </div>
-
-            <!-- Claude 平台：从 .credentials.json 读取 -->
-            <div
-              v-if="form.addType === 'manual' && form.platform === 'claude'"
-              class="space-y-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-700 dark:bg-green-900/30"
-            >
-              <div class="mb-4 flex items-start gap-3">
-                <div
-                  class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-green-500"
+            <!-- OpenAI-Responses 特定字段（编辑模式）-->
+            <div v-if="form.platform === 'openai-responses'" class="space-y-4">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 基础地址</label
                 >
-                  <i class="fas fa-file-code text-sm text-white" />
-                </div>
-                <div>
-                  <h5 class="mb-2 font-semibold text-green-900 dark:text-green-300">
-                    从 .credentials.json 读取凭据
-                  </h5>
-                  <p class="mb-2 text-sm text-green-800 dark:text-green-300">
-                    系统将自动读取服务器上的
-                    <code class="rounded bg-green-100 px-1 py-0.5 font-mono dark:bg-green-900/50"
-                      >~/.claude/.credentials.json</code
-                    >
-                    文件获取 Access Token 和过期时间。
-                  </p>
-                  <p class="text-xs text-green-600 dark:text-green-400">
-                    💡 Token 过期时，系统会自动执行
-                    <code class="font-mono">claude -p "hello world"</code> 刷新凭据。
-                  </p>
-                </div>
+                <input
+                  v-model="form.baseApi"
+                  class="form-input w-full"
+                  placeholder="https://api.example.com/v1"
+                  type="url"
+                />
               </div>
 
-              <!-- 自定义路径输入 -->
-              <div v-if="showCredentialsPathInput">
-                <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  <i class="fas fa-folder-open mr-1" />
-                  .credentials.json 文件路径
-                </label>
-                <div class="flex gap-2">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 密钥</label
+                >
+                <div class="relative">
                   <input
-                    v-model="credentialsPath"
-                    class="form-input flex-1 border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                    placeholder="请输入 .credentials.json 文件的完整路径..."
-                    type="text"
+                    v-model="form.apiKey"
+                    class="form-input w-full pr-10"
+                    placeholder="留空表示不更新"
+                    :type="showApiKey ? 'text' : 'password'"
                   />
                   <button
-                    class="rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600"
-                    :disabled="credentialsLoading"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     type="button"
-                    @click="handleReadCredentials"
+                    @click="showApiKey = !showApiKey"
                   >
-                    <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-1" />
-                    <i v-else class="fas fa-check mr-1" />
-                    确认
+                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
                   </button>
                 </div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  默认文件不存在，请输入 .credentials.json 的完整路径
-                </p>
-              </div>
-
-              <!-- 读取按钮 -->
-              <div
-                v-if="!credentialsLoaded && !showCredentialsPathInput"
-                class="flex justify-center"
-              >
-                <button
-                  class="rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-emerald-700 hover:shadow-xl"
-                  :disabled="credentialsLoading"
-                  type="button"
-                  @click="handleReadCredentials"
-                >
-                  <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-2" />
-                  <i v-else class="fas fa-file-import mr-2" />
-                  {{ credentialsLoading ? '读取中...' : '从 .credentials.json 读取凭据' }}
-                </button>
-              </div>
-
-              <!-- 读取结果展示 -->
-              <div v-if="credentialsLoaded" class="space-y-3">
-                <div
-                  class="rounded-lg border border-green-300 bg-white/80 p-4 dark:border-green-600 dark:bg-gray-800/80"
-                >
-                  <div class="mb-3 flex items-center justify-between">
-                    <h6 class="text-sm font-semibold text-green-800 dark:text-green-300">
-                      <i class="fas fa-check-circle mr-1 text-green-500" />
-                      凭据读取成功
-                    </h6>
-                    <button
-                      class="rounded-lg bg-green-100 px-3 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300"
-                      :disabled="credentialsLoading"
-                      type="button"
-                      @click="handleReadCredentials"
-                    >
-                      <i class="fas fa-sync-alt mr-1" />
-                      重新读取
-                    </button>
-                  </div>
-                  <div class="space-y-2 text-sm">
-                    <div class="flex items-start gap-2">
-                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
-                        >Access Token:</span
-                      >
-                      <code
-                        class="break-all rounded bg-gray-100 px-2 py-0.5 font-mono text-xs dark:bg-gray-700"
-                        >{{ credentialsMaskedToken }}</code
-                      >
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
-                        >过期时间:</span
-                      >
-                      <span
-                        :class="
-                          credentialsExpired
-                            ? 'font-semibold text-red-600'
-                            : 'text-green-700 dark:text-green-300'
-                        "
-                      >
-                        {{ credentialsExpiresAtFormatted }}
-                        <span v-if="credentialsExpired" class="ml-1 text-xs">(已过期)</span>
-                      </span>
-                    </div>
-                    <div v-if="credentialsScopes.length > 0" class="flex items-start gap-2">
-                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
-                        >权限范围:</span
-                      >
-                      <div class="flex flex-wrap gap-1">
-                        <span
-                          v-for="scope in credentialsScopes"
-                          :key="scope"
-                          class="rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                          >{{ scope }}</span
-                        >
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="min-w-[100px] font-medium text-gray-600 dark:text-gray-400"
-                        >文件路径:</span
-                      >
-                      <code
-                        class="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs dark:bg-gray-700"
-                        >{{ credentialsFilePath }}</code
-                      >
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 错误提示 -->
-              <div
-                v-if="credentialsError"
-                class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-700 dark:bg-red-900/30"
-              >
-                <p class="text-sm text-red-700 dark:text-red-300">
-                  <i class="fas fa-exclamation-triangle mr-1" />
-                  {{ credentialsError }}
-                </p>
-              </div>
-            </div>
-
-            <!-- API Key 模式输入 -->
-            <div
-              v-if="form.addType === 'apikey' && form.platform === 'droid'"
-              class="space-y-4 rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-900/30"
-            >
-              <div class="mb-4 flex items-start gap-3">
-                <div
-                  class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-purple-500"
-                >
-                  <i class="fas fa-key text-sm text-white" />
-                </div>
-                <div>
-                  <h5 class="mb-2 font-semibold text-purple-900 dark:text-purple-200">
-                    使用 API Key 调度 Droid
-                  </h5>
-                  <p class="text-sm text-purple-800 dark:text-purple-200">
-                    请填写一个或多个 Factory.ai API
-                    Key，系统会自动在请求时随机挑选并结合会话哈希维持粘性，确保对话上下文保持稳定。
-                  </p>
-                </div>
+                <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
               </div>
 
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >API Key 列表 *</label
-                >
-                <textarea
-                  v-model="form.apiKeysInput"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.apiKeys }"
-                  placeholder="每行一个 API Key，可粘贴多行"
-                  required
-                  rows="6"
-                />
-                <p v-if="errors.apiKeys" class="mt-1 text-xs text-red-500">
-                  {{ errors.apiKeys }}
-                </p>
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  <i class="fas fa-info-circle mr-1" />
-                  建议为每条 Key 提供独立额度；系统会自动去重并忽略空白行。
-                </p>
-              </div>
-
-              <!-- Droid User-Agent 配置 -->
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >自定义 User-Agent (可选)</label
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >自定义 User-Agent</label
                 >
                 <input
                   v-model="form.userAgent"
+                  class="form-input w-full"
+                  placeholder="留空则透传客户端 User-Agent"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500">
+                  留空时将自动使用客户端的 User-Agent，仅在需要固定特定 UA 时填写
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >Provider 端点类型</label
+                >
+                <select
+                  v-model="form.providerEndpoint"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                >
+                  <option value="responses">Responses（推荐）</option>
+                  <option value="completions">Chat Completions</option>
+                  <option value="auto">自动（保持原始路径）</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  指定 Provider 支持的端点类型。Responses 会将所有请求路由到（包括来自
+                  /v1/chat/completions 的请求会自动转换）；自动则保持原始路径
+                </p>
+              </div>
+
+              <!-- 限流时长字段 - 隐藏不显示，保持原值 -->
+              <input v-model.number="form.rateLimitDuration" type="hidden" />
+
+              <!-- 额度管理字段 -->
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    每日额度限制 ($)
+                  </label>
+                  <input
+                    v-model.number="form.dailyQuota"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                    min="0"
+                    placeholder="0 表示不限制"
+                    step="0.01"
+                    type="number"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    额度重置时间
+                  </label>
+                  <input
+                    v-model="form.quotaResetTime"
+                    class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                    type="time"
+                  />
+                </div>
+              </div>
+
+              <!-- 并发控制字段 -->
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  最大并发任务数
+                </label>
+                <input
+                  v-model.number="form.maxConcurrentTasks"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  min="0"
+                  placeholder="0 表示不限制"
+                  type="number"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  限制该账户的并发请求数量，0 表示不限制
+                </p>
+              </div>
+            </div>
+
+            <!-- Gemini API 特定字段（编辑模式）-->
+            <div v-if="form.platform === 'gemini-api'" class="space-y-4">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 基础地址</label
+                >
+                <input
+                  v-model="form.baseUrl"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  :class="{ 'border-red-500 dark:border-red-400': errors.baseUrl }"
+                  placeholder="https://generativelanguage.googleapis.com/v1beta/models"
+                  type="url"
+                />
+                <p v-if="errors.baseUrl" class="mt-1 text-xs text-red-500 dark:text-red-400">
+                  {{ errors.baseUrl }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  支持三种格式，系统自动识别：
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  以 /models 结尾:
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                    >https://proxy.com/v1beta/models</code
+                  >
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  模板模式:
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                    >https://proxy.com/api/{model}:{action}</code
+                  >
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  域名:
+                  <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
+                    >https://generativelanguage.googleapis.com</code
+                  >
+                  (自动拼接 /v1beta/models)
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 密钥</label
+                >
+                <div class="relative">
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                    placeholder="留空表示不更新"
+                    :type="showApiKey ? 'text' : 'password'"
+                  />
+                  <button
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
+                    type="button"
+                    @click="showApiKey = !showApiKey"
+                  >
+                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                  </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">留空表示不更新 API Key</p>
+              </div>
+            </div>
+
+            <!-- Bedrock 特定字段（编辑模式）-->
+            <div v-if="form.platform === 'bedrock'" class="space-y-4">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >AWS 访问密钥 ID</label
+                >
+                <input
+                  v-model="form.accessKeyId"
+                  class="form-input w-full"
+                  placeholder="留空表示不更新"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500">留空表示不更新 AWS Access Key ID</p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >AWS 秘密访问密钥</label
+                >
+                <input
+                  v-model="form.secretAccessKey"
+                  class="form-input w-full"
+                  placeholder="留空表示不更新"
+                  type="password"
+                />
+                <p class="mt-1 text-xs text-gray-500">留空表示不更新 AWS Secret Access Key</p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >AWS 区域</label
+                >
+                <input
+                  v-model="form.region"
+                  class="form-input w-full"
+                  placeholder="例如：us-east-1"
+                  type="text"
+                />
+                <div class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <div class="flex items-start gap-2">
+                    <i class="fas fa-info-circle mt-0.5 text-blue-600" />
+                    <div class="text-xs text-blue-700">
+                      <p class="mb-1 font-medium">常用 AWS 区域参考：</p>
+                      <div class="grid grid-cols-2 gap-1 text-xs">
+                        <span>• us-east-1 (美国东部)</span>
+                        <span>• us-west-2 (美国西部)</span>
+                        <span>• eu-west-1 (欧洲爱尔兰)</span>
+                        <span>• ap-southeast-1 (新加坡)</span>
+                        <span>• ap-northeast-1 (东京)</span>
+                        <span>• eu-central-1 (法兰克福)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >会话令牌 (可选)</label
+                >
+                <input
+                  v-model="form.sessionToken"
+                  class="form-input w-full"
+                  placeholder="留空表示不更新"
+                  type="password"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >默认主模型 (可选)</label
+                >
+                <input
+                  v-model="form.defaultModel"
+                  class="form-input w-full"
+                  placeholder="例如：us.anthropic.claude-sonnet-4-20250514-v1:0"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500">
+                  留空将使用系统默认模型。支持 inference profile ID 或 ARN
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >小快速模型 (可选)</label
+                >
+                <input
+                  v-model="form.smallFastModel"
+                  class="form-input w-full"
+                  placeholder="例如：us.anthropic.claude-3-5-haiku-20241022-v1:0"
+                  type="text"
+                />
+                <p class="mt-1 text-xs text-gray-500">
+                  用于快速响应的轻量级模型，留空将使用系统默认
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >限流机制</label
+                >
+                <div class="mb-3">
+                  <label class="inline-flex cursor-pointer items-center">
+                    <input
+                      v-model="form.enableRateLimit"
+                      class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200"
+                      type="checkbox"
+                    />
+                    <span class="text-sm text-gray-700">启用限流机制</span>
+                  </label>
+                  <p class="mt-1 text-xs text-gray-500">
+                    启用后，当账号返回429错误时将暂停调度一段时间
+                  </p>
+                </div>
+
+                <div v-if="form.enableRateLimit">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >限流时间 (分钟)</label
+                  >
+                  <input
+                    v-model.number="form.rateLimitDuration"
+                    class="form-input w-full"
+                    min="1"
+                    type="number"
+                  />
+                  <p class="mt-1 text-xs text-gray-500">账号被限流后暂停调度的时间（分钟）</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- OpenAI Compatible 特定字段（编辑模式）-->
+            <div v-if="form.platform === 'openai-compatible'" class="space-y-4">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 基础地址</label
+                >
+                <input
+                  v-model="form.compatibleBaseUrl"
+                  class="form-input w-full"
+                  placeholder="https://api.openai.com"
+                  type="url"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 密钥</label
+                >
+                <div class="relative">
+                  <input
+                    v-model="form.apiKey"
+                    class="form-input w-full pr-10"
+                    placeholder="留空表示不更新"
+                    :type="showApiKey ? 'text' : 'password'"
+                  />
+                  <button
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    type="button"
+                    @click="showApiKey = !showApiKey"
+                  >
+                    <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
+                  </button>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >默认模型</label
+                >
+                <input
+                  v-model="form.defaultModel"
+                  class="form-input w-full"
+                  placeholder="gpt-4o-mini"
+                  type="text"
+                />
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >模型映射 (JSON, 可选)</label
+                >
+                <textarea
+                  v-model="form.modelMapping"
+                  class="form-input w-full font-mono text-xs"
+                  placeholder='{"claude-sonnet-*": "gpt-4o"}'
+                  rows="3"
+                ></textarea>
+                <p class="mt-1 text-xs text-gray-500">
+                  claude 模型名 → 目标 GPT 模型，支持 * 前缀通配
+                </p>
+              </div>
+            </div>
+
+            <!-- Azure OpenAI 特定字段（编辑模式）-->
+            <div v-if="form.platform === 'azure_openai'" class="space-y-4">
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >Azure Endpoint</label
+                >
+                <input
+                  v-model="form.azureEndpoint"
                   class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="factory-cli/0.32.1"
+                  :class="{ 'border-red-500': errors.azureEndpoint }"
+                  placeholder="https://your-resource.openai.azure.com"
+                  type="url"
+                />
+                <p v-if="errors.azureEndpoint" class="mt-1 text-xs text-red-500">
+                  {{ errors.azureEndpoint }}
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API 版本</label
+                >
+                <input
+                  v-model="form.apiVersion"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  placeholder="2024-02-01"
                   type="text"
                 />
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  留空使用默认值 factory-cli/0.32.1，可根据需要自定义
-                </p>
-              </div>
-
-              <div
-                class="rounded-lg border border-purple-200 bg-white/70 p-3 text-xs text-purple-800 dark:border-purple-700 dark:bg-purple-800/20 dark:text-purple-100"
-              >
-                <p class="font-medium"><i class="fas fa-random mr-1" />分配策略说明</p>
-                <ul class="mt-1 list-disc space-y-1 pl-4">
-                  <li>新会话将随机命中一个 Key，并在会话有效期内保持粘性。</li>
-                  <li>若某 Key 失效，会自动切换到剩余可用 Key，最大化成功率。</li>
-                  <li>
-                    若上游返回 4xx 错误码，该 Key 会被自动标记为异常；全部 Key
-                    异常后账号将暂停调度。
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <!-- 代理设置 -->
-            <ProxyConfig v-model="form.proxy" />
-
-            <div class="flex gap-3 pt-4">
-              <button
-                class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                type="button"
-                @click="$emit('close')"
-              >
-                取消
-              </button>
-              <button
-                v-if="
-                  (form.addType === 'oauth' || form.addType === 'setup-token') &&
-                  form.platform !== 'claude-console' &&
-                  form.platform !== 'ccr' &&
-                  form.platform !== 'bedrock' &&
-                  form.platform !== 'azure_openai' &&
-                  form.platform !== 'openai-responses' &&
-                  form.platform !== 'gemini-api'
-                "
-                class="btn btn-primary flex-1 px-6 py-3 font-semibold"
-                :disabled="loading"
-                type="button"
-                @click="nextStep"
-              >
-                下一步
-              </button>
-              <button
-                v-else
-                class="btn btn-primary flex-1 px-6 py-3 font-semibold"
-                :disabled="loading"
-                type="button"
-                @click="createAccount"
-              >
-                <div v-if="loading" class="loading-spinner mr-2" />
-                {{ loading ? '创建中...' : '创建' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 步骤2: OAuth授权 -->
-        <OAuthFlow
-          v-if="oauthStep === 2 && form.addType === 'oauth'"
-          ref="oauthFlowRef"
-          :platform="form.platform"
-          :proxy="form.proxy"
-          @back="oauthStep = 1"
-          @success="handleOAuthSuccess"
-        />
-
-        <!-- 步骤2: Setup Token授权 -->
-        <div v-if="oauthStep === 2 && form.addType === 'setup-token'" class="space-y-6">
-          <!-- Claude Setup Token流程 -->
-          <div v-if="form.platform === 'claude'">
-            <div
-              class="rounded-lg border border-blue-200 bg-blue-50 p-6 dark:border-blue-700 dark:bg-blue-900/30"
-            >
-              <div class="flex items-start gap-4">
-                <div
-                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500"
-                >
-                  <i class="fas fa-key text-white" />
-                </div>
-                <div class="flex-1">
-                  <h4 class="mb-3 font-semibold text-blue-900 dark:text-blue-200">
-                    Claude Setup Token 授权
-                  </h4>
-
-                  <!-- 授权方式选择 -->
-                  <div class="mb-4">
-                    <p class="mb-3 text-sm font-medium text-blue-800 dark:text-blue-300">
-                      选择授权方式：
-                    </p>
-                    <div class="flex flex-wrap gap-4">
-                      <label class="flex cursor-pointer items-center">
-                        <input
-                          v-model="authMethod"
-                          class="mr-2 text-blue-600 focus:ring-blue-500"
-                          type="radio"
-                          value="manual"
-                          @change="onAuthMethodChange"
-                        />
-                        <span class="text-sm text-blue-800 dark:text-blue-300">
-                          <i class="fas fa-link mr-1" />手动授权
-                        </span>
-                      </label>
-                      <label class="flex cursor-pointer items-center">
-                        <input
-                          v-model="authMethod"
-                          class="mr-2 text-blue-600 focus:ring-blue-500"
-                          type="radio"
-                          value="cookie"
-                          @change="onAuthMethodChange"
-                        />
-                        <span class="text-sm text-blue-800 dark:text-blue-300">
-                          <i class="fas fa-cookie mr-1" />Cookie 自动授权
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <!-- 手动授权流程 -->
-                  <div v-if="authMethod === 'manual'" class="space-y-4">
-                    <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
-                      请按照以下步骤通过 Setup Token 完成 Claude 账户的授权：
-                    </p>
-                    <!-- 步骤1: 生成授权链接 -->
-                    <div
-                      class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
-                    >
-                      <div class="flex items-start gap-3">
-                        <div
-                          class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white"
-                        >
-                          1
-                        </div>
-                        <div class="flex-1">
-                          <p class="mb-2 font-medium text-blue-900 dark:text-blue-200">
-                            点击下方按钮生成授权链接
-                          </p>
-                          <button
-                            v-if="!setupTokenAuthUrl"
-                            class="btn btn-primary px-4 py-2 text-sm"
-                            :disabled="setupTokenLoading"
-                            @click="generateSetupTokenAuthUrl"
-                          >
-                            <i v-if="!setupTokenLoading" class="fas fa-link mr-2" />
-                            <div v-else class="loading-spinner mr-2" />
-                            {{ setupTokenLoading ? '生成中...' : '生成 Setup Token 授权链接' }}
-                          </button>
-                          <div v-else class="space-y-3">
-                            <div class="flex items-center gap-2">
-                              <input
-                                class="form-input flex-1 bg-gray-50 font-mono text-xs dark:bg-gray-700"
-                                readonly
-                                type="text"
-                                :value="setupTokenAuthUrl"
-                              />
-                              <button
-                                class="rounded-lg bg-gray-100 px-3 py-2 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
-                                title="复制链接"
-                                @click="copySetupTokenAuthUrl"
-                              >
-                                <i
-                                  :class="
-                                    setupTokenCopied ? 'fas fa-check text-green-500' : 'fas fa-copy'
-                                  "
-                                />
-                              </button>
-                            </div>
-                            <button
-                              class="text-xs text-blue-600 hover:text-blue-700"
-                              @click="regenerateSetupTokenAuthUrl"
-                            >
-                              <i class="fas fa-sync-alt mr-1" />重新生成
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 步骤2: 访问链接并授权 -->
-                    <div
-                      class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
-                    >
-                      <div class="flex items-start gap-3">
-                        <div
-                          class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white"
-                        >
-                          2
-                        </div>
-                        <div class="flex-1">
-                          <p class="mb-2 font-medium text-blue-900 dark:text-blue-200">
-                            在浏览器中打开链接并完成授权
-                          </p>
-                          <p class="mb-2 text-sm text-blue-700 dark:text-blue-300">
-                            请在新标签页中打开授权链接，登录您的 Claude 账户并授权 Claude Code。
-                          </p>
-                          <div
-                            class="rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
-                          >
-                            <p class="text-xs text-yellow-800 dark:text-yellow-300">
-                              <i class="fas fa-exclamation-triangle mr-1" />
-                              <strong>注意：</strong
-                              >如果您设置了代理，请确保浏览器也使用相同的代理访问授权页面。
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- 步骤3: 输入授权码 -->
-                    <div
-                      class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
-                    >
-                      <div class="flex items-start gap-3">
-                        <div
-                          class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white"
-                        >
-                          3
-                        </div>
-                        <div class="flex-1">
-                          <p class="mb-2 font-medium text-blue-900 dark:text-blue-200">
-                            输入 Authorization Code
-                          </p>
-                          <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
-                            授权完成后，从返回页面复制 Authorization Code，并粘贴到下方输入框：
-                          </p>
-                          <div class="space-y-3">
-                            <div>
-                              <label
-                                class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                              >
-                                <i class="fas fa-key mr-2 text-blue-500" />Authorization Code
-                              </label>
-                              <textarea
-                                v-model="setupTokenAuthCode"
-                                class="form-input w-full resize-none border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                                placeholder="粘贴从Claude Code授权页面获取的Authorization Code..."
-                                rows="3"
-                              />
-                            </div>
-                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                              <i class="fas fa-info-circle mr-1" />
-                              请粘贴从Claude Code授权页面复制的Authorization Code
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Cookie自动授权流程 -->
-                  <div v-if="authMethod === 'cookie'" class="space-y-4">
-                    <p class="mb-4 text-sm text-blue-800 dark:text-blue-300">
-                      使用 sessionKey 自动完成授权，无需手动打开链接。
-                    </p>
-
-                    <div
-                      class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
-                    >
-                      <div class="space-y-4">
-                        <div>
-                          <label
-                            class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300"
-                          >
-                            <i class="fas fa-cookie text-blue-500" />sessionKey
-                            <span
-                              v-if="parsedSessionKeyCount > 1"
-                              class="rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white"
-                            >
-                              {{ parsedSessionKeyCount }} 个
-                            </span>
-                          </label>
-                          <textarea
-                            v-model="sessionKey"
-                            class="form-input w-full resize-y border-gray-300 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                            :class="{ 'border-red-500': cookieAuthError }"
-                            placeholder="每行一个 sessionKey，例如：&#10;sk-ant-sid01-xxxxx...&#10;sk-ant-sid01-yyyyy..."
-                            rows="3"
-                          />
-                          <p
-                            v-if="parsedSessionKeyCount > 1"
-                            class="mt-1 text-xs text-blue-600 dark:text-blue-400"
-                          >
-                            <i class="fas fa-info-circle mr-1" />
-                            将批量创建 {{ parsedSessionKeyCount }} 个账户
-                          </p>
-                          <p v-if="cookieAuthError" class="mt-1 text-xs text-red-500">
-                            {{ cookieAuthError }}
-                          </p>
-                        </div>
-
-                        <!-- 帮助说明 -->
-                        <div>
-                          <button
-                            class="flex items-center text-xs text-blue-600 hover:text-blue-700"
-                            type="button"
-                            @click="showSessionKeyHelp = !showSessionKeyHelp"
-                          >
-                            <i
-                              :class="
-                                showSessionKeyHelp
-                                  ? 'fas fa-chevron-down mr-1'
-                                  : 'fas fa-chevron-right mr-1'
-                              "
-                            />
-                            如何获取 sessionKey？
-                          </button>
-                          <div
-                            v-if="showSessionKeyHelp"
-                            class="mt-3 rounded border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700"
-                          >
-                            <ol class="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                              <li>1. 在浏览器中登录 <strong>claude.ai</strong></li>
-                              <li>2. 按 <strong>F12</strong> 打开开发者工具</li>
-                              <li>3. 切换到 <strong>"Application"</strong> (应用) 标签页</li>
-                              <li>
-                                4. 在左侧选择 <strong>"Cookies"</strong> →
-                                <strong>"https://claude.ai"</strong>
-                              </li>
-                              <li>5. 找到键为 <strong>"sessionKey"</strong> 的那一行</li>
-                              <li>6. 复制其 <strong>"Value"</strong> (值) 列的内容</li>
-                            </ol>
-                            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                              <i class="fas fa-info-circle mr-1" />
-                              sessionKey 通常以 "sk-ant-" 开头
-                            </p>
-                          </div>
-                        </div>
-
-                        <!-- 开始授权按钮 -->
-                        <button
-                          class="btn btn-primary w-full px-4 py-3"
-                          :disabled="cookieAuthLoading || !sessionKey.trim()"
-                          type="button"
-                          @click="handleCookieAuth"
-                        >
-                          <div v-if="cookieAuthLoading" class="loading-spinner mr-2" />
-                          <i v-else class="fas fa-magic mr-2" />
-                          <template v-if="cookieAuthLoading && batchProgress.total > 1">
-                            正在授权 {{ batchProgress.current }}/{{ batchProgress.total }}...
-                          </template>
-                          <template v-else-if="cookieAuthLoading"> 授权中... </template>
-                          <template v-else> 开始自动授权 </template>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      class="rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
-                    >
-                      <p class="text-xs text-yellow-800 dark:text-yellow-300">
-                        <i class="fas fa-exclamation-triangle mr-1" />
-                        <strong>提示：</strong>如果您设置了代理，Cookie授权也会使用相同的代理配置。
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-3 pt-4">
-            <button
-              class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              type="button"
-              @click="oauthStep = 1"
-            >
-              上一步
-            </button>
-            <button
-              v-if="authMethod === 'manual'"
-              class="btn btn-primary flex-1 px-6 py-3 font-semibold"
-              :disabled="!canExchangeSetupToken || setupTokenExchanging"
-              type="button"
-              @click="exchangeSetupTokenCode"
-            >
-              <div v-if="setupTokenExchanging" class="loading-spinner mr-2" />
-              {{ setupTokenExchanging ? '验证中...' : '完成授权' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- 编辑模式 -->
-        <div v-if="isEdit" class="space-y-6">
-          <!-- 基本信息 -->
-          <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >账户名称</label
-            >
-            <input
-              v-model="form.name"
-              class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-              placeholder="为账户设置一个易识别的名称"
-              required
-              type="text"
-            />
-          </div>
-
-          <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >描述 (可选)</label
-            >
-            <textarea
-              v-model="form.description"
-              class="form-input w-full resize-none border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-              placeholder="账户用途说明..."
-              rows="3"
-            />
-          </div>
-
-          <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >账户类型</label
-            >
-            <div class="flex gap-4">
-              <label class="flex cursor-pointer items-center">
-                <input
-                  v-model="form.accountType"
-                  class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="radio"
-                  value="shared"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300">共享账户</span>
-              </label>
-              <label class="flex cursor-pointer items-center">
-                <input
-                  v-model="form.accountType"
-                  class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="radio"
-                  value="dedicated"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300">专属账户</span>
-              </label>
-              <label class="flex cursor-pointer items-center">
-                <input
-                  v-model="form.accountType"
-                  class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="radio"
-                  value="group"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300">分组调度</span>
-              </label>
-            </div>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              共享账户：供所有API Key使用；专属账户：仅供特定API
-              Key使用；分组调度：加入分组供分组内调度
-            </p>
-          </div>
-
-          <!-- 到期时间 - 仅在创建账户时显示，编辑时使用独立的过期时间编辑弹窗 -->
-          <div v-if="!isEdit">
-            <label class="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >到期时间 (可选)</label
-            >
-            <div
-              class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800"
-            >
-              <select
-                v-model="form.expireDuration"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                @change="updateAccountExpireAt"
-              >
-                <option value="">永不过期</option>
-                <option value="30d">30 天</option>
-                <option value="90d">90 天</option>
-                <option value="180d">180 天</option>
-                <option value="365d">365 天</option>
-                <option value="custom">自定义日期</option>
-              </select>
-              <div v-if="form.expireDuration === 'custom'" class="mt-3">
-                <input
-                  v-model="form.customExpireDate"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  :min="minDateTime"
-                  type="datetime-local"
-                  @change="updateAccountCustomExpireAt"
-                />
-              </div>
-              <p v-if="form.expiresAt" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <i class="fas fa-calendar-alt mr-1" />
-                将于 {{ formatExpireDate(form.expiresAt) }} 过期
-              </p>
-              <p v-else class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <i class="fas fa-infinity mr-1" />
-                账户永不过期
-              </p>
-            </div>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              设置 Claude Max/Pro 订阅的到期时间，到期后将停止调度此账户
-            </p>
-          </div>
-
-          <!-- 分组选择器 -->
-          <div v-if="form.accountType === 'group'">
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >选择分组 *</label
-            >
-            <div class="flex gap-2">
-              <div class="flex-1">
-                <!-- 多选分组界面 -->
-                <div
-                  class="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3 dark:border-gray-600 dark:bg-gray-700"
-                >
-                  <div
-                    v-if="filteredGroups.length === 0"
-                    class="text-sm text-gray-500 dark:text-gray-400"
-                  >
-                    暂无可用分组
-                  </div>
-                  <label
-                    v-for="group in filteredGroups"
-                    :key="group.id"
-                    class="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-50 dark:hover:bg-gray-600"
-                  >
-                    <input
-                      v-model="form.groupIds"
-                      class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      type="checkbox"
-                      :value="group.id"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-200">
-                      {{ group.name }} ({{ group.memberCount || 0 }} 个成员)
-                    </span>
-                  </label>
-                  <!-- 新建分组选项 -->
-                  <div class="border-t pt-2 dark:border-gray-600">
-                    <button
-                      class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                      type="button"
-                      @click="handleNewGroup"
-                    >
-                      <i class="fas fa-plus" />
-                      新建分组
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <button
-                class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                type="button"
-                @click="refreshGroups"
-              >
-                <i class="fas fa-sync-alt" :class="{ 'animate-spin': loadingGroups }" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Gemini 项目 ID 字段 -->
-          <div v-if="form.platform === 'gemini' || form.platform === 'gemini-antigravity'">
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >项目 ID (可选)</label
-            >
-            <input
-              v-model="form.projectId"
-              class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-              placeholder="例如：verdant-wares-464411-k9"
-              type="text"
-            />
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Google Cloud/Workspace 账号可能需要提供项目 ID
-            </p>
-          </div>
-
-          <!-- Claude 订阅类型选择（编辑模式） -->
-          <div v-if="form.platform === 'claude'">
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >订阅类型</label
-            >
-            <div class="flex gap-4">
-              <label class="flex cursor-pointer items-center">
-                <input
-                  v-model="form.subscriptionType"
-                  class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="radio"
-                  value="claude_max"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300">Claude Max</span>
-              </label>
-              <label class="flex cursor-pointer items-center">
-                <input
-                  v-model="form.subscriptionType"
-                  class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                  type="radio"
-                  value="claude_pro"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300">Claude Pro</span>
-              </label>
-            </div>
-            <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              <i class="fas fa-info-circle mr-1" />
-              Pro 账号不支持 Claude Opus 4 模型
-            </p>
-          </div>
-
-          <!-- Claude 5小时限制自动停止调度选项（编辑模式） -->
-          <div v-if="form.platform === 'claude'" class="mt-4">
-            <label class="flex items-start">
-              <input
-                v-model="form.autoStopOnWarning"
-                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-              />
-              <div class="ml-3">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  5小时使用量接近限制时自动停止调度
-                </span>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  当系统检测到账户接近5小时使用限制时，自动暂停调度该账户。进入新的时间窗口后会自动恢复调度。
-                </p>
-              </div>
-            </label>
-          </div>
-
-          <!-- Claude 账户级串行队列开关（编辑模式） -->
-          <div v-if="form.platform === 'claude'" class="mt-4">
-            <label class="flex items-start">
-              <input
-                v-model="form.serialQueueEnabled"
-                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-              />
-              <div class="ml-3">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  启用账户级串行队列
-                </span>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  开启后强制该账户的用户消息串行处理，忽略全局串行队列设置。适用于并发限制较低的账户。
-                </p>
-              </div>
-            </label>
-          </div>
-
-          <!-- 拦截预热请求开关（Claude 和 Claude Console 编辑模式） -->
-          <div v-if="form.platform === 'claude' || form.platform === 'claude-console'" class="mt-4">
-            <label class="flex items-start">
-              <input
-                v-model="form.interceptWarmup"
-                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-              />
-              <div class="ml-3">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  拦截预热请求
-                </span>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  启用后，对标题生成、Warmup 等低价值请求直接返回模拟响应，不消耗上游 API 额度
-                </p>
-              </div>
-            </label>
-          </div>
-
-          <!-- Claude User-Agent 版本配置（编辑模式） -->
-          <div v-if="form.platform === 'claude'" class="mt-4">
-            <label class="flex items-start">
-              <input
-                v-model="form.useUnifiedUserAgent"
-                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-              />
-              <div class="ml-3">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  使用统一 Claude Code 版本
-                </span>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  开启后将使用从真实 Claude Code 客户端捕获的统一 User-Agent，提高兼容性
-                </p>
-                <div v-if="unifiedUserAgent" class="mt-1">
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs text-green-600 dark:text-green-400">
-                      💡 当前统一版本：{{ unifiedUserAgent }}
-                    </p>
-                    <button
-                      class="ml-2 text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                      :disabled="clearingCache"
-                      type="button"
-                      @click="clearUnifiedCache"
-                    >
-                      <i v-if="!clearingCache" class="fas fa-trash-alt mr-1"></i>
-                      <div v-else class="loading-spinner mr-1"></div>
-                      {{ clearingCache ? '清除中...' : '清除缓存' }}
-                    </button>
-                  </div>
-                </div>
-                <div v-else class="mt-1">
-                  <p class="text-xs text-gray-500 dark:text-gray-400">
-                    ⏳ 等待从 Claude Code 客户端捕获 User-Agent
-                  </p>
-                  <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                    💡 提示：如果长时间未能捕获，请确认有 Claude Code 客户端正在使用此账户，
-                    或联系开发者检查 User-Agent 格式是否发生变化
-                  </p>
-                </div>
-              </div>
-            </label>
-          </div>
-
-          <!-- Claude 统一客户端标识配置（编辑模式） -->
-          <div v-if="form.platform === 'claude'" class="mt-4">
-            <label class="flex items-start">
-              <input
-                v-model="form.useUnifiedClientId"
-                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-                @change="handleUnifiedClientIdChange"
-              />
-              <div class="ml-3 flex-1">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  使用统一的客户端标识
-                </span>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  开启后将使用固定的客户端标识，使所有请求看起来来自同一个客户端，减少特征
-                </p>
-                <div v-if="form.useUnifiedClientId" class="mt-3">
-                  <div
-                    class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
-                  >
-                    <div class="mb-2 flex items-center justify-between">
-                      <span class="text-xs font-medium text-gray-600 dark:text-gray-400"
-                        >客户端标识 ID</span
-                      >
-                      <button
-                        class="rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                        type="button"
-                        @click="regenerateClientId"
-                      >
-                        <i class="fas fa-sync-alt mr-1" />
-                        重新生成
-                      </button>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <code
-                        class="block w-full select-all break-all rounded bg-gray-100 px-3 py-2 font-mono text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                      >
-                        <span class="text-blue-600 dark:text-blue-400">{{
-                          form.unifiedClientId.substring(0, 8)
-                        }}</span
-                        ><span class="text-gray-500 dark:text-gray-500">{{
-                          form.unifiedClientId.substring(8, 56)
-                        }}</span
-                        ><span class="text-blue-600 dark:text-blue-400">{{
-                          form.unifiedClientId.substring(56)
-                        }}</span>
-                      </code>
-                    </div>
-                    <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      <i class="fas fa-info-circle mr-1 text-blue-500" />
-                      此ID将替换请求中的user_id客户端部分，保留session部分用于粘性会话
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </label>
-          </div>
-
-          <!-- Claude 三方工具伪装开关（编辑模式） -->
-          <div v-if="form.platform === 'claude'" class="mt-4">
-            <label class="flex items-start">
-              <input
-                v-model="form.enableThirdPartyToolEmulation"
-                class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-              />
-              <div class="ml-3">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  启用三方工具伪装（推荐开启）
-                </span>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  针对非真 Claude Code 客户端的请求，自动重写 system prompt、清洗工具描述指纹、注入
-                  metadata，模拟真实 CLI。关闭后请求按原样转发。
-                </p>
-              </div>
-            </label>
-          </div>
-
-          <!-- 所有平台的优先级设置（编辑模式） -->
-          <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >调度优先级 (1-100)</label
-            >
-            <input
-              v-model.number="form.priority"
-              class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-              max="100"
-              min="1"
-              placeholder="数字越小优先级越高"
-              type="number"
-            />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              数字越小优先级越高，建议范围：1-100
-            </p>
-          </div>
-
-          <!-- Claude Console 和 CCR 特定字段（编辑模式）-->
-          <div
-            v-if="form.platform === 'claude-console' || form.platform === 'ccr'"
-            class="space-y-4"
-          >
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">API URL</label>
-              <input
-                v-model="form.apiUrl"
-                class="form-input w-full"
-                placeholder="例如：https://api.example.com"
-                required
-                type="text"
-              />
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">API Key</label>
-              <input
-                v-model="form.apiKey"
-                class="form-input w-full"
-                placeholder="留空表示不更新"
-                type="password"
-              />
-              <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
-            </div>
-
-            <!-- 额度管理字段 -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  每日额度限制 ($)
-                </label>
-                <input
-                  v-model.number="form.dailyQuota"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  min="0"
-                  placeholder="0 表示不限制"
-                  step="0.01"
-                  type="number"
-                />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  设置每日使用额度，0 表示不限制
+                  Azure OpenAI API 版本，默认使用最新稳定版本 2024-02-01
                 </p>
               </div>
 
               <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  额度重置时间
-                </label>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >部署名称</label
+                >
                 <input
-                  v-model="form.quotaResetTime"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="00:00"
-                  type="time"
+                  v-model="form.deploymentName"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  :class="{ 'border-red-500': errors.deploymentName }"
+                  placeholder="gpt-4"
+                  type="text"
                 />
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">每日自动重置额度的时间</p>
+                <p v-if="errors.deploymentName" class="mt-1 text-xs text-red-500">
+                  {{ errors.deploymentName }}
+                </p>
               </div>
-            </div>
 
-            <!-- 当前使用情况（仅编辑模式显示） -->
-            <div
-              v-if="isEdit && form.dailyQuota > 0"
-              class="rounded-lg bg-gray-50 p-4 dark:bg-gray-800"
-            >
-              <div class="mb-2 flex items-center justify-between">
-                <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  今日使用情况
-                </span>
-                <span class="text-sm text-gray-500 dark:text-gray-400">
-                  ${{ calculateCurrentUsage().toFixed(4) }} / ${{ form.dailyQuota.toFixed(2) }}
-                </span>
-              </div>
-              <div class="relative h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
-                <div
-                  class="absolute left-0 top-0 h-full rounded-full transition-all"
-                  :class="
-                    usagePercentage >= 90
-                      ? 'bg-red-500'
-                      : usagePercentage >= 70
-                        ? 'bg-yellow-500'
-                        : 'bg-green-500'
-                  "
-                  :style="{ width: `${Math.min(usagePercentage, 100)}%` }"
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >API Key</label
+                >
+                <input
+                  v-model="form.apiKey"
+                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                  :class="{ 'border-red-500': errors.apiKey }"
+                  placeholder="留空表示不更新"
+                  type="password"
                 />
+                <p v-if="errors.apiKey" class="mt-1 text-xs text-red-500">
+                  {{ errors.apiKey }}
+                </p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">留空表示不更新 API Key</p>
               </div>
-              <div class="mt-2 flex items-center justify-between text-xs">
-                <span class="text-gray-500 dark:text-gray-400">
-                  剩余: ${{ Math.max(0, form.dailyQuota - calculateCurrentUsage()).toFixed(2) }}
-                </span>
-                <span class="text-gray-500 dark:text-gray-400">
-                  {{ usagePercentage.toFixed(1) }}% 已使用
-                </span>
-              </div>
-            </div>
 
-            <!-- 并发控制字段（编辑模式）-->
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                最大并发任务数
-              </label>
-              <input
-                v-model.number="form.maxConcurrentTasks"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                min="0"
-                placeholder="0 表示不限制"
-                type="number"
-              />
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                限制该账户的并发请求数量，0 表示不限制
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >模型限制 (可选)</label
-              >
-
-              <!-- 模式切换 -->
-              <div class="mb-4 flex gap-2">
-                <button
-                  class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all"
-                  :class="
-                    modelRestrictionMode === 'whitelist'
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'border border-gray-300 text-gray-600 hover:border-blue-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-blue-500'
-                  "
-                  type="button"
-                  @click="modelRestrictionMode = 'whitelist'"
+              <div>
+                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >支持的模型</label
                 >
-                  <i class="fas fa-check-circle mr-2" />
-                  模型白名单
-                </button>
-                <button
-                  class="flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all"
-                  :class="
-                    modelRestrictionMode === 'mapping'
-                      ? 'bg-purple-500 text-white shadow-md'
-                      : 'border border-gray-300 text-gray-600 hover:border-purple-300 dark:border-gray-600 dark:text-gray-400 dark:hover:border-purple-500'
-                  "
-                  type="button"
-                  @click="modelRestrictionMode = 'mapping'"
-                >
-                  <i class="fas fa-random mr-2" />
-                  模型映射
-                </button>
-              </div>
-
-              <!-- 白名单模式 -->
-              <div v-if="modelRestrictionMode === 'whitelist'">
-                <div class="mb-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
-                  <p class="text-xs text-blue-700 dark:text-blue-400">
-                    <i class="fas fa-info-circle mr-1" />
-                    选择允许使用此账户的模型。留空表示支持所有模型。
-                  </p>
-                </div>
-
-                <!-- 模型复选框列表 -->
-                <div class="mb-3 grid grid-cols-2 gap-2">
+                <div class="flex flex-wrap gap-2">
                   <label
-                    v-for="model in commonModels"
-                    :key="model.value"
-                    class="flex cursor-pointer items-center rounded-lg border p-3 transition-all hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                    :class="
-                      allowedModels.includes(model.value)
-                        ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30'
-                        : 'border-gray-300'
-                    "
+                    v-for="model in [
+                      'gpt-4',
+                      'gpt-4-turbo',
+                      'gpt-4o',
+                      'gpt-4o-mini',
+                      'gpt-5',
+                      'gpt-5-mini',
+                      'gpt-35-turbo',
+                      'gpt-35-turbo-16k',
+                      'codex-mini'
+                    ]"
+                    :key="model"
+                    class="flex cursor-pointer items-center"
                   >
                     <input
-                      v-model="allowedModels"
-                      class="mr-2 text-blue-600 focus:ring-blue-500"
+                      v-model="form.supportedModels"
+                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
                       type="checkbox"
-                      :value="model.value"
+                      :value="model"
                     />
-                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{
-                      model.label
-                    }}</span>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ model }}</span>
                   </label>
                 </div>
-
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  已选择 {{ allowedModels.length }} 个模型
-                  <span v-if="allowedModels.length === 0">（支持所有模型）</span>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  选择此部署支持的模型类型
                 </p>
               </div>
+            </div>
 
-              <!-- 映射模式 -->
-              <div v-else>
-                <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
-                  <p class="text-xs text-purple-700 dark:text-purple-400">
-                    <i class="fas fa-info-circle mr-1" />
-                    配置模型映射关系。左侧是客户端请求的模型，右侧是实际发送给API的模型。
-                  </p>
-                </div>
-
-                <!-- 模型映射表 -->
-                <div class="mb-3 space-y-2">
-                  <div
-                    v-for="(mapping, index) in modelMappings"
-                    :key="index"
-                    class="flex items-center gap-2"
-                  >
-                    <input
-                      v-model="mapping.from"
-                      class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                      placeholder="原始模型名称"
-                      type="text"
-                    />
-                    <i class="fas fa-arrow-right text-gray-400 dark:text-gray-500" />
-                    <input
-                      v-model="mapping.to"
-                      class="form-input flex-1 border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                      placeholder="映射后的模型名称"
-                      type="text"
-                    />
-                    <button
-                      class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
-                      type="button"
-                      @click="removeModelMapping(index)"
-                    >
-                      <i class="fas fa-trash" />
-                    </button>
-                  </div>
-                </div>
-
-                <!-- 添加映射按钮 -->
-                <button
-                  class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500"
-                  type="button"
-                  @click="addModelMapping"
-                >
-                  <i class="fas fa-plus mr-2" />
-                  添加模型映射
-                </button>
-
-                <!-- 快捷添加按钮 -->
-                <div class="mt-3 flex flex-wrap gap-2">
+            <!-- Token 更新 -->
+            <div v-if="isEdit && isEditingDroidApiKey" class="modal-section">
+              <div class="mb-4">
+                <div class="mb-1 flex items-center justify-between gap-2">
+                  <h5 class="text-sm font-medium text-gray-800 dark:text-gray-200">更新 API Key</h5>
                   <button
-                    class="rounded-lg bg-blue-100 px-3 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                    type="button"
-                    @click="
-                      addPresetMapping('claude-sonnet-4-20250514', 'claude-sonnet-4-20250514')
-                    "
-                  >
-                    + Sonnet 4
-                  </button>
-                  <button
-                    class="rounded-lg bg-indigo-100 px-3 py-1 text-xs text-indigo-700 transition-colors hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
-                    type="button"
-                    @click="
-                      addPresetMapping('claude-sonnet-4-5-20250929', 'claude-sonnet-4-5-20250929')
-                    "
-                  >
-                    + Sonnet 4.5
-                  </button>
-                  <button
-                    class="rounded-lg bg-violet-100 px-3 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
-                    type="button"
-                    @click="addPresetMapping('claude-opus-4-6', 'claude-opus-4-6')"
-                  >
-                    + Opus 4.6
-                  </button>
-                  <button
-                    class="rounded-lg bg-purple-100 px-3 py-1 text-xs text-purple-700 transition-colors hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:hover:bg-purple-900/50"
-                    type="button"
-                    @click="
-                      addPresetMapping('claude-opus-4-1-20250805', 'claude-opus-4-1-20250805')
-                    "
-                  >
-                    + Opus 4.1
-                  </button>
-                  <button
-                    class="rounded-lg bg-green-100 px-3 py-1 text-xs text-green-700 transition-colors hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
-                    type="button"
-                    @click="
-                      addPresetMapping('claude-3-5-haiku-20241022', 'claude-3-5-haiku-20241022')
-                    "
-                  >
-                    + Haiku 3.5
-                  </button>
-                  <button
-                    class="rounded-lg bg-emerald-100 px-3 py-1 text-xs text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
-                    type="button"
-                    @click="
-                      addPresetMapping('claude-haiku-4-5-20251001', 'claude-haiku-4-5-20251001')
-                    "
-                  >
-                    + Haiku 4.5
-                  </button>
-                  <button
-                    class="rounded-lg bg-cyan-100 px-3 py-1 text-xs text-cyan-700 transition-colors hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400 dark:hover:bg-cyan-900/50"
-                    type="button"
-                    @click="addPresetMapping('deepseek-chat', 'deepseek-chat')"
-                  >
-                    + DeepSeek
-                  </button>
-                  <button
-                    class="rounded-lg bg-orange-100 px-3 py-1 text-xs text-orange-700 transition-colors hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50"
-                    type="button"
-                    @click="addPresetMapping('Qwen', 'Qwen')"
-                  >
-                    + Qwen
-                  </button>
-                  <button
-                    class="rounded-lg bg-pink-100 px-3 py-1 text-xs text-pink-700 transition-colors hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400 dark:hover:bg-pink-900/50"
-                    type="button"
-                    @click="addPresetMapping('Kimi', 'Kimi')"
-                  >
-                    + Kimi
-                  </button>
-                  <button
-                    class="rounded-lg bg-teal-100 px-3 py-1 text-xs text-teal-700 transition-colors hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:hover:bg-teal-900/50"
-                    type="button"
-                    @click="addPresetMapping('GLM', 'GLM')"
-                  >
-                    + GLM
-                  </button>
-                  <button
-                    class="rounded-lg bg-amber-100 px-3 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
-                    type="button"
-                    @click="
-                      addPresetMapping('claude-opus-4-1-20250805', 'claude-sonnet-4-20250514')
-                    "
-                  >
-                    + Opus → Sonnet
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700"
-                >自定义 User-Agent (可选)</label
-              >
-              <input
-                v-model="form.userAgent"
-                class="form-input w-full"
-                placeholder="留空则透传客户端 User-Agent"
-                type="text"
-              />
-              <p class="mt-1 text-xs text-gray-500">
-                留空时将自动使用客户端的 User-Agent，仅在需要固定特定 UA 时填写
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">限流机制</label>
-              <div class="mb-3">
-                <label class="inline-flex cursor-pointer items-center">
-                  <input
-                    v-model="form.enableRateLimit"
-                    class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200"
-                    type="checkbox"
-                  />
-                  <span class="text-sm text-gray-700">启用限流机制</span>
-                </label>
-                <p class="mt-1 text-xs text-gray-500">
-                  启用后，当账号返回429错误时将暂停调度一段时间
-                </p>
-              </div>
-
-              <div v-if="form.enableRateLimit">
-                <label class="mb-3 block text-sm font-semibold text-gray-700"
-                  >限流时间 (分钟)</label
-                >
-                <input
-                  v-model.number="form.rateLimitDuration"
-                  class="form-input w-full"
-                  min="1"
-                  type="number"
-                />
-                <p class="mt-1 text-xs text-gray-500">账号被限流后暂停调度的时间（分钟）</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- 上游错误处理（编辑模式）-->
-          <div v-if="autoProtectionPlatforms.includes(form.platform)">
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              上游错误处理
-            </label>
-            <label class="inline-flex cursor-pointer items-center">
-              <input
-                v-model="form.disableAutoProtection"
-                class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-700"
-                type="checkbox"
-              />
-              <span class="text-sm text-gray-700 dark:text-gray-300"> 上游错误不自动暂停调度 </span>
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              勾选后遇到 401/400/429/529 等上游错误仅记录日志并透传，不自动禁用或限流
-            </p>
-          </div>
-
-          <TempUnavailablePolicyFields
-            v-if="form.platform === 'claude'"
-            v-model:disable-temp-unavailable="form.disableTempUnavailable"
-            v-model:temp-unavailable-503-ttl-seconds="form.tempUnavailable503TtlSeconds"
-            v-model:temp-unavailable-5xx-ttl-seconds="form.tempUnavailable5xxTtlSeconds"
-          />
-
-          <!-- Token 刷新策略（编辑模式，仅 Claude OAuth 账户）-->
-          <div v-if="form.platform === 'claude'">
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Token 刷新策略
-            </label>
-
-            <!-- CLI 路径：始终启用，不可关 -->
-            <div
-              class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50"
-            >
-              <div class="flex items-start">
-                <i class="fas fa-check-circle mt-0.5 text-green-600 dark:text-green-400"></i>
-                <div class="ml-2">
-                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    通过本地 Claude CLI 刷新（始终启用）
-                  </p>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    过期时调用 <code>claude -p</code> 触发本地 CLI 从 .credentials.json 完成 OAuth
-                    刷新
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <!-- 直连 OAuth 兜底（高级，可折叠）-->
-            <div
-              class="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-700/40 dark:bg-amber-900/10"
-            >
-              <button
-                class="flex w-full items-center justify-between p-3 text-left"
-                type="button"
-                @click="axiosFallbackPanelOpen = !axiosFallbackPanelOpen"
-              >
-                <span
-                  class="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  <i class="fas fa-exclamation-triangle mr-2 text-amber-500"></i>
-                  直连 OAuth 兜底（高级）
-                </span>
-                <i
-                  class="fas text-xs text-gray-500 dark:text-gray-400"
-                  :class="axiosFallbackPanelOpen ? 'fa-chevron-up' : 'fa-chevron-down'"
-                ></i>
-              </button>
-
-              <div
-                v-if="axiosFallbackPanelOpen"
-                class="border-t border-amber-200 p-3 dark:border-amber-700/40"
-              >
-                <!-- CF 拦截历史警告条 -->
-                <div
-                  v-if="form.axiosLastBlockedAt"
-                  class="mb-3 rounded border border-red-300 bg-red-50 p-2 text-xs text-red-700 dark:border-red-700/40 dark:bg-red-900/20 dark:text-red-300"
-                >
-                  <p class="font-medium">
-                    <i class="fas fa-shield-alt mr-1"></i>
-                    最近一次被 Cloudflare 拦截：{{ formatBlockedAt(form.axiosLastBlockedAt) }}
-                  </p>
-                  <p v-if="form.axiosBlockedReason" class="mt-1">
-                    原因：{{ form.axiosBlockedReason }}
-                  </p>
-                  <p class="mt-1">
-                    系统已自动关闭 axios 兜底。重新启用前请确认部署出口已不再被 Cloudflare 拦截。
-                  </p>
-                </div>
-
-                <!-- 风险提示 -->
-                <div class="mb-3 text-xs text-gray-600 dark:text-gray-400">
-                  <p class="mb-1 font-medium text-gray-700 dark:text-gray-300">风险提示：</p>
-                  <ul class="list-disc space-y-1 pl-4">
-                    <li>
-                      Anthropic OAuth 端点经 Cloudflare WAF 防护，部分数据中心 IP / 被滥用过的 IP
-                      段会被拦截，返回 403
-                    </li>
-                    <li>拦截发生时账号会被错误标记为凭据失效（已识别并独立处置）</li>
-                    <li>
-                      即便开启成功，会导致 .credentials.json 中的 refresh_token 与 Redis 漂移，CLI
-                      路径可能逐步退化
-                    </li>
-                    <li>
-                      建议优先排查 CLI 失败原因（重新登录 / 同步文件态），而非长期依赖 axios 兜底
-                    </li>
-                  </ul>
-                </div>
-
-                <!-- 验证方法 -->
-                <div
-                  class="mb-3 rounded border border-gray-200 bg-white p-2 text-xs dark:border-gray-700 dark:bg-gray-900/40"
-                >
-                  <p class="mb-1 font-medium text-gray-700 dark:text-gray-300">
-                    如何验证不被 Cloudflare 拦截：
-                  </p>
-                  <pre
-                    class="overflow-x-auto whitespace-pre-wrap text-[11px] text-gray-600 dark:text-gray-400"
-                  ><code>curl -X POST https://console.anthropic.com/v1/oauth/token \
-  -H 'Content-Type: application/json' \
-  -d '{"grant_type":"refresh_token","refresh_token":"...","client_id":"..."}' -i</code></pre>
-                  <p class="mt-1 text-gray-500 dark:text-gray-400">
-                    返回非 403 且无 cf-ray / cf-mitigated 头表示出口未被拦截
-                  </p>
-                </div>
-
-                <!-- 确认勾选 -->
-                <label class="mb-3 flex items-start">
-                  <input
-                    v-model="form.axiosCloudflareConfirmed"
-                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="checkbox"
-                    @change="handleAxiosConfirmedChange"
-                  />
-                  <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                    我已确认部署出口 IP 未被 Cloudflare 拦截
-                  </span>
-                </label>
-
-                <!-- 启用开关 -->
-                <label
-                  class="flex items-start"
-                  :class="{ 'opacity-50': !form.axiosCloudflareConfirmed }"
-                >
-                  <input
-                    v-model="form.axiosRefreshEnabled"
-                    class="mt-1 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    :disabled="!form.axiosCloudflareConfirmed"
-                    type="checkbox"
-                  />
-                  <span class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    启用 axios 兜底（CLI 三次失败后调用直连 OAuth）
-                  </span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- OpenAI-Responses 特定字段（编辑模式）-->
-          <div v-if="form.platform === 'openai-responses'" class="space-y-4">
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">API 基础地址</label>
-              <input
-                v-model="form.baseApi"
-                class="form-input w-full"
-                placeholder="https://api.example.com/v1"
-                type="url"
-              />
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">API 密钥</label>
-              <div class="relative">
-                <input
-                  v-model="form.apiKey"
-                  class="form-input w-full pr-10"
-                  placeholder="留空表示不更新"
-                  :type="showApiKey ? 'text' : 'password'"
-                />
-                <button
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  type="button"
-                  @click="showApiKey = !showApiKey"
-                >
-                  <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                </button>
-              </div>
-              <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700"
-                >自定义 User-Agent</label
-              >
-              <input
-                v-model="form.userAgent"
-                class="form-input w-full"
-                placeholder="留空则透传客户端 User-Agent"
-                type="text"
-              />
-              <p class="mt-1 text-xs text-gray-500">
-                留空时将自动使用客户端的 User-Agent，仅在需要固定特定 UA 时填写
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >Provider 端点类型</label
-              >
-              <select
-                v-model="form.providerEndpoint"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-              >
-                <option value="responses">Responses（推荐）</option>
-                <option value="completions">Chat Completions</option>
-                <option value="auto">自动（保持原始路径）</option>
-              </select>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                指定 Provider 支持的端点类型。Responses 会将所有请求路由到（包括来自
-                /v1/chat/completions 的请求会自动转换）；自动则保持原始路径
-              </p>
-            </div>
-
-            <!-- 限流时长字段 - 隐藏不显示，保持原值 -->
-            <input v-model.number="form.rateLimitDuration" type="hidden" />
-
-            <!-- 额度管理字段 -->
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  每日额度限制 ($)
-                </label>
-                <input
-                  v-model.number="form.dailyQuota"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  min="0"
-                  placeholder="0 表示不限制"
-                  step="0.01"
-                  type="number"
-                />
-              </div>
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  额度重置时间
-                </label>
-                <input
-                  v-model="form.quotaResetTime"
-                  class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  type="time"
-                />
-              </div>
-            </div>
-
-            <!-- 并发控制字段 -->
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                最大并发任务数
-              </label>
-              <input
-                v-model.number="form.maxConcurrentTasks"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                min="0"
-                placeholder="0 表示不限制"
-                type="number"
-              />
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                限制该账户的并发请求数量，0 表示不限制
-              </p>
-            </div>
-          </div>
-
-          <!-- Gemini API 特定字段（编辑模式）-->
-          <div v-if="form.platform === 'gemini-api'" class="space-y-4">
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >API 基础地址</label
-              >
-              <input
-                v-model="form.baseUrl"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                :class="{ 'border-red-500 dark:border-red-400': errors.baseUrl }"
-                placeholder="https://generativelanguage.googleapis.com/v1beta/models"
-                type="url"
-              />
-              <p v-if="errors.baseUrl" class="mt-1 text-xs text-red-500 dark:text-red-400">
-                {{ errors.baseUrl }}
-              </p>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                支持三种格式，系统自动识别：
-              </p>
-              <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                以 /models 结尾:
-                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
-                  >https://proxy.com/v1beta/models</code
-                >
-              </p>
-              <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                模板模式:
-                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
-                  >https://proxy.com/api/{model}:{action}</code
-                >
-              </p>
-              <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                域名:
-                <code class="rounded bg-gray-100 px-1 dark:bg-gray-600"
-                  >https://generativelanguage.googleapis.com</code
-                >
-                (自动拼接 /v1beta/models)
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >API 密钥</label
-              >
-              <div class="relative">
-                <input
-                  v-model="form.apiKey"
-                  class="form-input w-full border-gray-300 pr-10 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                  placeholder="留空表示不更新"
-                  :type="showApiKey ? 'text' : 'password'"
-                />
-                <button
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
-                  type="button"
-                  @click="showApiKey = !showApiKey"
-                >
-                  <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                </button>
-              </div>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">留空表示不更新 API Key</p>
-            </div>
-          </div>
-
-          <!-- Bedrock 特定字段（编辑模式）-->
-          <div v-if="form.platform === 'bedrock'" class="space-y-4">
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">AWS 访问密钥 ID</label>
-              <input
-                v-model="form.accessKeyId"
-                class="form-input w-full"
-                placeholder="留空表示不更新"
-                type="text"
-              />
-              <p class="mt-1 text-xs text-gray-500">留空表示不更新 AWS Access Key ID</p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">AWS 秘密访问密钥</label>
-              <input
-                v-model="form.secretAccessKey"
-                class="form-input w-full"
-                placeholder="留空表示不更新"
-                type="password"
-              />
-              <p class="mt-1 text-xs text-gray-500">留空表示不更新 AWS Secret Access Key</p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">AWS 区域</label>
-              <input
-                v-model="form.region"
-                class="form-input w-full"
-                placeholder="例如：us-east-1"
-                type="text"
-              />
-              <div class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                <div class="flex items-start gap-2">
-                  <i class="fas fa-info-circle mt-0.5 text-blue-600" />
-                  <div class="text-xs text-blue-700">
-                    <p class="mb-1 font-medium">常用 AWS 区域参考：</p>
-                    <div class="grid grid-cols-2 gap-1 text-xs">
-                      <span>• us-east-1 (美国东部)</span>
-                      <span>• us-west-2 (美国西部)</span>
-                      <span>• eu-west-1 (欧洲爱尔兰)</span>
-                      <span>• ap-southeast-1 (新加坡)</span>
-                      <span>• ap-northeast-1 (东京)</span>
-                      <span>• eu-central-1 (法兰克福)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">会话令牌 (可选)</label>
-              <input
-                v-model="form.sessionToken"
-                class="form-input w-full"
-                placeholder="留空表示不更新"
-                type="password"
-              />
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700"
-                >默认主模型 (可选)</label
-              >
-              <input
-                v-model="form.defaultModel"
-                class="form-input w-full"
-                placeholder="例如：us.anthropic.claude-sonnet-4-20250514-v1:0"
-                type="text"
-              />
-              <p class="mt-1 text-xs text-gray-500">
-                留空将使用系统默认模型。支持 inference profile ID 或 ARN
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >小快速模型 (可选)</label
-              >
-              <input
-                v-model="form.smallFastModel"
-                class="form-input w-full"
-                placeholder="例如：us.anthropic.claude-3-5-haiku-20241022-v1:0"
-                type="text"
-              />
-              <p class="mt-1 text-xs text-gray-500">用于快速响应的轻量级模型，留空将使用系统默认</p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">限流机制</label>
-              <div class="mb-3">
-                <label class="inline-flex cursor-pointer items-center">
-                  <input
-                    v-model="form.enableRateLimit"
-                    class="mr-2 rounded border-gray-300 text-blue-600 focus:border-blue-500 focus:ring focus:ring-blue-200"
-                    type="checkbox"
-                  />
-                  <span class="text-sm text-gray-700">启用限流机制</span>
-                </label>
-                <p class="mt-1 text-xs text-gray-500">
-                  启用后，当账号返回429错误时将暂停调度一段时间
-                </p>
-              </div>
-
-              <div v-if="form.enableRateLimit">
-                <label class="mb-3 block text-sm font-semibold text-gray-700"
-                  >限流时间 (分钟)</label
-                >
-                <input
-                  v-model.number="form.rateLimitDuration"
-                  class="form-input w-full"
-                  min="1"
-                  type="number"
-                />
-                <p class="mt-1 text-xs text-gray-500">账号被限流后暂停调度的时间（分钟）</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- OpenAI Compatible 特定字段（编辑模式）-->
-          <div v-if="form.platform === 'openai-compatible'" class="space-y-4">
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">API 基础地址</label>
-              <input
-                v-model="form.compatibleBaseUrl"
-                class="form-input w-full"
-                placeholder="https://api.openai.com"
-                type="url"
-              />
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">API 密钥</label>
-              <div class="relative">
-                <input
-                  v-model="form.apiKey"
-                  class="form-input w-full pr-10"
-                  placeholder="留空表示不更新"
-                  :type="showApiKey ? 'text' : 'password'"
-                />
-                <button
-                  class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  type="button"
-                  @click="showApiKey = !showApiKey"
-                >
-                  <i :class="showApiKey ? 'fas fa-eye-slash' : 'fas fa-eye'" />
-                </button>
-              </div>
-              <p class="mt-1 text-xs text-gray-500">留空表示不更新 API Key</p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700">默认模型</label>
-              <input
-                v-model="form.defaultModel"
-                class="form-input w-full"
-                placeholder="gpt-4o-mini"
-                type="text"
-              />
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700"
-                >模型映射 (JSON, 可选)</label
-              >
-              <textarea
-                v-model="form.modelMapping"
-                class="form-input w-full font-mono text-xs"
-                placeholder='{"claude-sonnet-*": "gpt-4o"}'
-                rows="3"
-              ></textarea>
-              <p class="mt-1 text-xs text-gray-500">
-                claude 模型名 → 目标 GPT 模型，支持 * 前缀通配
-              </p>
-            </div>
-          </div>
-
-          <!-- Azure OpenAI 特定字段（编辑模式）-->
-          <div v-if="form.platform === 'azure_openai'" class="space-y-4">
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >Azure Endpoint</label
-              >
-              <input
-                v-model="form.azureEndpoint"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                :class="{ 'border-red-500': errors.azureEndpoint }"
-                placeholder="https://your-resource.openai.azure.com"
-                type="url"
-              />
-              <p v-if="errors.azureEndpoint" class="mt-1 text-xs text-red-500">
-                {{ errors.azureEndpoint }}
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >API 版本</label
-              >
-              <input
-                v-model="form.apiVersion"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                placeholder="2024-02-01"
-                type="text"
-              />
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Azure OpenAI API 版本，默认使用最新稳定版本 2024-02-01
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >部署名称</label
-              >
-              <input
-                v-model="form.deploymentName"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                :class="{ 'border-red-500': errors.deploymentName }"
-                placeholder="gpt-4"
-                type="text"
-              />
-              <p v-if="errors.deploymentName" class="mt-1 text-xs text-red-500">
-                {{ errors.deploymentName }}
-              </p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >API Key</label
-              >
-              <input
-                v-model="form.apiKey"
-                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                :class="{ 'border-red-500': errors.apiKey }"
-                placeholder="留空表示不更新"
-                type="password"
-              />
-              <p v-if="errors.apiKey" class="mt-1 text-xs text-red-500">
-                {{ errors.apiKey }}
-              </p>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">留空表示不更新 API Key</p>
-            </div>
-
-            <div>
-              <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                >支持的模型</label
-              >
-              <div class="flex flex-wrap gap-2">
-                <label
-                  v-for="model in [
-                    'gpt-4',
-                    'gpt-4-turbo',
-                    'gpt-4o',
-                    'gpt-4o-mini',
-                    'gpt-5',
-                    'gpt-5-mini',
-                    'gpt-35-turbo',
-                    'gpt-35-turbo-16k',
-                    'codex-mini'
-                  ]"
-                  :key="model"
-                  class="flex cursor-pointer items-center"
-                >
-                  <input
-                    v-model="form.supportedModels"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="checkbox"
-                    :value="model"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">{{ model }}</span>
-                </label>
-              </div>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">选择此部署支持的模型类型</p>
-            </div>
-          </div>
-
-          <!-- Token 更新 -->
-          <div
-            v-if="isEdit && isEditingDroidApiKey"
-            class="rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-700 dark:bg-purple-900/30"
-          >
-            <div class="mb-4 flex items-start gap-3">
-              <div
-                class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-purple-500"
-              >
-                <i class="fas fa-retweet text-sm text-white" />
-              </div>
-              <div class="flex-1">
-                <div class="mb-2 flex items-center justify-between">
-                  <h5 class="font-semibold text-purple-900 dark:text-purple-200">更新 API Key</h5>
-                  <button
-                    class="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600"
+                    class="btn-sm border border-gray-200 bg-white font-medium text-gray-700 transition-colors hover:border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
                     type="button"
                     @click="showApiKeyManagement = true"
                   >
@@ -4262,220 +4339,211 @@
                     <span>管理 API Key</span>
                   </button>
                 </div>
-                <p class="mb-1 text-sm text-purple-800 dark:text-purple-200">
-                  当前已保存 <strong>{{ existingApiKeyCount }}</strong> 条 API Key。您可以追加新的
-                  Key，或通过下方模式快速覆盖、删除指定 Key。
-                </p>
-                <p class="text-xs text-purple-700 dark:text-purple-300">
-                  留空表示保留现有 Key 不变；根据所选模式决定是追加、覆盖还是删除输入的 Key。
-                </p>
-              </div>
-            </div>
-
-            <div class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >新的 API Key 列表</label
-                >
-                <textarea
-                  v-model="form.apiKeysInput"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  :class="{ 'border-red-500': errors.apiKeys }"
-                  placeholder="根据模式填写；每行一个 API Key"
-                  rows="6"
-                />
-                <p v-if="errors.apiKeys" class="mt-1 text-xs text-red-500">
-                  {{ errors.apiKeys }}
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  当前已保存 <strong>{{ existingApiKeyCount }}</strong> 条 API Key。可追加新的
+                  Key，或通过下方模式覆盖、删除指定 Key；留空表示保留现有 Key 不变。
                 </p>
               </div>
 
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-sm font-semibold text-purple-800 dark:text-purple-100"
-                    >API Key 更新模式</span
+              <div class="space-y-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >新的 API Key 列表</label
                   >
-                  <span class="text-xs text-purple-600 dark:text-purple-300">
-                    {{ currentApiKeyModeLabel }}
-                  </span>
-                </div>
-                <div
-                  class="relative grid h-11 grid-cols-3 overflow-hidden rounded-2xl border border-purple-200/80 bg-gradient-to-r from-purple-50/80 via-white to-purple-50/80 shadow-inner dark:border-purple-700/70 dark:from-purple-900/40 dark:via-purple-900/20 dark:to-purple-900/40"
-                >
-                  <span
-                    class="pointer-events-none absolute inset-y-0 rounded-2xl bg-gradient-to-r from-purple-500/90 via-purple-600 to-indigo-500/90 shadow-lg ring-1 ring-purple-100/80 transition-all duration-300 ease-out dark:from-purple-500/70 dark:via-purple-600/70 dark:to-indigo-500/70 dark:ring-purple-400/30"
-                    :style="apiKeyModeSliderStyle"
+                  <textarea
+                    v-model="form.apiKeysInput"
+                    class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    :class="{ 'border-red-500': errors.apiKeys }"
+                    placeholder="根据模式填写；每行一个 API Key"
+                    rows="6"
                   />
-                  <button
-                    v-for="option in apiKeyModeOptions"
-                    :key="option.value"
-                    class="relative z-10 flex items-center justify-center rounded-2xl px-2 text-xs font-semibold transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/60 dark:focus-visible:ring-purple-400/60"
-                    :class="
-                      form.apiKeyUpdateMode === option.value
-                        ? 'text-white drop-shadow-sm'
-                        : 'text-purple-500/80 hover:text-purple-700 dark:text-purple-200/70 dark:hover:text-purple-100'
-                    "
-                    type="button"
-                    @click="form.apiKeyUpdateMode = option.value"
-                  >
-                    {{ option.label }}
-                  </button>
+                  <p v-if="errors.apiKeys" class="mt-1 text-xs text-red-500">
+                    {{ errors.apiKeys }}
+                  </p>
                 </div>
-                <p class="text-xs text-purple-700 dark:text-purple-300">
-                  {{ currentApiKeyModeDescription }}
-                </p>
-              </div>
 
-              <div
-                class="rounded-lg border border-purple-200 bg-white/70 p-3 text-xs text-purple-800 dark:border-purple-700 dark:bg-purple-800/20 dark:text-purple-100"
-              >
-                <p class="font-medium"><i class="fas fa-lightbulb mr-1" />小提示</p>
-                <ul class="mt-1 list-disc space-y-1 pl-4">
-                  <li>系统会为新的 Key 自动建立粘性映射，保持同一会话命中同一个 Key。</li>
-                  <li>追加模式会保留现有 Key 并在末尾追加新的 Key。</li>
-                  <li>覆盖模式会先清空旧 Key 再写入上方的新列表。</li>
-                  <li>删除模式会根据输入精准移除指定 Key，适合快速处理失效或被封禁的 Key。</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-if="
-              !(isEdit && isEditingDroidApiKey) &&
-              form.platform !== 'claude-console' &&
-              form.platform !== 'ccr' &&
-              form.platform !== 'bedrock' &&
-              form.platform !== 'azure_openai' &&
-              form.platform !== 'openai-responses'
-            "
-            class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/30"
-          >
-            <div class="mb-4 flex items-start gap-3">
-              <div
-                class="mt-1 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-500"
-              >
-                <i class="fas fa-key text-sm text-white" />
-              </div>
-              <div>
-                <h5 class="mb-2 font-semibold text-amber-900 dark:text-amber-300">更新 Token</h5>
-                <p class="mb-2 text-sm text-amber-800 dark:text-amber-300">
-                  <template v-if="form.platform === 'claude'">
-                    可以更新 Access Token。Claude 账户支持从 .credentials.json 自动读取凭据。
-                  </template>
-                  <template v-else>
-                    可以更新 Access Token 和 Refresh Token。为了安全起见，不会显示当前的 Token 值。
-                  </template>
-                </p>
-                <p class="text-xs text-amber-600 dark:text-amber-400">💡 留空表示不更新该字段。</p>
-              </div>
-            </div>
-
-            <div class="space-y-4">
-              <div>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >新的 Access Token</label
-                >
-                <textarea
-                  v-model="form.accessToken"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="留空表示不更新..."
-                  rows="4"
-                />
-              </div>
-
-              <!-- Claude: 从 credentials 重新读取 -->
-              <div v-if="form.platform === 'claude'">
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  过期时间 (expiresAt)
-                </label>
-                <div
-                  class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/30"
-                >
-                  <div v-if="credentialsLoaded" class="text-sm">
-                    <span class="font-medium text-gray-700 dark:text-gray-300">当前过期时间：</span>
-                    <span
-                      :class="credentialsExpired ? 'font-semibold text-red-600' : 'text-green-600'"
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >API Key 更新模式</span
                     >
-                      {{ credentialsExpiresAtFormatted }}
-                      <span v-if="credentialsExpired" class="text-xs">(已过期)</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ currentApiKeyModeLabel }}
                     </span>
                   </div>
-                  <button
-                    class="mt-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600"
-                    :disabled="credentialsLoading"
-                    type="button"
-                    @click="handleReadCredentials"
-                  >
-                    <i v-if="credentialsLoading" class="fas fa-spinner fa-spin mr-1" />
-                    <i v-else class="fas fa-sync-alt mr-1" />
-                    {{ credentialsLoading ? '读取中...' : '从 .credentials.json 重新读取' }}
-                  </button>
-                  <div v-if="credentialsError" class="mt-2 text-xs text-red-600">
-                    {{ credentialsError }}
+                  <!-- 与统计页 Tab 同一分段控件（.seg / .seg-item），不再用紫色渐变滑块 -->
+                  <div class="seg w-full rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
+                    <button
+                      v-for="option in apiKeyModeOptions"
+                      :key="option.value"
+                      class="seg-item flex-1"
+                      :class="
+                        form.apiKeyUpdateMode === option.value
+                          ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                          : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                      "
+                      type="button"
+                      @click="form.apiKeyUpdateMode = option.value"
+                    >
+                      {{ option.label }}
+                    </button>
                   </div>
-                  <!-- Custom path input for edit mode -->
-                  <div v-if="showCredentialsPathInput" class="mt-2">
-                    <input
-                      v-model="credentialsPath"
-                      class="form-input w-full border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                      placeholder="请输入 .credentials.json 文件路径..."
-                      type="text"
-                    />
-                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ currentApiKeyModeDescription }}
+                  </p>
+                </div>
+
+                <div
+                  class="rounded-lg bg-gray-50 p-3 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"
+                >
+                  <p class="font-medium text-gray-700 dark:text-gray-300">小提示</p>
+                  <ul class="mt-1 list-disc space-y-1 pl-4">
+                    <li>系统会为新的 Key 自动建立粘性映射，保持同一会话命中同一个 Key。</li>
+                    <li>追加模式会保留现有 Key 并在末尾追加新的 Key。</li>
+                    <li>覆盖模式会先清空旧 Key 再写入上方的新列表。</li>
+                    <li>删除模式会根据输入精准移除指定 Key，适合快速处理失效或被封禁的 Key。</li>
+                  </ul>
                 </div>
               </div>
-              <!-- Other platforms: keep Refresh Token -->
-              <div v-else>
-                <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-                  >新的 Refresh Token</label
-                >
-                <textarea
-                  v-model="form.refreshToken"
-                  class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-                  placeholder="留空表示不更新..."
-                  rows="4"
-                />
+            </div>
+
+            <div
+              v-if="
+                !(isEdit && isEditingDroidApiKey) &&
+                form.platform !== 'claude-console' &&
+                form.platform !== 'ccr' &&
+                form.platform !== 'bedrock' &&
+                form.platform !== 'azure_openai' &&
+                form.platform !== 'openai-responses'
+              "
+              class="modal-section"
+            >
+              <div class="mb-4">
+                <h5 class="mb-1 text-sm font-medium text-gray-800 dark:text-gray-200">
+                  更新 Token
+                </h5>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  <template v-if="form.platform === 'claude'">
+                    可以更新 Access Token；Claude 账户支持从 .credentials.json 自动读取凭据。
+                  </template>
+                  <template v-else>
+                    可以更新 Access Token 和 Refresh Token；出于安全考虑不显示当前值。
+                  </template>
+                  留空表示不更新该字段。
+                </p>
+              </div>
+
+              <div class="space-y-4">
+                <div>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >新的 Access Token</label
+                  >
+                  <textarea
+                    v-model="form.accessToken"
+                    class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="留空表示不更新..."
+                    rows="4"
+                  />
+                </div>
+
+                <!-- Claude: 从 credentials 重新读取 -->
+                <div v-if="form.platform === 'claude'">
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    过期时间 (expiresAt)
+                  </label>
+                  <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
+                    <div v-if="credentialsLoaded" class="text-sm">
+                      <span class="font-medium text-gray-700 dark:text-gray-300"
+                        >当前过期时间：</span
+                      >
+                      <span
+                        :class="
+                          credentialsExpired ? 'font-semibold text-red-600' : 'text-green-600'
+                        "
+                      >
+                        {{ credentialsExpiresAtFormatted }}
+                        <span v-if="credentialsExpired" class="text-xs">(已过期)</span>
+                      </span>
+                    </div>
+                    <button
+                      class="btn-md mt-2 border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                      :disabled="credentialsLoading"
+                      type="button"
+                      @click="handleReadCredentials"
+                    >
+                      <i
+                        :class="['fas', credentialsLoading ? 'fa-spinner fa-spin' : 'fa-sync-alt']"
+                      />
+                      {{ credentialsLoading ? '读取中...' : '从 .credentials.json 重新读取' }}
+                    </button>
+                    <div v-if="credentialsError" class="mt-2 text-xs text-red-600">
+                      {{ credentialsError }}
+                    </div>
+                    <!-- Custom path input for edit mode -->
+                    <div v-if="showCredentialsPathInput" class="mt-2">
+                      <input
+                        v-model="credentialsPath"
+                        class="form-input w-full border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                        placeholder="请输入 .credentials.json 文件路径..."
+                        type="text"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <!-- Other platforms: keep Refresh Token -->
+                <div v-else>
+                  <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >新的 Refresh Token</label
+                  >
+                  <textarea
+                    v-model="form.refreshToken"
+                    class="form-input w-full resize-none border-gray-300 font-mono text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                    placeholder="留空表示不更新..."
+                    rows="4"
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Droid User-Agent 配置 (编辑模式) -->
-          <div v-if="form.platform === 'droid'">
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
-              >自定义 User-Agent (可选)</label
-            >
-            <input
-              v-model="form.userAgent"
-              class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
-              placeholder="factory-cli/0.32.1"
-              type="text"
-            />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              留空使用默认值 factory-cli/0.32.1，可根据需要自定义
-            </p>
-          </div>
+            <!-- Droid User-Agent 配置 (编辑模式) -->
+            <div v-if="form.platform === 'droid'">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >自定义 User-Agent (可选)</label
+              >
+              <input
+                v-model="form.userAgent"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                placeholder="factory-cli/0.32.1"
+                type="text"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                留空使用默认值 factory-cli/0.32.1，可根据需要自定义
+              </p>
+            </div>
 
-          <!-- 代理设置 -->
-          <ProxyConfig v-model="form.proxy" />
-
-          <div class="flex gap-3 pt-4">
-            <button
-              class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              type="button"
-              @click="$emit('close')"
-            >
-              取消
-            </button>
-            <button
-              class="btn btn-primary flex-1 px-6 py-3 font-semibold"
-              :disabled="loading"
-              type="button"
-              @click="updateAccount"
-            >
-              <div v-if="loading" class="loading-spinner mr-2" />
-              {{ loading ? '更新中...' : '更新' }}
-            </button>
+            <!-- 代理设置 -->
+            <ProxyConfig v-model="form.proxy" />
           </div>
+        </div>
+
+        <!-- 编辑态操作区：固定在滚动区之外，右对齐，与页面主/次按钮同规格 -->
+        <div v-if="isEdit" class="modal-footer">
+          <button
+            class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+            type="button"
+            @click="$emit('close')"
+          >
+            取消
+          </button>
+          <button
+            class="btn-md bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="loading"
+            type="button"
+            @click="updateAccount"
+          >
+            <i :class="['fas', loading ? 'fa-spinner fa-spin' : 'fa-save']" />
+            {{ loading ? '更新中' : '保存修改' }}
+          </button>
         </div>
       </div>
     </div>
@@ -5056,19 +5124,6 @@ const apiKeyModeOptions = [
     description: '输入要移除的 Key，可精准删除失效或被封禁的 Key。'
   }
 ]
-
-const apiKeyModeSliderStyle = computed(() => {
-  const index = Math.max(
-    apiKeyModeOptions.findIndex((option) => option.value === form.value.apiKeyUpdateMode),
-    0
-  )
-  const widthPercent = 100 / apiKeyModeOptions.length
-
-  return {
-    width: `${widthPercent}%`,
-    left: `${index * widthPercent}%`
-  }
-})
 
 const currentApiKeyModeLabel = computed(() => {
   const option = apiKeyModeOptions.find((item) => item.value === form.value.apiKeyUpdateMode)

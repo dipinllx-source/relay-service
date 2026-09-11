@@ -1,66 +1,67 @@
 <template>
   <Teleport to="body">
     <div class="modal fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+      <!--
+        弹窗归统管理台基线：壳 16px 圆角 + 轻阴影（.modal-baseline），
+        标题行与页面卡片同形（标题 + 灰字说明，右侧方形图标按钮），
+        表单控件由 .modal-baseline 收到 32px / r8，操作区固定在底部右对齐。
+      -->
       <div
-        class="modal-content mx-auto flex max-h-[90vh] w-full max-w-4xl flex-col p-4 sm:p-6 md:p-8"
+        class="modal-content modal-baseline mx-auto flex max-h-[90vh] w-full max-w-4xl flex-col p-4 sm:p-6"
       >
-        <div class="mb-4 flex items-center justify-between sm:mb-6">
-          <div class="flex items-center gap-2 sm:gap-3">
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 sm:h-10 sm:w-10 sm:rounded-xl"
-            >
-              <i class="fas fa-edit text-sm text-white sm:text-base" />
-            </div>
-            <h3 class="text-lg font-bold text-gray-900 dark:text-gray-100 sm:text-xl">
+        <div class="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h3 class="mb-1 text-lg font-bold text-gray-900 dark:text-gray-100 sm:text-xl">
               编辑 API Key
             </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              修改名称、限额、服务权限与专属账号绑定
+            </p>
           </div>
           <button
-            class="p-1 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+            class="icon-btn-md flex-shrink-0 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            title="关闭"
+            type="button"
             @click="$emit('close')"
           >
-            <i class="fas fa-times text-lg sm:text-xl" />
+            <i class="fas fa-times" />
           </button>
         </div>
 
         <form
-          class="modal-scroll-content custom-scrollbar flex-1 space-y-4 sm:space-y-6"
+          id="editApiKeyForm"
+          class="modal-scroll-content custom-scrollbar min-h-0 flex-1 space-y-5"
           @submit.prevent="updateApiKey"
         >
           <div>
-            <label
-              class="mb-1.5 block text-xs font-semibold text-gray-700 dark:text-gray-300 sm:mb-3 sm:text-sm"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >名称</label
             >
             <div>
               <input
                 v-model="form.name"
-                class="form-input flex-1 border-gray-300 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
+                class="form-input w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400"
                 maxlength="100"
                 placeholder="请输入API Key名称"
                 required
                 type="text"
               />
             </div>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 sm:mt-2">
-              用于识别此 API Key 的用途
-            </p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">用于识别此 API Key 的用途</p>
           </div>
 
           <!-- 服务倍率设置 -->
-          <div
-            class="rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 dark:border-purple-700 dark:from-purple-900/20 dark:to-indigo-900/20 sm:p-4"
-          >
-            <div class="flex items-center justify-between">
+          <div class="modal-section">
+            <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <input
                   id="editEnableServiceRates"
                   v-model="enableServiceRates"
-                  class="h-4 w-4 rounded border-gray-300 bg-gray-100 text-purple-600 focus:ring-purple-500"
+                  class="h-4 w-4 rounded border-gray-300 bg-gray-100 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
                   type="checkbox"
                 />
                 <label
-                  class="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300"
+                  class="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300"
                   for="editEnableServiceRates"
                 >
                   自定义服务倍率
@@ -94,8 +95,7 @@
 
           <!-- 所有者选择 -->
           <div>
-            <label
-              class="mb-1.5 block text-xs font-semibold text-gray-700 dark:text-gray-300 sm:mb-3 sm:text-sm"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >所有者</label
             >
             <select
@@ -107,15 +107,14 @@
                 <span v-if="user.role === 'admin'" class="text-gray-500">- 管理员</span>
               </option>
             </select>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 sm:mt-2">
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               分配此 API Key 给指定用户或管理员，管理员分配时不受用户 API Key 数量限制
             </p>
           </div>
 
           <!-- 标签 -->
           <div>
-            <label
-              class="mb-1.5 block text-xs font-semibold text-gray-700 dark:text-gray-300 sm:mb-3 sm:text-sm"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >标签</label
             >
             <div class="space-y-4">
@@ -175,7 +174,8 @@
                     @keypress.enter.prevent="addTag"
                   />
                   <button
-                    class="rounded-lg bg-green-500 px-4 py-2 text-white transition-colors hover:bg-green-600"
+                    class="icon-btn-md flex-shrink-0 border border-gray-200 bg-white text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                    title="添加标签"
                     type="button"
                     @click="addTag"
                   >
@@ -191,22 +191,14 @@
           </div>
 
           <!-- 速率限制设置 -->
-          <div
-            class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/20"
-          >
-            <div class="mb-2 flex items-center gap-2">
-              <div
-                class="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-blue-500"
-              >
-                <i class="fas fa-tachometer-alt text-xs text-white" />
-              </div>
-              <h4 class="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                速率限制设置 (可选)
-              </h4>
-            </div>
+          <div class="modal-section">
+            <h4 class="mb-3 text-sm font-medium text-gray-800 dark:text-gray-200">
+              速率限制设置
+              <span class="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">可选</span>
+            </h4>
 
-            <div class="space-y-2">
-              <div class="grid grid-cols-1 gap-2 lg:grid-cols-3">
+            <div class="space-y-3">
+              <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
                 <div>
                   <label class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300"
                     >时间窗口 (分钟)</label
@@ -218,7 +210,7 @@
                     placeholder="无限制"
                     type="number"
                   />
-                  <p class="ml-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">时间段单位</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">时间段单位</p>
                 </div>
 
                 <div>
@@ -232,7 +224,7 @@
                     placeholder="无限制"
                     type="number"
                   />
-                  <p class="ml-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">窗口内最大请求</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">窗口内最大请求</p>
                 </div>
 
                 <div>
@@ -247,16 +239,14 @@
                     step="0.01"
                     type="number"
                   />
-                  <p class="ml-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400">窗口内最大费用</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">窗口内最大费用</p>
                 </div>
               </div>
 
               <!-- 示例说明 -->
-              <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-                <h5 class="mb-1 text-xs font-semibold text-blue-800 dark:text-blue-400">
-                  💡 使用示例
-                </h5>
-                <div class="space-y-0.5 text-xs text-blue-700 dark:text-blue-300">
+              <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/60">
+                <h5 class="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">使用示例</h5>
+                <div class="space-y-0.5 text-xs text-gray-500 dark:text-gray-400">
                   <div>
                     <strong>示例1:</strong> 时间窗口=60，请求次数=1000 → 每60分钟最多1000次请求
                   </div>
@@ -270,34 +260,34 @@
           </div>
 
           <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >每日费用限制 (美元)</label
             >
             <div class="space-y-3">
               <div class="flex gap-2">
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.dailyCostLimit = '50'"
                 >
                   $50
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.dailyCostLimit = '100'"
                 >
                   $100
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.dailyCostLimit = '200'"
                 >
                   $200
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.dailyCostLimit = ''"
                 >
@@ -319,34 +309,34 @@
           </div>
 
           <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >总费用限制 (美元)</label
             >
             <div class="space-y-3">
               <div class="flex gap-2">
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.totalCostLimit = '100'"
                 >
                   $100
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.totalCostLimit = '500'"
                 >
                   $500
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.totalCostLimit = '1000'"
                 >
                   $1000
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.totalCostLimit = ''"
                 >
@@ -368,34 +358,34 @@
           </div>
 
           <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >Claude 模型周费用限制 (美元)</label
             >
             <div class="space-y-3">
               <div class="flex gap-2">
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.weeklyOpusCostLimit = '100'"
                 >
                   $100
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.weeklyOpusCostLimit = '500'"
                 >
                   $500
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.weeklyOpusCostLimit = '1000'"
                 >
                   $1000
                 </button>
                 <button
-                  class="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                  class="btn-sm bg-gray-100 font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   type="button"
                   @click="form.weeklyOpusCostLimit = ''"
                 >
@@ -452,7 +442,7 @@
           </div>
 
           <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >并发限制</label
             >
             <input
@@ -477,7 +467,7 @@
                 type="checkbox"
               />
               <label
-                class="ml-2 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300"
+                class="ml-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300"
                 for="editIsActive"
               >
                 激活账号
@@ -489,7 +479,7 @@
           </div>
 
           <div>
-            <label class="mb-3 block text-sm font-semibold text-gray-700 dark:text-gray-300"
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
               >服务权限</label
             >
             <div class="flex flex-wrap gap-4">
@@ -541,7 +531,7 @@
 
           <div>
             <div class="mb-3 flex items-center justify-between">
-              <label class="text-sm font-semibold text-gray-700 dark:text-gray-300"
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300"
                 >专属账号绑定</label
               >
               <button
@@ -647,7 +637,7 @@
                 type="checkbox"
               />
               <label
-                class="ml-2 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300"
+                class="ml-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300"
                 for="editEnableModelRestriction"
               >
                 启用模型限制
@@ -689,7 +679,7 @@
                     <button
                       v-for="model in availableQuickModels"
                       :key="model"
-                      class="flex-shrink-0 rounded-lg bg-gray-100 px-3 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 sm:text-sm"
+                      class="btn-sm flex-shrink-0 bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                       type="button"
                       @click="quickAddRestrictedModel(model)"
                     >
@@ -713,7 +703,8 @@
                       @keydown.enter.prevent="addRestrictedModel"
                     />
                     <button
-                      class="rounded-lg bg-red-500 px-4 py-2 text-white transition-colors hover:bg-red-600"
+                      class="icon-btn-md flex-shrink-0 border border-gray-200 bg-white text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+                      title="添加模型"
                       type="button"
                       @click="addRestrictedModel"
                     >
@@ -738,7 +729,7 @@
                 type="checkbox"
               />
               <label
-                class="ml-2 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300"
+                class="ml-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300"
                 for="editEnableClientRestriction"
               >
                 启用客户端限制
@@ -775,26 +766,27 @@
               </div>
             </div>
           </div>
-
-          <div class="flex gap-3 pt-4">
-            <button
-              class="flex-1 rounded-xl bg-gray-100 px-6 py-3 font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-              type="button"
-              @click="$emit('close')"
-            >
-              取消
-            </button>
-            <button
-              class="btn btn-primary flex-1 px-6 py-3 font-semibold"
-              :disabled="loading"
-              type="submit"
-            >
-              <div v-if="loading" class="loading-spinner mr-2" />
-              <i v-else class="fas fa-save mr-2" />
-              {{ loading ? '保存中...' : '保存修改' }}
-            </button>
-          </div>
         </form>
+
+        <!-- 操作区固定在滚动区之外，表单再长按钮也不会被挤出视口 -->
+        <div class="modal-footer">
+          <button
+            class="btn-md border border-gray-200 bg-white font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-gray-500"
+            type="button"
+            @click="$emit('close')"
+          >
+            取消
+          </button>
+          <button
+            class="btn-md bg-gradient-to-r from-blue-500 to-blue-600 font-medium text-white shadow-sm transition-all duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="loading"
+            form="editApiKeyForm"
+            type="submit"
+          >
+            <i :class="['fas', loading ? 'fa-spinner fa-spin' : 'fa-save']" />
+            {{ loading ? '保存中' : '保存修改' }}
+          </button>
+        </div>
       </div>
     </div>
 

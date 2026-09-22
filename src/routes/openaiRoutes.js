@@ -115,7 +115,12 @@ async function applyRateLimitTracking(
 }
 
 // 使用统一调度器选择 OpenAI 账户
-async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel = null) {
+async function getOpenAIAuthToken(
+  apiKeyData,
+  sessionId = null,
+  requestedModel = null,
+  options = {}
+) {
   try {
     // 生成会话哈希（如果有会话ID）
     const sessionHash = sessionId
@@ -126,7 +131,8 @@ async function getOpenAIAuthToken(apiKeyData, sessionId = null, requestedModel =
     const result = await unifiedOpenAIScheduler.selectAccountForApiKey(
       apiKeyData,
       sessionHash,
-      requestedModel
+      requestedModel,
+      { requireApiKeyUpstream: options.requireApiKeyUpstream === true }
     )
 
     if (!result || !result.accountId) {
@@ -268,6 +274,25 @@ const handleResponses = async (req, res) => {
 
     sessionHash = sessionId ? crypto.createHash('sha256').update(sessionId).digest('hex') : null
 
+    // 🔗 HTTP 续链：previous_response_id 只能由 API key 上游（openai-responses 账号）承接。
+    // ChatGPT OAuth 走 codex 内部端点，不接受该字段；这里先校验 ID 形态，再把约束
+    // 传给调度器，让它跳过不兼容账号，而不是把续链状态静默发给错误的上游。
+    const previousResponseId = req.body?.previous_response_id
+    let requireApiKeyUpstream = false
+    if (previousResponseId !== undefined && previousResponseId !== null) {
+      if (typeof previousResponseId !== 'string' || !previousResponseId.startsWith('resp_')) {
+        logger.warn('⚠️ Rejected request: previous_response_id must be a response id (resp_*)')
+        return res.status(400).json({
+          error: {
+            message: 'previous_response_id must be a response.id (resp_*), not a message id',
+            type: 'invalid_request_error',
+            code: 'invalid_request_error'
+          }
+        })
+      }
+      requireApiKeyUpstream = true
+    }
+
     // 从请求体中提取模型和流式标志
     let requestedModel = req.body?.model || null
     const isCodexModel =
@@ -330,7 +355,8 @@ const handleResponses = async (req, res) => {
     ;({ accessToken, accountId, accountType, proxy, account } = await getOpenAIAuthToken(
       apiKeyData,
       sessionId,
-      requestedModel
+      requestedModel,
+      { requireApiKeyUpstream }
     ))
 
     // 如果是 OpenAI-Responses 账户，使用专门的中继服务处理

@@ -8,6 +8,20 @@ const config = require('../../../config/config')
 const { isSchedulable } = require('../../utils/commonHelper')
 const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 
+// 🔗 HTTP previous_response_id 续链只能落在 API key 上游（relay 中为 openai-responses 账号）。
+// ChatGPT OAuth / SetupToken 走的是 codex 内部端点，不接受该字段；
+// 因此宁可跳过不兼容账号并报错，也不静默删除客户端的续链状态。
+const CONTINUATION_ACCOUNT_TYPE = 'openai-responses'
+const CONTINUATION_UNSUPPORTED_MESSAGE =
+  'previous_response_id requires an OpenAI API-key account for HTTP requests'
+
+function continuationUnsupportedError() {
+  const error = new Error(CONTINUATION_UNSUPPORTED_MESSAGE)
+  error.statusCode = 400 // Bad Request - 请求与账号能力不匹配
+  error.code = 'http_continuation_unsupported'
+  return error
+}
+
 class UnifiedOpenAIScheduler {
   constructor() {
     this.SESSION_MAPPING_PREFIX = 'unified_openai_session_mapping:'
@@ -192,8 +206,15 @@ class UnifiedOpenAIScheduler {
   }
 
   // 🎯 统一调度OpenAI账号
-  async selectAccountForApiKey(apiKeyData, sessionHash = null, requestedModel = null) {
+  async selectAccountForApiKey(
+    apiKeyData,
+    sessionHash = null,
+    requestedModel = null,
+    options = {}
+  ) {
     try {
+      // 带 previous_response_id 的 HTTP 请求只能选 API key 上游
+      const requireApiKeyUpstream = options.requireApiKeyUpstream === true
       // 如果API Key绑定了专属账户或分组，优先使用
       if (apiKeyData.openaiAccountId) {
         // 检查是否是分组
@@ -202,7 +223,15 @@ class UnifiedOpenAIScheduler {
           logger.info(
             `🎯 API key ${apiKeyData.name} is bound to group ${groupId}, selecting from group`
           )
-          return await this.selectAccountFromGroup(groupId, sessionHash, requestedModel, apiKeyData)
+          return await this.selectAccountFromGroup(
+            groupId,
+            sessionHash,
+            requestedModel,
+            apiKeyData,
+            {
+              requireApiKeyUpstream
+            }
+          )
         }
 
         // 普通专属账户 - 根据前缀判断是 OpenAI 还是 OpenAI-Responses 类型
@@ -225,6 +254,15 @@ class UnifiedOpenAIScheduler {
           (boundAccount.isActive === true || boundAccount.isActive === 'true') &&
           boundAccount.status !== 'error' &&
           boundAccount.status !== 'unauthorized'
+
+        // 专属账号不降级到共享池：类型不支持续链时直接报错，避免把
+        // previous_response_id 发给 OAuth 上游造成难以定位的上游报错。
+        if (requireApiKeyUpstream && accountType !== CONTINUATION_ACCOUNT_TYPE) {
+          logger.warn(
+            `⚠️ Dedicated ${accountType} account cannot serve previous_response_id continuation for API key ${apiKeyData.name}`
+          )
+          throw continuationUnsupportedError()
+        }
 
         if (isActiveBoundAccount) {
           // 检查是否临时不可用
@@ -348,7 +386,16 @@ class UnifiedOpenAIScheduler {
       // 如果有会话哈希，检查是否有已映射的账户
       if (sessionHash) {
         const mappedAccount = await this._getSessionMapping(sessionHash)
-        if (mappedAccount) {
+        if (
+          mappedAccount &&
+          requireApiKeyUpstream &&
+          mappedAccount.accountType !== CONTINUATION_ACCOUNT_TYPE
+        ) {
+          // 粘性账号对其他请求仍然有效，所以保留映射，仅本次续链请求绕开。
+          logger.info(
+            `↪️ Sticky ${mappedAccount.accountType} account skipped for previous_response_id continuation, selecting API-key upstream`
+          )
+        } else if (mappedAccount) {
           // 验证映射的账户是否仍然可用
           const isAvailable = await this._isAccountAvailable(
             mappedAccount.accountId,
@@ -373,7 +420,20 @@ class UnifiedOpenAIScheduler {
       }
 
       // 获取所有可用账户
-      const availableAccounts = await this._getAllAvailableAccounts(apiKeyData, requestedModel)
+      let availableAccounts = await this._getAllAvailableAccounts(apiKeyData, requestedModel)
+
+      if (requireApiKeyUpstream) {
+        const beforeCount = availableAccounts.length
+        availableAccounts = availableAccounts.filter(
+          (account) => account.accountType === CONTINUATION_ACCOUNT_TYPE
+        )
+        if (availableAccounts.length === 0) {
+          logger.warn(
+            `⚠️ No API-key upstream available for previous_response_id continuation (skipped ${beforeCount} account(s))`
+          )
+          throw continuationUnsupportedError()
+        }
+      }
 
       if (availableAccounts.length === 0) {
         // 提供更详细的错误信息
@@ -926,8 +986,16 @@ class UnifiedOpenAIScheduler {
   }
 
   // 👥 从分组中选择账户
-  async selectAccountFromGroup(groupId, sessionHash = null, requestedModel = null) {
+  async selectAccountFromGroup(
+    groupId,
+    sessionHash = null,
+    requestedModel = null,
+    _apiKeyData = null,
+    options = {}
+  ) {
     try {
+      // 带 previous_response_id 的 HTTP 请求只能选 API key 上游
+      const requireApiKeyUpstream = options.requireApiKeyUpstream === true
       // 获取分组信息
       const group = await accountGroupService.getGroup(groupId)
       if (!group) {
@@ -947,7 +1015,16 @@ class UnifiedOpenAIScheduler {
       // 如果有会话哈希，检查是否有已映射的账户
       if (sessionHash) {
         const mappedAccount = await this._getSessionMapping(sessionHash)
-        if (mappedAccount) {
+        if (
+          mappedAccount &&
+          requireApiKeyUpstream &&
+          mappedAccount.accountType !== CONTINUATION_ACCOUNT_TYPE
+        ) {
+          // 与共享池一致：保留粘性映射，仅本次续链请求绕开。
+          logger.info(
+            `↪️ Sticky ${mappedAccount.accountType} account skipped for previous_response_id continuation in group ${groupId}`
+          )
+        } else if (mappedAccount) {
           // 验证映射的账户是否仍然可用并且在分组中
           const isInGroup = await this._isAccountInGroup(mappedAccount.accountId, groupId)
           if (isInGroup) {
@@ -990,6 +1067,14 @@ class UnifiedOpenAIScheduler {
         if (!account) {
           account = await openaiResponsesAccountService.getAccount(memberId)
           accountType = 'openai-responses'
+        }
+
+        // 续链请求只保留 API key 上游成员，其余成员跳过而不是删字段降级。
+        if (requireApiKeyUpstream && accountType !== CONTINUATION_ACCOUNT_TYPE) {
+          logger.debug(
+            `⏭️ Skipping group member ${accountType} account ${memberId} - previous_response_id requires API-key upstream`
+          )
+          continue
         }
 
         if (
@@ -1060,6 +1145,12 @@ class UnifiedOpenAIScheduler {
       }
 
       if (availableAccounts.length === 0) {
+        if (requireApiKeyUpstream) {
+          logger.warn(
+            `⚠️ Group ${group.name} has no API-key upstream for previous_response_id continuation`
+          )
+          throw continuationUnsupportedError()
+        }
         const error = new Error(`No available accounts in group ${group.name}`)
         error.statusCode = 402 // Payment Required - 资源耗尽
         throw error

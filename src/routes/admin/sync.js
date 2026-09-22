@@ -13,6 +13,7 @@ const claudeConsoleAccountService = require('../../services/account/claudeConsol
 const openaiAccountService = require('../../services/account/openaiAccountService')
 const openaiResponsesAccountService = require('../../services/account/openaiResponsesAccountService')
 const logger = require('../../utils/logger')
+const { buildModelMappingFromSupportedModels } = require('../../utils/supportedModelsHelper')
 
 function toBool(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') {
@@ -47,34 +48,6 @@ function normalizeProxy(proxy) {
     username: proxy.username ? String(proxy.username) : '',
     password: proxy.password ? String(proxy.password) : ''
   }
-}
-
-function buildModelMappingFromSupportedModels(supportedModels) {
-  if (!supportedModels) {
-    return null
-  }
-
-  if (Array.isArray(supportedModels)) {
-    const mapping = {}
-    for (const model of supportedModels) {
-      if (typeof model === 'string' && model.trim()) {
-        mapping[model.trim()] = model.trim()
-      }
-    }
-    return Object.keys(mapping).length ? mapping : null
-  }
-
-  if (typeof supportedModels === 'object') {
-    const mapping = {}
-    for (const [from, to] of Object.entries(supportedModels)) {
-      if (typeof from === 'string' && typeof to === 'string' && from.trim() && to.trim()) {
-        mapping[from.trim()] = to.trim()
-      }
-    }
-    return Object.keys(mapping).length ? mapping : null
-  }
-
-  return null
 }
 
 function safeParseJson(raw, fallback = null) {

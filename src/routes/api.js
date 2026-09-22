@@ -1532,19 +1532,37 @@ router.get('/v1/models', authenticateApiKey, async (req, res) => {
     }
 
     const modelService = require('../services/modelService')
+    const modelCatalogService = require('../services/modelCatalogService')
+    const { filterModelsForApiKey } = require('../utils/modelListFilter')
+    const { getApiKeyModelScope } = require('../utils/apiKeyModelScope')
 
-    // Claude 段优先使用上游动态列表（带缓存），失败时回落 modelService 静态列表
-    const dynamicClaudeModels = await claudeAccountService.fetchAvailableModels()
-    const models = modelService.getAllModels({ claudeModels: dynamicClaudeModels })
+    // Claude / OpenAI 段优先使用模型清单服务（全局日更 + Redis 持久化，读缓存不打上游），
+    // 清单不可用时回落 modelService 静态列表
+    const [dynamicClaudeModels, dynamicOpenAIModels] = await Promise.all([
+      modelCatalogService.getClaudeModels(),
+      modelCatalogService.getOpenAIModels()
+    ])
+    const models = modelService.getAllModels({
+      claudeModels: dynamicClaudeModels,
+      openaiModels: dynamicOpenAIModels
+    })
 
-    // 可选：根据 API Key 的模型限制过滤
-    let filteredModels = models
-    if (req.apiKey.enableModelRestriction && req.apiKey.restrictedModels?.length > 0) {
-      // 将 restrictedModels 视为黑名单：过滤掉受限模型
-      filteredModels = models.filter((model) => !req.apiKey.restrictedModels.includes(model.id))
+    // 权限分段 + 账号级裁剪 + restrictedModels 黑名单
+    const accountScope = await getApiKeyModelScope(req.apiKey)
+    const { models: filteredModels, denied } = filterModelsForApiKey(models, req.apiKey, {
+      accountScope
+    })
+
+    if (denied) {
+      return res.status(403).json({
+        error: {
+          type: 'permission_error',
+          message: '此 API Key 无权访问任何模型服务'
+        }
+      })
     }
 
-    res.json({
+    return res.json({
       object: 'list',
       data: filteredModels
     })

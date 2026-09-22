@@ -1365,6 +1365,12 @@ class ClaudeAccountService {
     }
   }
 
+  // 🗑️ 清掉进程内上游清单短缓存（modelCatalogService 强制刷新时调用，
+  // 否则手动刷新拿回来的还是 1 小时内的旧值）
+  clearModelsCache() {
+    this._modelsCache = { data: null, fetchedAt: 0, failedAt: 0 }
+  }
+
   // 📋 获取所有Claude账户
   async getAllAccounts() {
     try {

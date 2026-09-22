@@ -70,19 +70,24 @@ router.get('/v1/models', authenticateApiKey, async (req, res) => {
       })
     }
 
-    // Claude 模型列表 - 优先上游动态列表，失败回落 modelService 静态 Claude 段
-    const claudeAccountService = require('../services/account/claudeAccountService')
+    // Claude 模型列表 - 优先模型清单服务，失败回落 modelService 静态 Claude 段
+    const modelCatalogService = require('../services/modelCatalogService')
     const modelService = require('../services/modelService')
-    const dynamicClaudeModels = await claudeAccountService.fetchAvailableModels()
-    let models =
+    const { filterModelsForApiKey } = require('../utils/modelListFilter')
+    const { getApiKeyModelScope } = require('../utils/apiKeyModelScope')
+
+    const dynamicClaudeModels = await modelCatalogService.getClaudeModels()
+    const baseModels =
       dynamicClaudeModels && dynamicClaudeModels.length > 0
         ? dynamicClaudeModels
         : modelService.getModelsByProvider('anthropic')
 
-    // 如果启用了模型限制，视为黑名单：过滤掉受限模型
-    if (apiKeyData.enableModelRestriction && apiKeyData.restrictedModels?.length > 0) {
-      models = models.filter((model) => !apiKeyData.restrictedModels.includes(model.id))
-    }
+    // 入口已单独校验 claude 权限，这里只做账号级裁剪 + restrictedModels 黑名单
+    const accountScope = await getApiKeyModelScope(apiKeyData)
+    const { models } = filterModelsForApiKey(baseModels, apiKeyData, {
+      accountScope,
+      skipPermissionFilter: true
+    })
 
     res.json({
       object: 'list',

@@ -1,4 +1,4 @@
-// Tests for GET /v1/models in openaiClaudeRoutes — 动态 Claude 列表 + 静态兜底 + 权限/黑名单
+// Tests for GET /v1/models in openaiClaudeRoutes — 模型清单服务 + 静态兜底 + 权限/黑名单
 
 const registeredRoutes = { get: {}, post: {} }
 const mockRouter = {
@@ -39,15 +39,15 @@ jest.mock('../src/services/pricingService', () => ({}))
 jest.mock('../src/utils/modelHelper', () => ({ getEffectiveModel: jest.fn() }))
 jest.mock('../src/utils/requestDetailHelper', () => ({ createRequestDetailMeta: jest.fn() }))
 
-jest.mock('../src/services/account/claudeAccountService', () => ({
-  fetchAvailableModels: jest.fn()
+jest.mock('../src/services/modelCatalogService', () => ({
+  getClaudeModels: jest.fn()
 }))
 jest.mock('../src/services/modelService', () => ({
   getModelsByProvider: jest.fn()
 }))
 
 const apiKeyService = require('../src/services/apiKeyService')
-const claudeAccountService = require('../src/services/account/claudeAccountService')
+const modelCatalogService = require('../src/services/modelCatalogService')
 const modelService = require('../src/services/modelService')
 require('../src/routes/openaiClaudeRoutes')
 
@@ -75,13 +75,13 @@ const STATIC_FALLBACK = [
 
 beforeEach(() => {
   apiKeyService.hasPermission.mockReset().mockReturnValue(true)
-  claudeAccountService.fetchAvailableModels.mockReset()
+  modelCatalogService.getClaudeModels.mockReset()
   modelService.getModelsByProvider.mockReset().mockReturnValue(STATIC_FALLBACK)
 })
 
 describe('GET /v1/models (openai-compatible)', () => {
-  test('动态可用：返回上游列表（不再仅两个老模型）', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue([
+  test('清单可用：返回清单服务的列表（不再仅两个老模型）', async () => {
+    modelCatalogService.getClaudeModels.mockResolvedValue([
       { id: 'claude-fable-5', object: 'model', created: 2, owned_by: 'anthropic' },
       { id: 'claude-opus-4-8', object: 'model', created: 2, owned_by: 'anthropic' }
     ])
@@ -95,8 +95,8 @@ describe('GET /v1/models (openai-compatible)', () => {
     expect(res.body.object).toBe('list')
   })
 
-  test('动态不可用：回落静态 Claude 列表（非原两条）', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue(null)
+  test('清单不可用：回落静态 Claude 列表', async () => {
+    modelCatalogService.getClaudeModels.mockResolvedValue(null)
 
     const res = createResponse()
     await handler()({ apiKey: { permissions: ['claude'] } }, res)
@@ -105,18 +105,18 @@ describe('GET /v1/models (openai-compatible)', () => {
     expect(modelService.getModelsByProvider).toHaveBeenCalledWith('anthropic')
   })
 
-  test('权限不足返回 403', async () => {
+  test('权限不足返回 403，且不读清单', async () => {
     apiKeyService.hasPermission.mockReturnValue(false)
 
     const res = createResponse()
     await handler()({ apiKey: { permissions: [] } }, res)
 
     expect(res.statusCode).toBe(403)
-    expect(claudeAccountService.fetchAvailableModels).not.toHaveBeenCalled()
+    expect(modelCatalogService.getClaudeModels).not.toHaveBeenCalled()
   })
 
   test('黑名单过滤掉受限模型', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue([
+    modelCatalogService.getClaudeModels.mockResolvedValue([
       { id: 'claude-fable-5', object: 'model', created: 2, owned_by: 'anthropic' },
       { id: 'claude-opus-4-8', object: 'model', created: 2, owned_by: 'anthropic' }
     ])

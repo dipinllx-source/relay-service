@@ -1124,6 +1124,7 @@
 
         <!-- 模型价格部分 -->
         <div v-show="activeSection === 'modelPricing'">
+          <ModelCatalogSection />
           <ModelPricingSection />
         </div>
 
@@ -1738,6 +1739,7 @@ import { useSettingsStore } from '@/stores/settings'
 
 import * as httpApis from '@/utils/http_apis'
 import ConfirmModal from '@/components/common/ConfirmModal.vue'
+import ModelCatalogSection from '@/components/settings/ModelCatalogSection.vue'
 import ModelPricingSection from '@/components/settings/ModelPricingSection.vue'
 import HttpsStatusSection from '@/components/settings/HttpsStatusSection.vue'
 import StorageHealthSection from '@/components/settings/StorageHealthSection.vue'

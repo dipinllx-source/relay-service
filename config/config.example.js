@@ -87,6 +87,17 @@ const config = {
     }
   },
 
+  // 📋 模型清单（modelCatalogService）
+  models: {
+    // 上游清单全局多久拉一次（默认 24h，即「全局一天一次」）
+    catalogSuccessTtlMs:
+      parseInt(process.env.MODELS_CATALOG_SUCCESS_TTL_MS) || 24 * 60 * 60 * 1000,
+    // 拉取失败后最短重试间隔，避免上游异常时被每个请求各打一次
+    catalogFailureRetryMs: parseInt(process.env.MODELS_CATALOG_FAILURE_RETRY_MS) || 30 * 60 * 1000,
+    // models 列表端点是否按 API Key 权限分段过滤（出问题可不发版关闭）
+    enforcePermissionFilter: process.env.MODELS_ENFORCE_PERMISSION_FILTER !== 'false'
+  },
+
   // 🤖 OpenAI/Codex 调度配置
   openai: {
     // 周限用量分档档宽（百分比，1-100）：调度排序时按 codexPrimaryUsedPercent/档宽 分档，低档优先；设 100 等效关闭分档

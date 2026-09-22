@@ -12,6 +12,7 @@ const {
   sanitizeErrorMsg
 } = require('../utils/testPayloadHelper')
 const modelsConfig = require('../../config/models')
+const modelCatalogService = require('../services/modelCatalogService')
 const { getSafeMessage } = require('../utils/errorSanitizer')
 
 const { apiStatsRateLimit } = require('../middleware/securityHardening')
@@ -21,10 +22,10 @@ const router = express.Router()
 // 🛡️ [SECHARDEN] 全模块 IP 限流，防枚举/滥用
 router.use(apiStatsRateLimit)
 
-// 📋 获取动态 Claude 模型选项（上游实时列表，失败返回 null 由调用处静态兜底）
+// 📋 获取动态 Claude 模型选项（读模型清单服务，失败返回 null 由调用处静态兜底）
 async function getDynamicClaudeModelOptions() {
   try {
-    const dynamicModels = await claudeAccountService.fetchAvailableModels()
+    const dynamicModels = await modelCatalogService.getClaudeModels()
     if (dynamicModels && dynamicModels.length > 0) {
       return dynamicModels.map((m) => ({ value: m.id, label: m.display_name || m.id }))
     }
@@ -34,10 +35,10 @@ async function getDynamicClaudeModelOptions() {
   return null
 }
 
-// 📋 获取动态 OpenAI/Codex 模型选项（上游实时列表，失败返回 null 由调用处静态兜底）
+// 📋 获取动态 OpenAI/Codex 模型选项（读模型清单服务，失败返回 null 由调用处静态兜底）
 async function getDynamicOpenAIModelOptions() {
   try {
-    const dynamicModels = await openaiAccountService.fetchAvailableModels()
+    const dynamicModels = await modelCatalogService.getOpenAIModels()
     if (dynamicModels && dynamicModels.length > 0) {
       return dynamicModels.map((m) => ({ value: m.id, label: m.display_name || m.id }))
     }

@@ -381,4 +381,45 @@ router.post('/codex-client-version/clear', authenticateAdmin, async (req, res) =
   }
 })
 
+// ==================== 模型清单管理 ====================
+// 清单全局每天拉一次上游（懒触发 + Redis 时间戳节流，无定时器）。
+// 这里提供只读查看与手动强制刷新入口。
+
+const modelCatalogService = require('../../services/modelCatalogService')
+
+// 获取完整模型清单（含模型数组）
+router.get('/models/catalog', authenticateAdmin, async (req, res) => {
+  try {
+    const data = await modelCatalogService.getCatalog()
+    res.json({ success: true, data })
+  } catch (error) {
+    logger.error('Failed to get model catalog:', error)
+    res.status(500).json({ error: 'Failed to get model catalog', message: error.message })
+  }
+})
+
+// 获取清单元信息（条数/来源/更新时间/上次错误）
+router.get('/models/catalog/status', authenticateAdmin, async (req, res) => {
+  try {
+    const data = await modelCatalogService.getStatus()
+    res.json({ success: true, data })
+  } catch (error) {
+    logger.error('Failed to get model catalog status:', error)
+    res.status(500).json({ error: 'Failed to get model catalog status', message: error.message })
+  }
+})
+
+// 强制刷新清单（跳过日限流，仍走分布式锁防连点）
+router.post('/models/catalog/refresh', authenticateAdmin, async (req, res) => {
+  try {
+    const results = await modelCatalogService.refresh({ force: true, trigger: 'admin' })
+    const status = await modelCatalogService.getStatus()
+    logger.info('🔄 Admin forced model catalog refresh')
+    res.json({ success: true, data: { results, status } })
+  } catch (error) {
+    logger.error('Failed to refresh model catalog:', error)
+    res.status(500).json({ error: 'Failed to refresh model catalog', message: error.message })
+  }
+})
+
 module.exports = router

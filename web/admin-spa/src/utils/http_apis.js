@@ -11,6 +11,13 @@ export const getModelPricingStatusApi = () =>
 export const refreshModelPricingApi = () =>
   request({ url: '/admin/models/pricing/refresh', method: 'POST' })
 
+// 模型清单管理（上游模型列表：全局日更 + 手动强制刷新）
+export const getModelCatalogApi = () => request({ url: '/admin/models/catalog', method: 'GET' })
+export const getModelCatalogStatusApi = () =>
+  request({ url: '/admin/models/catalog/status', method: 'GET' })
+export const refreshModelCatalogApi = () =>
+  request({ url: '/admin/models/catalog/refresh', method: 'POST' })
+
 // API Stats
 export const getKeyIdApi = (apiKey) =>
   request({ url: '/apiStats/api/get-key-id', method: 'POST', data: { apiKey } })

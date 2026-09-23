@@ -24,7 +24,7 @@ class ClaudeCodeHeadersService {
       'x-stainless-runtime-version': 'v26.3.0',
       'anthropic-dangerous-direct-browser-access': 'true',
       'x-app': 'cli',
-      'user-agent': 'claude-cli/2.1.259 (external, cli)'
+      'user-agent': 'claude-cli/2.1.280 (external, cli)'
     }
 
     // 需要捕获的 Claude Code 特定 headers

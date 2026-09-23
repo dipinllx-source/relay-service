@@ -9,6 +9,8 @@ const mockRouter = {
     registeredRoutes.post[path] = handlers[handlers.length - 1]
   })
 }
+// apiStats.js 顶部会调用 router.use(apiStatsRateLimit)，mock 需要提供 use
+mockRouter.use = jest.fn()
 
 jest.mock('express', () => ({ Router: () => mockRouter }))
 
@@ -23,10 +25,13 @@ jest.mock('../src/utils/logger', () => ({
 jest.mock('../src/models/redis', () => ({}))
 jest.mock('../src/services/apiKeyService', () => ({}))
 jest.mock('../src/utils/costCalculator', () => ({}))
-jest.mock('../src/services/account/claudeAccountService', () => ({
-  fetchAvailableModels: jest.fn()
-}))
+jest.mock('../src/services/account/claudeAccountService', () => ({}))
 jest.mock('../src/services/account/openaiAccountService', () => ({}))
+// /models 现在读模型清单服务（modelCatalogService），不再直接调 claudeAccountService.fetchAvailableModels
+jest.mock('../src/services/modelCatalogService', () => ({
+  getClaudeModels: jest.fn(),
+  getOpenAIModels: jest.fn()
+}))
 jest.mock('../src/services/serviceRatesService', () => ({}))
 jest.mock('../src/utils/testPayloadHelper', () => ({
   createClaudeTestPayload: jest.fn(),
@@ -37,7 +42,7 @@ jest.mock('../src/utils/errorSanitizer', () => ({
   getSafeMessage: jest.fn((e) => e?.message || 'error')
 }))
 
-const claudeAccountService = require('../src/services/account/claudeAccountService')
+const modelCatalogService = require('../src/services/modelCatalogService')
 const { CLAUDE_MODELS } = require('../config/models')
 require('../src/routes/apiStats')
 
@@ -61,12 +66,15 @@ function createResponse() {
 const handler = () => registeredRoutes.get['/models']
 
 beforeEach(() => {
-  claudeAccountService.fetchAvailableModels.mockReset()
+  modelCatalogService.getClaudeModels.mockReset()
+  modelCatalogService.getOpenAIModels.mockReset()
+  // OpenAI 段默认走静态兜底，本文件只关注 Claude 段
+  modelCatalogService.getOpenAIModels.mockResolvedValue(null)
 })
 
 describe('GET /apiStats/models', () => {
   test('动态数据可用时 Claude 段使用上游列表（含 platforms.claude）', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue([
+    modelCatalogService.getClaudeModels.mockResolvedValue([
       { id: 'claude-fable-5', display_name: 'Claude Fable 5' }
     ])
 
@@ -81,7 +89,7 @@ describe('GET /apiStats/models', () => {
   })
 
   test('动态数据不可用时降级为静态列表，行为与变更前一致', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue(null)
+    modelCatalogService.getClaudeModels.mockResolvedValue(null)
 
     const res = createResponse()
     await handler()({ query: {} }, res)
@@ -91,8 +99,8 @@ describe('GET /apiStats/models', () => {
     expect(res.body.data.claudeSource).toBe('fallback')
   })
 
-  test('fetchAvailableModels 抛异常时仍返回静态列表', async () => {
-    claudeAccountService.fetchAvailableModels.mockRejectedValue(new Error('boom'))
+  test('getClaudeModels 抛异常时仍返回静态列表', async () => {
+    modelCatalogService.getClaudeModels.mockRejectedValue(new Error('boom'))
 
     const res = createResponse()
     await handler()({ query: {} }, res)
@@ -102,7 +110,7 @@ describe('GET /apiStats/models', () => {
   })
 
   test('?service=claude 分支优先动态列表', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue([{ id: 'claude-fable-5' }])
+    modelCatalogService.getClaudeModels.mockResolvedValue([{ id: 'claude-fable-5' }])
 
     const res = createResponse()
     await handler()({ query: { service: 'claude' } }, res)
@@ -111,7 +119,7 @@ describe('GET /apiStats/models', () => {
   })
 
   test('?service=gemini 分支不受动态 Claude 影响', async () => {
-    claudeAccountService.fetchAvailableModels.mockResolvedValue([{ id: 'claude-fable-5' }])
+    modelCatalogService.getClaudeModels.mockResolvedValue([{ id: 'claude-fable-5' }])
 
     const res = createResponse()
     await handler()({ query: { service: 'gemini' } }, res)

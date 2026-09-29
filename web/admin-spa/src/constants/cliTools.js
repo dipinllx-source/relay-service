@@ -5,6 +5,7 @@
  * 四处各自硬编码一份，key / name / icon 完全一致，仅前两者额外带教程组件。
  * 拆成两个导出，避免只需要元信息的对外页把四个教程组件一并打进 chunk。
  */
+import OpenClawTutorial from '@/components/tutorial/OpenClawTutorial.vue'
 import ClaudeCodeTutorial from '@/components/tutorial/ClaudeCodeTutorial.vue'
 import CodexTutorial from '@/components/tutorial/CodexTutorial.vue'
 import GeminiCliTutorial from '@/components/tutorial/GeminiCliTutorial.vue'
@@ -12,6 +13,7 @@ import DroidCliTutorial from '@/components/tutorial/DroidCliTutorial.vue'
 
 /** 仅元信息：供只渲染工具入口、不渲染教程正文的页面使用 */
 export const cliToolsMeta = [
+  { key: 'openclaw', name: 'OpenClaw', icon: 'fas fa-shrimp' },
   { key: 'claude-code', name: 'Claude Code', icon: 'fas fa-robot' },
   { key: 'codex', name: 'Codex', icon: 'fas fa-code' },
   { key: 'gemini-cli', name: 'Gemini CLI', icon: 'fab fa-google' },
@@ -19,6 +21,7 @@ export const cliToolsMeta = [
 ]
 
 const tutorialComponents = {
+  openclaw: OpenClawTutorial,
   'claude-code': ClaudeCodeTutorial,
   codex: CodexTutorial,
   'gemini-cli': GeminiCliTutorial,

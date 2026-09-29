@@ -67,7 +67,7 @@ const route = useRoute()
 const demoBodyRef = ref(null)
 
 const activeTutorialSystem = ref('windows')
-const activeCliTool = ref('claude-code')
+const activeCliTool = ref(cliTools[0].key)
 
 const tutorialSystems = [
   { key: 'windows', name: 'Windows', icon: 'fab fa-windows' },

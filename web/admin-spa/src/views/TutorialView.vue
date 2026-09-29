@@ -68,7 +68,7 @@ import { enhanceTutorialCommandBoxes } from '@/utils/tutorialCommandCopy'
 const activeTutorialSystem = ref('windows')
 
 // 当前 CLI 工具选择
-const activeCliTool = ref('claude-code')
+const activeCliTool = ref(cliTools[0].key)
 const tutorialBodyRef = ref(null)
 
 // 系统列表

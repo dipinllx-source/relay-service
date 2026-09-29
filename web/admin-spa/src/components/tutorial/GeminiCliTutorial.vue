@@ -14,8 +14,42 @@
         >
         配置 Gemini CLI 环境变量
       </h4>
-      <p class="mb-3 text-sm text-gray-700 dark:text-gray-300 sm:mb-4 sm:text-base">
-        设置以下环境变量以连接到中转服务：
+      <TutorialApiKeyInput>
+        <strong>方式一：一键配置（推荐）。</strong>脚本会把中转地址、API Key
+        和默认模型写成用户级环境变量（{{
+          platform === 'windows' ? 'setx' : rcFile + ' 中带标记的一段'
+        }}），并在 <code>{{ geminiSettingsPath }}</code> 中选定 API Key
+        认证方式；重复执行只更新这一段，原文件备份为 <code>.bak</code>。
+      </TutorialApiKeyInput>
+      <div
+        class="mb-4 rounded-lg border border-green-200 bg-white p-3 dark:border-green-700 dark:bg-gray-800 sm:mb-6 sm:p-4"
+      >
+        <h6 class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-300 sm:text-base">
+          一键配置脚本
+        </h6>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          模型：<code>{{ geminiModel }}</code
+          >，地址：<code>{{ geminiBaseUrl }}</code
+          >。在 {{ shellName }} 中整段粘贴执行：
+        </p>
+        <div class="tutorial-command-box">
+          <div
+            v-for="(line, index) in oneClickLines"
+            :key="`gemini-${index}`"
+            class="whitespace-nowrap text-gray-300"
+          >
+            {{ line }}
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          💡 执行后<strong>重新打开一个{{ shellName }}窗口</strong>再运行
+          <code>gemini</code>。首次在某个目录使用时 Gemini CLI 会询问是否信任该目录；非交互验证可用
+          <code>gemini --skip-trust -p "你好"</code>。
+        </p>
+      </div>
+
+      <p class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300 sm:mb-4 sm:text-base">
+        方式二：手动设置环境变量
       </p>
 
       <div class="space-y-4">
@@ -36,7 +70,7 @@
               </div>
               <div class="whitespace-nowrap text-gray-300">$env:GEMINI_API_KEY = "你的API密钥"</div>
               <div class="whitespace-nowrap text-gray-300">
-                $env:GEMINI_MODEL = "gemini-2.5-pro"
+                $env:GEMINI_MODEL = "{{ geminiModel }}"
               </div>
             </div>
             <p class="mt-2 text-xs text-yellow-700 dark:text-yellow-400">
@@ -65,7 +99,7 @@
                 [System.EnvironmentVariableTarget]::User)
               </div>
               <div class="whitespace-nowrap text-gray-300">
-                [System.Environment]::SetEnvironmentVariable("GEMINI_MODEL", "gemini-2.5-pro",
+                [System.Environment]::SetEnvironmentVariable("GEMINI_MODEL", "{{ geminiModel }}",
                 [System.EnvironmentVariableTarget]::User)
               </div>
             </div>
@@ -156,10 +190,14 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useTutorialUrls } from '@/utils/useTutorialUrls'
+import { filterModels, tutorialApiKey, useRelayModels } from '@/utils/useTutorialShared'
+import { buildGeminiScript } from '@/utils/tutorialConfigScripts'
 import NodeInstallTutorial from './NodeInstallTutorial.vue'
+import TutorialApiKeyInput from './TutorialApiKeyInput.vue'
 
-defineProps({
+const props = defineProps({
   platform: {
     type: String,
     required: true,
@@ -168,4 +206,23 @@ defineProps({
 })
 
 const { geminiBaseUrl } = useTutorialUrls()
+
+const relayModels = useRelayModels()
+const geminiModel = computed(
+  () => filterModels(relayModels.gemini, /^gemini-/, [{ value: 'gemini-2.5-pro' }])[0].value
+)
+
+const shellName = computed(() => (props.platform === 'windows' ? 'PowerShell' : '终端'))
+const rcFile = computed(() => (props.platform === 'macos' ? '~/.zshrc' : '~/.bashrc'))
+const geminiSettingsPath = computed(() =>
+  props.platform === 'windows' ? '%USERPROFILE%\\.gemini\\settings.json' : '~/.gemini/settings.json'
+)
+
+const oneClickLines = computed(() =>
+  buildGeminiScript(props.platform, {
+    baseUrl: geminiBaseUrl.value,
+    apiKey: tutorialApiKey.value,
+    model: geminiModel.value
+  })
+)
 </script>

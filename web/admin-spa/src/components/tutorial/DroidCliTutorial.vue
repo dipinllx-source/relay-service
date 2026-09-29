@@ -14,6 +14,38 @@
         >
         配置 Droid CLI
       </h4>
+      <TutorialApiKeyInput>
+        <strong>方式一：一键配置（推荐）。</strong>脚本会在 <code>{{ droidSettingsPath }}</code> 的
+        <code>customModels</code> 中添加（或更新）指向本服务的 Claude 与 GPT
+        自定义模型；其他模型和设置保持不变，原文件备份为 <code>.bak</code>。
+      </TutorialApiKeyInput>
+      <div
+        class="mb-4 rounded-lg border border-blue-200 bg-white p-3 dark:border-blue-700 dark:bg-gray-800 sm:mb-6 sm:p-4"
+      >
+        <h6 class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-300 sm:text-base">
+          一键配置脚本
+        </h6>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          在 {{ shellName }} 中整段粘贴执行：
+        </p>
+        <div class="tutorial-command-box">
+          <div
+            v-for="(line, index) in oneClickLines"
+            :key="`droid-${index}`"
+            class="whitespace-nowrap text-gray-300"
+          >
+            {{ line }}
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          💡 输出 <code>Updated ...</code> 即写入成功；启动 <code>droid</code> 后用
+          <code>/model</code> 选择带 <code>[crs]</code> 后缀的自定义模型。
+        </p>
+      </div>
+
+      <p class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300 sm:mb-4 sm:text-base">
+        方式二：手动编辑配置文件
+      </p>
       <p class="mb-3 text-sm text-gray-700 dark:text-gray-300 sm:mb-4 sm:text-base">
         Droid CLI 使用
         <code class="rounded bg-gray-100 px-1 dark:bg-gray-800">~/.factory/config.json</code>
@@ -59,9 +91,12 @@
 <script setup>
 import { computed } from 'vue'
 import { useTutorialUrls } from '@/utils/useTutorialUrls'
+import { tutorialApiKey } from '@/utils/useTutorialShared'
+import { buildDroidScript } from '@/utils/tutorialConfigScripts'
 import NodeInstallTutorial from './NodeInstallTutorial.vue'
+import TutorialApiKeyInput from './TutorialApiKeyInput.vue'
 
-defineProps({
+const props = defineProps({
   platform: {
     type: String,
     required: true,
@@ -70,6 +105,35 @@ defineProps({
 })
 
 const { droidClaudeBaseUrl, droidOpenaiBaseUrl } = useTutorialUrls()
+
+const shellName = computed(() => (props.platform === 'windows' ? 'PowerShell' : '终端'))
+const droidSettingsPath = computed(() =>
+  props.platform === 'windows'
+    ? '%USERPROFILE%\\.factory\\settings.json'
+    : '~/.factory/settings.json'
+)
+
+const oneClickLines = computed(() =>
+  buildDroidScript(props.platform, {
+    apiKey: tutorialApiKey.value,
+    models: [
+      {
+        model: 'claude-sonnet-4-5-20250929',
+        displayName: 'Sonnet 4.5 [crs]',
+        baseUrl: droidClaudeBaseUrl.value,
+        provider: 'anthropic',
+        maxOutputTokens: 8192
+      },
+      {
+        model: 'gpt-5-codex',
+        displayName: 'GPT5-Codex [crs]',
+        baseUrl: droidOpenaiBaseUrl.value,
+        provider: 'openai',
+        maxOutputTokens: 16384
+      }
+    ]
+  })
+)
 
 const droidCliConfigLines = computed(() => [
   '{',

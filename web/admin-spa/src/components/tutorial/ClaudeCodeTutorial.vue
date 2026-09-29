@@ -126,8 +126,43 @@
           class="tutorial-step-marker mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-xs font-bold text-white sm:mr-3 sm:h-8 sm:w-8 sm:text-sm"
           >3</span
         >
-        设置环境变量
+        配置中转服务
       </h4>
+
+      <TutorialApiKeyInput>
+        <strong>方式一：一键配置（推荐）。</strong>脚本会把中转地址和 API Key 写入
+        <code>{{ claudeSettingsPath }}</code> 的
+        <code>env</code>，并跳过首次登录引导；只更新这几项， 保留你已有的其他设置，原文件备份为
+        <code>.bak</code>。
+      </TutorialApiKeyInput>
+      <div
+        class="mb-4 rounded-lg border border-purple-200 bg-white p-3 dark:border-purple-700 dark:bg-gray-800 sm:mb-6 sm:p-4"
+      >
+        <h6 class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-300 sm:text-base">
+          一键配置脚本
+        </h6>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          在 {{ shellName }} 中整段粘贴执行：
+        </p>
+        <div class="tutorial-command-box">
+          <div
+            v-for="(line, index) in oneClickLines"
+            :key="`claude-code-${index}`"
+            class="whitespace-nowrap text-gray-300"
+          >
+            {{ line }}
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          💡 输出 <code>Updated ...</code> 即写入成功，重新打开终端后运行
+          <code>claude -p "你好"</code> 验证。该方式写入配置文件而不是环境变量，下方的
+          <code>echo</code> 验证不会显示这些值。
+        </p>
+      </div>
+
+      <p class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300 sm:text-base">
+        方式二：手动设置环境变量
+      </p>
 
       <div
         class="mb-4 rounded-xl border border-purple-100 bg-gradient-to-r from-purple-50 to-pink-50 p-4 dark:border-purple-500/40 dark:from-purple-950/30 dark:to-pink-950/30 sm:mb-6 sm:p-6"
@@ -628,7 +663,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useTutorialUrls } from '@/utils/useTutorialUrls'
+import { tutorialApiKey } from '@/utils/useTutorialShared'
+import { buildClaudeCodeScript } from '@/utils/tutorialConfigScripts'
 import NodeInstallTutorial from './NodeInstallTutorial.vue'
+import TutorialApiKeyInput from './TutorialApiKeyInput.vue'
 
 const props = defineProps({
   platform: {
@@ -639,6 +677,19 @@ const props = defineProps({
 })
 
 const { currentBaseUrl, ipv6CurrentBaseUrl } = useTutorialUrls()
+
+const shellName = computed(() => (props.platform === 'windows' ? 'PowerShell' : '终端'))
+
+const claudeSettingsPath = computed(() =>
+  props.platform === 'windows' ? '%USERPROFILE%\\.claude\\settings.json' : '~/.claude/settings.json'
+)
+
+const oneClickLines = computed(() =>
+  buildClaudeCodeScript(props.platform, {
+    baseUrl: currentBaseUrl.value,
+    apiKey: tutorialApiKey.value
+  })
+)
 
 const platformName = computed(() => {
   const names = { windows: 'Windows', macos: 'macOS', linux: 'Linux / WSL2' }

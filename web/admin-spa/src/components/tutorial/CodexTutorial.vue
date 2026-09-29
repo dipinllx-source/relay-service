@@ -130,8 +130,39 @@
         >
         配置 Codex
       </h4>
-      <p class="mb-3 text-sm text-gray-700 dark:text-gray-300 sm:mb-4 sm:text-base">
-        配置 Codex 以连接到中转服务：
+      <TutorialApiKeyInput>
+        <strong>方式一：一键配置（推荐）。</strong>脚本会更新 <code>{{ configPath }}</code> 中与
+        <code>crs</code> 相关的配置项、把 API Key 写入 <code>{{ authPath }}</code
+        >；你已有的其他配置（如 MCP、审批策略）保持不变，原文件备份为 <code>.bak</code>。
+      </TutorialApiKeyInput>
+      <div
+        class="mb-4 rounded-lg border border-indigo-200 bg-white p-3 dark:border-indigo-700 dark:bg-gray-800 sm:mb-6 sm:p-4"
+      >
+        <h6 class="mb-2 text-sm font-medium text-gray-800 dark:text-gray-300 sm:text-base">
+          一键配置脚本
+        </h6>
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          模型：<code>{{ codexModel }}</code
+          >，地址：<code>{{ openaiBaseUrl }}</code
+          >。在 {{ shellName }} 中整段粘贴执行：
+        </p>
+        <div class="tutorial-command-box">
+          <div
+            v-for="(line, index) in oneClickLines"
+            :key="`codex-${index}`"
+            class="whitespace-nowrap text-gray-300"
+          >
+            {{ line }}
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          💡 输出 <code>Updated ...</code> 即写入成功，运行
+          <code>codex exec "用一句话介绍当前项目"</code> 验证。
+        </p>
+      </div>
+
+      <p class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300 sm:mb-4 sm:text-base">
+        方式二：手动配置
       </p>
 
       <div class="space-y-4">
@@ -449,7 +480,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useTutorialUrls } from '@/utils/useTutorialUrls'
+import { filterModels, tutorialApiKey, useRelayModels } from '@/utils/useTutorialShared'
+import { buildCodexScript } from '@/utils/tutorialConfigScripts'
 import NodeInstallTutorial from './NodeInstallTutorial.vue'
+import TutorialApiKeyInput from './TutorialApiKeyInput.vue'
 
 const props = defineProps({
   platform: {
@@ -460,6 +494,21 @@ const props = defineProps({
 })
 
 const { openaiBaseUrl, ipv6OpenaiBaseUrl } = useTutorialUrls()
+
+const relayModels = useRelayModels()
+const codexModel = computed(
+  () => filterModels(relayModels.openai, /^gpt-/, [{ value: 'gpt-5.4' }])[0].value
+)
+
+const shellName = computed(() => (props.platform === 'windows' ? 'PowerShell' : '终端'))
+
+const oneClickLines = computed(() =>
+  buildCodexScript(props.platform, {
+    baseUrl: openaiBaseUrl.value,
+    apiKey: tutorialApiKey.value,
+    model: codexModel.value
+  })
+)
 
 const platformName = computed(() => {
   const names = { windows: 'Windows', macos: 'macOS', linux: 'Linux / WSL2' }
@@ -480,7 +529,7 @@ const authPath = computed(() =>
 
 const configTomlLines = computed(() => [
   'model_provider = "crs"',
-  'model = "gpt-5.4"',
+  `model = "${codexModel.value}"`,
   'disable_response_storage = true',
   'preferred_auth_method = "apikey"',
   '',

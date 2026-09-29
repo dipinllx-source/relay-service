@@ -200,32 +200,16 @@
         配置 Claude / GPT 模型
       </h4>
 
-      <div
-        class="mb-4 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 p-4 dark:border-indigo-500/40 dark:from-indigo-950/30 dark:to-blue-950/30 sm:mb-6 sm:p-6"
-      >
-        <p class="mb-3 text-sm text-gray-700 dark:text-gray-300 sm:text-base">
+      <TutorialApiKeyInput :placeholder="API_KEY_PLACEHOLDER">
+        <p class="text-sm text-gray-700 dark:text-gray-300 sm:text-base">
           下面的脚本会把 API Key 写入
           <code>{{ envPath }}</code>
           ，并在 OpenClaw 配置中添加指向本服务的模型。配置文件里只保存
           <code>${...}</code>
-          变量引用，不保存明文密钥；重复执行只会更新本服务这一段，不影响你已有的其他模型。
+          变量引用，不保存明文密钥；重复执行只会更新本服务这一段，不影响你已有的其他模型。 Claude 与
+          GPT 可以使用同一把 Key。
         </p>
-        <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          你的 API Key（可选，仅用于在本页生成脚本，不会上传）
-        </label>
-        <input
-          v-model.trim="apiKey"
-          autocomplete="off"
-          class="form-input-md mb-2 w-full"
-          placeholder="cr_xxxxxxxxxxxxxxxxxx"
-          spellcheck="false"
-          type="password"
-        />
-        <p class="text-xs text-gray-600 dark:text-gray-400">
-          💡 不填写时脚本中显示为「{{ API_KEY_PLACEHOLDER }}」，复制后请替换为在 "API Keys"
-          中创建的实际密钥。Claude 与 GPT 可以使用同一把 Key。
-        </p>
-      </div>
+      </TutorialApiKeyInput>
 
       <div
         class="mb-4 rounded-lg border border-orange-200 bg-white p-3 dark:border-orange-700 dark:bg-gray-800 sm:mb-6 sm:p-4"
@@ -514,7 +498,9 @@ import {
   buildGptScriptLines,
   pickModels
 } from '@/utils/openclawTutorialScripts'
+import { tutorialApiKey } from '@/utils/useTutorialShared'
 import NodeInstallTutorial from './NodeInstallTutorial.vue'
+import TutorialApiKeyInput from './TutorialApiKeyInput.vue'
 
 const props = defineProps({
   platform: {
@@ -530,7 +516,7 @@ let cachedModels = null
 const { currentBaseUrl } = useTutorialUrls()
 const gptBaseUrl = computed(() => `${currentBaseUrl.value}/v1`)
 
-const apiKey = ref('')
+const apiKey = tutorialApiKey
 const claudeModels = ref(cachedModels?.claude || DEFAULT_CLAUDE_MODELS)
 const gptModels = ref(cachedModels?.gpt || DEFAULT_GPT_MODELS)
 

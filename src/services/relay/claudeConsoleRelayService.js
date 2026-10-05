@@ -1,3 +1,4 @@
+const { USER_AGENT: CLAUDE_CODE_USER_AGENT } = require('../../utils/claudeCodeIdentity')
 const axios = require('axios')
 const { v4: uuidv4 } = require('uuid')
 const claudeConsoleAccountService = require('../account/claudeConsoleAccountService')
@@ -410,7 +411,7 @@ function transformBodyForClaudeCode(body) {
 
 class ClaudeConsoleRelayService {
   constructor() {
-    this.defaultUserAgent = 'claude-cli/2.1.212 (external, cli)'
+    this.defaultUserAgent = CLAUDE_CODE_USER_AGENT
   }
 
   // 🚀 转发请求到Claude Console API

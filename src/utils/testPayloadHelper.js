@@ -1,3 +1,4 @@
+const { USER_AGENT: CLAUDE_CODE_USER_AGENT } = require('./claudeCodeIdentity')
 const crypto = require('crypto')
 const { mapToErrorCode } = require('./errorSanitizer')
 
@@ -145,7 +146,7 @@ async function sendStreamTestRequest(options) {
     headers: {
       'Content-Type': 'application/json',
       'anthropic-version': '2023-06-01',
-      'User-Agent': 'claude-cli/2.1.212 (external, cli)',
+      'User-Agent': CLAUDE_CODE_USER_AGENT,
       ...(authorization ? { authorization } : {}),
       ...extraHeaders
     },

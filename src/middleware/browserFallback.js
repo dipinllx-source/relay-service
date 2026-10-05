@@ -1,3 +1,4 @@
+const { USER_AGENT: CLAUDE_CODE_USER_AGENT } = require('../utils/claudeCodeIdentity')
 const logger = require('../utils/logger')
 
 /**
@@ -46,7 +47,7 @@ const browserFallbackMiddleware = (req, res, next) => {
     req.originalUserAgent = userAgent
 
     // 🆕 关键修改：伪装成claude-cli请求以绕过客户端限制
-    req.headers['user-agent'] = 'claude-cli/2.1.212 (external, cli, browser-fallback)'
+    req.headers['user-agent'] = CLAUDE_CODE_USER_AGENT
 
     // 确保设置正确的认证头
     if (!req.headers['authorization'] && apiKeyHeader) {

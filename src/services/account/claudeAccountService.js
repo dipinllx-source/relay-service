@@ -1,3 +1,4 @@
+const { USER_AGENT: CLAUDE_CODE_USER_AGENT } = require('../../utils/claudeCodeIdentity')
 const { v4: uuidv4 } = require('uuid')
 const crypto = require('crypto')
 const ProxyHelper = require('../../utils/proxyHelper')
@@ -705,7 +706,7 @@ class ClaudeAccountService {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json, text/plain, */*',
-        'User-Agent': 'claude-cli/2.1.212 (external, cli)',
+        'User-Agent': CLAUDE_CODE_USER_AGENT,
         'Accept-Language': 'en-US,en;q=0.9',
         Referer: 'https://claude.ai/',
         Origin: 'https://claude.ai'
@@ -1056,7 +1057,7 @@ class ClaudeAccountService {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json, text/plain, */*',
-          'User-Agent': 'claude-cli/2.1.212 (external, cli)',
+          'User-Agent': CLAUDE_CODE_USER_AGENT,
           'Accept-Language': 'en-US,en;q=0.9',
           Referer: 'https://claude.ai/',
           Origin: 'https://claude.ai'
@@ -2917,7 +2918,7 @@ class ClaudeAccountService {
           'Content-Type': 'application/json',
           Accept: 'application/json',
           'anthropic-beta': 'oauth-2025-04-20',
-          'User-Agent': 'claude-cli/2.1.212 (external, cli)',
+          'User-Agent': CLAUDE_CODE_USER_AGENT,
           'Accept-Language': 'en-US,en;q=0.9'
         },
         timeout: 15000
@@ -3102,7 +3103,7 @@ class ClaudeAccountService {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'User-Agent': 'claude-cli/2.1.212 (external, cli)',
+          'User-Agent': CLAUDE_CODE_USER_AGENT,
           'Accept-Language': 'en-US,en;q=0.9'
         },
         timeout: 15000

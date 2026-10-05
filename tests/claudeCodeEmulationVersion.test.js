@@ -1,12 +1,12 @@
 /**
  * Claude Code emulation 版本一致性回归测试
  *
- * 验证目标（对齐真实 CLI v2.1.280）：
- *   1. claudeCodeHeadersService.defaultHeaders 的 user-agent 声明版本 = 2.1.280
- *   2. claudeRelayService 导出的 CLAUDE_CODE_EMULATION_VERSION = 2.1.280，
+ * 验证目标（对齐真实 CLI v2.1.285）：
+ *   1. claudeCodeHeadersService.defaultHeaders 的 user-agent 声明版本 = 2.1.285
+ *   2. claudeRelayService 导出的 CLAUDE_CODE_EMULATION_VERSION = 2.1.285，
  *      且与 defaultHeaders 的 UA 版本严格一致（避免 x-stainless / UA / cc_version 错位）
  *   3. _injectDynamicBillingHeader 注入的 system[0] 形如
- *      `x-anthropic-billing-header: cc_version=2.1.280.<3位hex>; cc_entrypoint=cli;`
+ *      `x-anthropic-billing-header: cc_version=2.1.285.<3位hex>; cc_entrypoint=sdk-cli;`
  *      且不带 cch= 字段
  *   4. cc_version 指纹后缀随首条 user 文本变化、同文本下稳定
  */
@@ -67,9 +67,9 @@ jest.mock('../src/utils/performanceOptimizer', () => ({
 const claudeRelayService = require('../src/services/relay/claudeRelayService')
 const claudeCodeHeadersService = require('../src/services/claudeCodeHeadersService')
 
-const EXPECTED_VERSION = '2.1.280'
+const EXPECTED_VERSION = '2.1.285'
 const BILLING_RE =
-  /^x-anthropic-billing-header: cc_version=(\d+\.\d+\.\d+)\.([0-9a-f]{3}); cc_entrypoint=cli;$/
+  /^x-anthropic-billing-header: cc_version=(\d+\.\d+\.\d+)\.([0-9a-f]{3}); cc_entrypoint=sdk-cli;$/
 
 const buildBody = (firstUserText) => ({
   model: 'claude-sonnet-4-6',
@@ -77,10 +77,10 @@ const buildBody = (firstUserText) => ({
   system: [{ type: 'text', text: 'existing system block' }]
 })
 
-describe('Claude Code emulation version (v2.1.280)', () => {
-  it('defaultHeaders user-agent declares claude-cli/2.1.280', () => {
+describe('Claude Code emulation version (v2.1.285)', () => {
+  it('defaultHeaders user-agent declares claude-cli/2.1.285', () => {
     const ua = claudeCodeHeadersService.defaultHeaders['user-agent']
-    expect(ua).toBe(`claude-cli/${EXPECTED_VERSION} (external, cli)`)
+    expect(ua).toBe(`claude-cli/${EXPECTED_VERSION} (external, sdk-cli)`)
     expect(claudeCodeHeadersService.extractVersionFromUserAgent(ua)).toBe(EXPECTED_VERSION)
   })
 
@@ -97,7 +97,7 @@ describe('Claude Code emulation version (v2.1.280)', () => {
     ).toBe(0)
   })
 
-  it('injects a 2.1.280 dynamic billing header as system[0] without cch field', () => {
+  it('injects a 2.1.285 dynamic billing header as system[0] without cch field', () => {
     const body = buildBody('hello from a regression test payload')
 
     claudeRelayService._injectDynamicBillingHeader(body)
@@ -147,4 +147,94 @@ describe('Claude Code emulation version (v2.1.280)', () => {
     )
     expect(prev.fp === a1.fp && prev.cch === a1.cch).toBe(false)
   })
+})
+
+describe('prepared request identity isolation', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  it.each([false, true])('pins emulation with unified UA, stream=%s', async (isStream) => {
+    for (const unified of [null, 'claude-cli/9.9.9 (external, cli)']) {
+      for (const cachedVersion of ['2.1.212', EXPECTED_VERSION, '9.9.9']) {
+        jest.spyOn(claudeRelayService, 'captureAndGetUnifiedUserAgent').mockResolvedValue(unified)
+        jest.spyOn(claudeCodeHeadersService, 'getAccountHeaders').mockResolvedValue({
+          'user-agent': `claude-cli/${cachedVersion} (external, cli)`,
+          'x-stainless-package-version': 'stale-sdk'
+        })
+        const body = buildBody('Reply OK')
+        claudeRelayService._injectDynamicBillingHeader(body)
+        const result = await claudeRelayService._prepareRequestHeadersAndPayload(
+          body,
+          { 'user-agent': 'third-party/1', 'X-Stainless-Runtime-Version': 'stale-runtime' },
+          'fake-account',
+          'offline-dummy',
+          { account: {}, requestOptions: { isRealClaudeCodeRequest: false }, isStream }
+        )
+        expect(result.emulationApplied).toBe(true)
+        expect(result.headers['User-Agent']).toBe(
+          `claude-cli/${EXPECTED_VERSION} (external, sdk-cli)`
+        )
+        expect(result.headers['x-stainless-package-version']).toBe('0.127.0')
+        expect(result.headers['x-stainless-runtime-version']).toBe('v26.3.0')
+        expect(result.headers['user-agent']).toBeUndefined()
+        expect(result.headers['X-Stainless-Runtime-Version']).toBeUndefined()
+        expect(result.requestPayload.system[0].text).toMatch(BILLING_RE)
+        expect(JSON.parse(result.bodyString)).toEqual(result.requestPayload)
+      }
+    }
+  })
+
+  it.each([false, true])('preserves non-emulation unified UA behavior, real=%s', async (real) => {
+    for (const isStream of [false, true]) {
+      for (const unified of [null, 'claude-cli/9.9.9 (external, cli)']) {
+        jest.spyOn(claudeRelayService, 'captureAndGetUnifiedUserAgent').mockResolvedValue(unified)
+        const cache = jest.spyOn(claudeCodeHeadersService, 'getAccountHeaders')
+        const result = await claudeRelayService._prepareRequestHeadersAndPayload(
+          buildBody('hello'),
+          { 'user-agent': 'client-original/1' },
+          'fake-account',
+          'offline-dummy',
+          {
+            account: { enableThirdPartyToolEmulation: real ? 'true' : 'false' },
+            requestOptions: { isRealClaudeCodeRequest: real },
+            isStream
+          }
+        )
+        expect(result.emulationApplied).toBe(false)
+        expect(result.headers['User-Agent']).toBe(
+          unified || `claude-cli/${EXPECTED_VERSION} (external, sdk-cli)`
+        )
+        expect(cache).not.toHaveBeenCalled()
+      }
+    }
+  })
+})
+
+describe('unified UA switch with isolated Redis', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  it.each(['false', 'true'])(
+    'keeps canonical emulation when unified=%s',
+    async (useUnifiedUserAgent) => {
+      const redis = require('../src/models/redis')
+      redis.client = {
+        get: jest.fn().mockResolvedValue('claude-cli/9.9.9 (external, cli)'),
+        expire: jest.fn(),
+        setex: jest.fn()
+      }
+      jest.spyOn(claudeCodeHeadersService, 'getAccountHeaders').mockResolvedValue({
+        ...claudeCodeHeadersService.defaultHeaders
+      })
+      const result = await claudeRelayService._prepareRequestHeadersAndPayload(
+        buildBody('Reply OK'),
+        { 'user-agent': 'third-party/1' },
+        'fake-account',
+        'offline-dummy',
+        { account: { useUnifiedUserAgent }, requestOptions: { isRealClaudeCodeRequest: false } }
+      )
+      expect(result.headers['User-Agent']).toBe(
+        claudeCodeHeadersService.defaultHeaders['user-agent']
+      )
+      expect(redis.client.get).toHaveBeenCalledTimes(useUnifiedUserAgent === 'true' ? 1 : 0)
+    }
+  )
 })

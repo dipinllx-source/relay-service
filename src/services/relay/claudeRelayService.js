@@ -27,7 +27,11 @@ const {
 } = require('../../utils/performanceOptimizer')
 
 // 🔢 emulation 对齐的真实 Claude Code CLI 版本（UA / cc_version 指纹统一来源，升级只改这里）
-const CLAUDE_CODE_EMULATION_VERSION = '2.1.280'
+const {
+  VERSION: CLAUDE_CODE_EMULATION_VERSION,
+  ENTRYPOINT: CLAUDE_CODE_ENTRYPOINT,
+  USER_AGENT: CLAUDE_CODE_USER_AGENT
+} = require('../../utils/claudeCodeIdentity')
 
 // structuredClone polyfill for Node < 17
 const safeClone =
@@ -1634,8 +1638,8 @@ class ClaudeRelayService {
     return { fp: digest.slice(0, 3), cch: digest.slice(3, 8) }
   }
 
-  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.280 形态）：
-  //   x-anthropic-billing-header: cc_version=2.1.280.{fp}; cc_entrypoint=cli;
+  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.285 形态）：
+  //   x-anthropic-billing-header: cc_version=2.1.285.{fp}; cc_entrypoint=sdk-cli;
   // 必须在 _removeBillingHeaderFromSystem 之后调用，避免被误剥离。
   _injectDynamicBillingHeader(body) {
     if (!body) {
@@ -1646,7 +1650,7 @@ class ClaudeRelayService {
     // P0: removed cch= field (new CLI versions no longer send it)
     const billingEntry = {
       type: 'text',
-      text: `x-anthropic-billing-header: cc_version=${version}.${fp}; cc_entrypoint=cli;`
+      text: `x-anthropic-billing-header: cc_version=${version}.${fp}; cc_entrypoint=${CLAUDE_CODE_ENTRYPOINT};`
     }
     if (Array.isArray(body.system)) {
       body.system.unshift(billingEntry)
@@ -1815,7 +1819,7 @@ class ClaudeRelayService {
     this._removeBillingHeaderFromSystem(processedBody)
 
     // 💳 emulation：在剥离客户端 billing 之后，注入本服务动态派生的 billing header 作为 system[0]，
-    // 对齐真实 CLI v2.1.280（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
+    // 对齐真实 CLI v2.1.285（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
     if (shouldEmulate) {
       this._injectDynamicBillingHeader(processedBody)
     }
@@ -2554,7 +2558,7 @@ class ClaudeRelayService {
     if (shouldEmulate) {
       // P2：emulation 只发送精确、版本自洽的 CLI header 集合。
       // 优先使用账号 Redis 缓存中「与当前声明 UA 同版本」的真实抓取 headers；
-      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.280 抓包字节对齐）。
+      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.285 抓包字节对齐）。
       // 关键：不沿用旧版本缓存（避免 x-stainless 与 UA 版本错位），也不保留客户端多余头。
       const declaredVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
         claudeCodeHeadersService.defaultHeaders['user-agent']
@@ -2563,9 +2567,12 @@ class ClaudeRelayService {
       const cachedVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
         cachedHeaders && cachedHeaders['user-agent']
       )
-      // 仅当缓存版本恰好等于当前声明版本时才采用缓存（真实同版本抓取），否则用 default。
+      // Accept cached headers only when the entire captured identity matches, including entrypoint.
       const emulationHeaders =
-        cachedVersion && declaredVersion && cachedVersion === declaredVersion
+        cachedVersion === declaredVersion &&
+        Object.entries(claudeCodeHeadersService.defaultHeaders).every(
+          ([key, value]) => cachedHeaders?.[key] === value
+        )
           ? cachedHeaders
           : claudeCodeHeadersService.defaultHeaders
 
@@ -2581,13 +2588,19 @@ class ClaudeRelayService {
         'sec-ch-ua-platform',
         'x-stainless-helper-method'
       ]
-      LEAK_HEADERS.forEach((k) => {
-        delete finalHeaders[k]
-        delete finalHeaders[k.toLowerCase()]
+      Object.keys(finalHeaders).forEach((key) => {
+        if (
+          LEAK_HEADERS.includes(key.toLowerCase()) ||
+          CLI_HEADER_KEYS.includes(key.toLowerCase())
+        ) {
+          delete finalHeaders[key]
+        }
       })
       CLI_HEADER_KEYS.forEach((key) => {
-        if (emulationHeaders[key] !== undefined) {
-          finalHeaders[key] = emulationHeaders[key]
+        delete finalHeaders[key]
+        const value = emulationHeaders[key] ?? claudeCodeHeadersService.defaultHeaders[key]
+        if (value !== undefined) {
+          finalHeaders[key] = value
         }
       })
     }
@@ -2645,9 +2658,8 @@ class ClaudeRelayService {
 
     // 使用统一 User-Agent 或客户端提供的，最后使用默认值
     const userAgent =
-      unifiedUA ||
-      headers['user-agent'] ||
-      `claude-cli/${CLAUDE_CODE_EMULATION_VERSION} (external, cli)`
+      (shouldEmulate ? CLAUDE_CODE_USER_AGENT : unifiedUA || headers['user-agent']) ||
+      CLAUDE_CODE_USER_AGENT
     const acceptHeader = headers['accept'] || 'application/json'
     delete headers['user-agent']
     delete headers['accept']

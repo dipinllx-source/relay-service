@@ -3,6 +3,7 @@
  * 负责存储和管理不同账号使用的 Claude Code headers
  */
 
+const { DEFAULT_HEADERS } = require('../utils/claudeCodeIdentity')
 const redis = require('../models/redis')
 const logger = require('../utils/logger')
 const {
@@ -13,19 +14,7 @@ const {
 
 class ClaudeCodeHeadersService {
   constructor() {
-    this.defaultHeaders = {
-      'x-stainless-retry-count': '0',
-      'x-stainless-timeout': '600',
-      'x-stainless-lang': 'js',
-      'x-stainless-package-version': '0.112.1',
-      'x-stainless-os': 'Linux',
-      'x-stainless-arch': 'x64',
-      'x-stainless-runtime': 'node',
-      'x-stainless-runtime-version': 'v26.3.0',
-      'anthropic-dangerous-direct-browser-access': 'true',
-      'x-app': 'cli',
-      'user-agent': 'claude-cli/2.1.280 (external, cli)'
-    }
+    this.defaultHeaders = { ...DEFAULT_HEADERS }
 
     // 需要捕获的 Claude Code 特定 headers
     this.claudeCodeHeaderKeys = [
@@ -39,7 +28,7 @@ class ClaudeCodeHeadersService {
       'x-stainless-runtime-version',
       'anthropic-dangerous-direct-browser-access',
       'x-app',
-      'user-agent',
+      'user-agent'
       // 注意：不捕获 accept-encoding / accept-language / sec-fetch-mode（真 CLI 不带）
     ]
 

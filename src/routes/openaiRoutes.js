@@ -14,6 +14,7 @@ const crypto = require('crypto')
 const ProxyHelper = require('../utils/proxyHelper')
 const codexClientVersion = require('../utils/codexClientVersion')
 const { detectCodexClient } = require('../utils/codexClientIdentity')
+const modelCatalogService = require('../services/modelCatalogService')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const { IncrementalSSEParser } = require('../utils/sseParser')
 const { getSafeMessage } = require('../utils/errorSanitizer')
@@ -946,6 +947,91 @@ router.post('/v1/responses', authenticateApiKey, handleResponses)
 router.post('/responses/compact', authenticateApiKey, handleResponses)
 router.post('/v1/responses/compact', authenticateApiKey, handleResponses)
 
+// Codex 原生模型目录：供 Codex CLI/App 的 model_catalog_url 使用。
+// Codex 对自定义 provider 不会请求 {base_url}/models，只认显式配置的 model_catalog_url，
+// 且要求 {"models":[ModelInfo...]} 原生格式（slug/推理档位/提示词模板等），OpenAI 风格的 {id} 列表不可用。
+// 这里输出上游 /backend-api/codex/models 的原样条目，只按请求方版本与 Key 的模型限制裁剪。
+async function handleCodexModelCatalog(req, res) {
+  try {
+    const apiKeyData = req.apiKey
+    if (!checkOpenAIPermissions(apiKeyData)) {
+      logger.security(
+        `🚫 API Key ${apiKeyData?.id || 'unknown'} 缺少 OpenAI 权限，拒绝访问 ${req.originalUrl}`
+      )
+      return res.status(403).json({
+        error: {
+          message: 'This API key does not have permission to access OpenAI',
+          type: 'permission_denied',
+          code: 'permission_denied'
+        }
+      })
+    }
+
+    // 与 /responses 一致：从真实 Codex 流量（含 Codex Desktop）学习客户端版本，供上游清单拉取使用
+    const userAgent = req.headers['user-agent'] || ''
+    if (detectCodexClient(req.headers)?.version) {
+      codexClientVersion.captureClientVersionFromUserAgent(userAgent).catch((error) => {
+        logger.debug(`ℹ️ Skipped Codex client version capture: ${error.message}`)
+      })
+    }
+
+    const catalog = await modelCatalogService.getCodexModels()
+    if (!catalog) {
+      return res.status(503).json({
+        error: {
+          message: 'Codex model catalog is temporarily unavailable',
+          type: 'api_error',
+          code: 'model_catalog_unavailable'
+        }
+      })
+    }
+
+    let models = catalog.filter((m) => m && typeof m.slug === 'string')
+
+    // 复刻上游的版本门控：低版本客户端看不到要求更高版本的模型
+    const requestedVersion =
+      typeof req.query?.client_version === 'string' ? req.query.client_version.trim() : ''
+    if (requestedVersion) {
+      models = models.filter(
+        (m) =>
+          !m.minimal_client_version ||
+          codexClientVersion.compareSemanticVersions(requestedVersion, m.minimal_client_version) >=
+            0
+      )
+    }
+
+    // restrictedModels 黑名单，与其他 models 端点同语义（原生条目按 slug 匹配）
+    if (
+      apiKeyData?.enableModelRestriction &&
+      Array.isArray(apiKeyData.restrictedModels) &&
+      apiKeyData.restrictedModels.length > 0
+    ) {
+      models = models.filter((m) => !apiKeyData.restrictedModels.includes(m.slug))
+    }
+
+    const body = JSON.stringify({ models })
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex').slice(0, 32)}"`
+    res.setHeader('ETag', etag)
+    res.setHeader('Cache-Control', 'private, max-age=300')
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end()
+    }
+    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    return res.status(200).send(body)
+  } catch (error) {
+    logger.error('Failed to serve Codex model catalog:', error)
+    return res.status(500).json({
+      error: {
+        message: 'Failed to retrieve Codex model catalog',
+        type: 'api_error'
+      }
+    })
+  }
+}
+
+router.get('/codex/models', authenticateApiKey, handleCodexModelCatalog)
+router.get('/v1/codex/models', authenticateApiKey, handleCodexModelCatalog)
+
 // 使用情况统计端点
 router.get('/usage', authenticateApiKey, async (req, res) => {
   try {
@@ -1012,4 +1098,5 @@ router.get('/key-info', authenticateApiKey, async (req, res) => {
 
 module.exports = router
 module.exports.handleResponses = handleResponses
+module.exports.handleCodexModelCatalog = handleCodexModelCatalog
 module.exports.CODEX_CLI_INSTRUCTIONS = CODEX_CLI_INSTRUCTIONS

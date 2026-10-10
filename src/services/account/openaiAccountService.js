@@ -1238,6 +1238,9 @@ const CODEX_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models'
 const MODELS_SUCCESS_TTL_MS = 60 * 60 * 1000
 const MODELS_FAILURE_TTL_MS = 60 * 1000
 const _modelsCache = { data: null, fetchedAt: 0, failedAt: 0, clientVersion: null }
+// Codex 原生目录（完整 ModelInfo，未裁剪字段）：与 _modelsCache 同一次上游请求写入，
+// 供 GET /openai/codex/models 输出给 Codex 客户端的 model_catalog_url 使用
+const _nativeModelsCache = { data: null, fetchedAt: 0, clientVersion: null }
 
 // 选一张可用于拉取清单的账户（可用性判定与调度口径保持一致）
 async function _pickAccountForModelFetch() {
@@ -1360,6 +1363,12 @@ async function fetchAvailableModels() {
     _modelsCache.failedAt = 0
     _modelsCache.clientVersion = clientVersion
 
+    _nativeModelsCache.data = rawModels.filter(
+      (m) => m && typeof m.slug === 'string' && m.slug.length > 0
+    )
+    _nativeModelsCache.fetchedAt = now
+    _nativeModelsCache.clientVersion = clientVersion
+
     // 无法从响应判断清单是否完整，故把版本与条数一并记录，便于事后核对是否缩水
     logger.info(
       `📋 Fetched ${models.length} Codex models from upstream ` +
@@ -1379,7 +1388,8 @@ function getModelsCacheInfo() {
     count: _modelsCache.data ? _modelsCache.data.length : 0,
     fetchedAt: _modelsCache.fetchedAt ? new Date(_modelsCache.fetchedAt).toISOString() : null,
     failedAt: _modelsCache.failedAt ? new Date(_modelsCache.failedAt).toISOString() : null,
-    clientVersion: _modelsCache.clientVersion
+    clientVersion: _modelsCache.clientVersion,
+    nativeCount: _nativeModelsCache.data ? _nativeModelsCache.data.length : 0
   }
 }
 
@@ -1388,6 +1398,35 @@ function clearModelsCache() {
   _modelsCache.fetchedAt = 0
   _modelsCache.failedAt = 0
   _modelsCache.clientVersion = null
+  _nativeModelsCache.data = null
+  _nativeModelsCache.fetchedAt = 0
+  _nativeModelsCache.clientVersion = null
+}
+
+function _isNativeModelsCacheFresh() {
+  return (
+    Array.isArray(_nativeModelsCache.data) &&
+    _nativeModelsCache.data.length > 0 &&
+    Date.now() - _nativeModelsCache.fetchedAt < MODELS_SUCCESS_TTL_MS
+  )
+}
+
+/**
+ * 获取上游 Codex 原生模型目录（完整 ModelInfo，字段原样保留）
+ * 与 fetchAvailableModels 共用同一次上游请求与缓存，正常情况下不会额外打上游。
+ * @returns {Promise<Array<object>|null>} null 表示上游当前不可用
+ */
+async function fetchCodexNativeModels() {
+  if (_isNativeModelsCacheFresh()) {
+    return _nativeModelsCache.data
+  }
+  // 简表缓存仍新鲜而原生缓存缺失时（如简表由旧代码写入），让简表一起失效以强制走上游
+  if (_modelsCache.data) {
+    _modelsCache.data = null
+    _modelsCache.fetchedAt = 0
+  }
+  await fetchAvailableModels()
+  return _isNativeModelsCacheFresh() ? _nativeModelsCache.data : null
 }
 
 module.exports = {
@@ -1412,6 +1451,7 @@ module.exports = {
   decrypt,
   encryptor, // 暴露加密器以便测试和监控
   fetchAvailableModels,
+  fetchCodexNativeModels,
   getModelsCacheInfo,
   clearModelsCache,
   isSubscriptionExpired

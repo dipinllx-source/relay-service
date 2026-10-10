@@ -21,6 +21,10 @@ const logger = require('../utils/logger')
 const config = require('../../config/config')
 
 const SEGMENTS = ['claude', 'openai']
+// codex 段：Codex 原生目录（完整 ModelInfo），供 GET /openai/codex/models。
+// 不放进 SEGMENTS —— 管理台的清单展示按 {id} 简表渲染；但刷新默认带上它，
+// 保证管理台「强制刷新」时一并更新。
+const REFRESH_SEGMENTS = [...SEGMENTS, 'codex']
 const CATALOG_KEY_PREFIX = 'models:catalog:'
 const LOCK_KEY = 'models:catalog:lock'
 const LOCK_TTL_SECONDS = 120
@@ -68,11 +72,19 @@ class ModelCatalogService {
     if (segment === 'openai') {
       return require('./account/openaiAccountService').fetchAvailableModels()
     }
+    if (segment === 'codex') {
+      return require('./account/openaiAccountService').fetchCodexNativeModels()
+    }
     throw new Error(`Unknown model catalog segment: ${segment}`)
   }
 
   // 手动强制刷新时，必须先清掉 account service 自带的短缓存，否则拿回的还是旧值
   _clearUpstreamCache(segment) {
+    // codex 段与 openai 段共用同一次上游请求：强制刷新时 openai 段已先清过缓存并重新拉取，
+    // 这里再清一次只会多打一次上游
+    if (segment === 'codex') {
+      return
+    }
     try {
       const service =
         segment === 'claude'
@@ -190,13 +202,42 @@ class ModelCatalogService {
   }
 
   /**
+   * Codex 原生目录
+   * Redis 中还没有记录（首次使用）时同步等待一次刷新，避免 Codex 客户端第一次拉取就拿到空目录；
+   * 之后与其他段一致：过期后台刷新、请求路径不阻塞。
+   * @param {object} [options]
+   * @param {number} [options.waitMs] - 首次同步等待上限
+   * @returns {Promise<Array|null>}
+   */
+  async getCodexModels({ waitMs = 25000 } = {}) {
+    const models = await this.getModels('codex')
+    if (models) {
+      return models
+    }
+
+    const pending =
+      this._inFlight.get('codex') || this.refresh({ segments: ['codex'], trigger: 'first-use' })
+    let timer = null
+    await Promise.race([
+      Promise.resolve(pending).catch(() => {}),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, waitMs)
+      })
+    ])
+    clearTimeout(timer)
+
+    const record = await this._readRecord('codex', { allowMemory: false })
+    return Array.isArray(record?.models) && record.models.length > 0 ? record.models : null
+  }
+
+  /**
    * 刷新清单
    * @param {object} [options]
    * @param {string[]} [options.segments] - 要刷新的段，默认全部
    * @param {boolean} [options.force] - 跳过成功/失败节流（管理台手动刷新用），仍然走锁
    * @param {string} [options.trigger] - 触发来源，仅用于记录
    */
-  async refresh({ segments = SEGMENTS, force = false, trigger = 'manual' } = {}) {
+  async refresh({ segments = REFRESH_SEGMENTS, force = false, trigger = 'manual' } = {}) {
     const results = {}
     for (const segment of segments) {
       results[segment] = await this._refreshSegment(segment, { force, trigger })

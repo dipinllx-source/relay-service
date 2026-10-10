@@ -20,6 +20,7 @@
 const axios = require('axios')
 const redis = require('../models/redis')
 const logger = require('./logger')
+const { parseCodexUserAgent } = require('./codexClientIdentity')
 
 // Redis 键
 const LEARNED_KEY = 'codex_client_version:learned'
@@ -38,11 +39,11 @@ const FLOOR_VERSION = process.env.CODEX_CLIENT_VERSION_FLOOR || '0.144.5'
 const NPM_LATEST_URL = 'https://registry.npmjs.org/@openai/codex/latest'
 const NPM_TIMEOUT_MS = 8000
 
-// Codex 客户端 UA 形如：
+// Codex 客户端 UA 解析见 ./codexClientIdentity（CODEX_UA_PATTERN），形如：
 //   codex_exec/0.144.5 (Mac OS 26.2.0; arm64) xterm-256color
 //   codex_cli_rs/0.38.0 (Ubuntu 22.4.0; x86_64) WindowsTerminal
 //   codex_vscode/0.35.0 (Windows 10.0.26100; x86_64) unknown
-const CODEX_UA_PATTERN = /^(?:codex_vscode|codex_cli_rs|codex_exec)\/([\w.-]+)/i
+//   Codex Desktop/0.162.0-alpha.17.2 (Mac OS 26.5.2; arm64) unknown (Codex Desktop; 26.1007.21159)
 
 function getRedisClient() {
   try {
@@ -58,27 +59,82 @@ function getRedisClient() {
   return null
 }
 
+function parseVersionParts(version) {
+  // 去掉构建元数据（+xxx），再拆出预发布段（-alpha.17.2）
+  const withoutBuild = String(version || '')
+    .trim()
+    .split('+')[0]
+  const dashIndex = withoutBuild.indexOf('-')
+  const core = dashIndex === -1 ? withoutBuild : withoutBuild.slice(0, dashIndex)
+  const prerelease = dashIndex === -1 ? '' : withoutBuild.slice(dashIndex + 1)
+  return {
+    core: core.split('.').map((part) => parseInt(part, 10) || 0),
+    prerelease: prerelease ? prerelease.split('.') : []
+  }
+}
+
+function comparePrereleaseIdentifiers(a, b) {
+  const aNumeric = /^\d+$/.test(a)
+  const bNumeric = /^\d+$/.test(b)
+  if (aNumeric && bNumeric) {
+    return Math.sign(parseInt(a, 10) - parseInt(b, 10))
+  }
+  // semver：数字标识符低于字母数字标识符
+  if (aNumeric !== bNumeric) {
+    return aNumeric ? -1 : 1
+  }
+  if (a === b) {
+    return 0
+  }
+  return a < b ? -1 : 1
+}
+
 /**
- * 比较语义版本号
+ * 比较语义版本号（按 semver 处理预发布后缀）
+ *
+ * Codex Desktop 的 UA 版本常带预发布后缀（如 0.162.0-alpha.17.2）。必须让
+ * 预发布版低于同号正式版，否则学习到 alpha 后正式版会被视为"降级"而被拒收。
  * @returns {number} 1 表示 v1 > v2，-1 表示 v1 < v2，0 表示相等
  */
 function compareSemanticVersions(version1, version2) {
   if (version1 === version2) {
     return 0
   }
-  const arr1 = String(version1 || '').split('.')
-  const arr2 = String(version2 || '').split('.')
-  const len = Math.max(arr1.length, arr2.length)
+  const v1 = parseVersionParts(version1)
+  const v2 = parseVersionParts(version2)
 
-  for (let i = 0; i < len; i++) {
-    // parseInt 会忽略预发布后缀（如 "0-alpha" → 0），足以满足门控比较需求
-    const n1 = parseInt(arr1[i], 10) || 0
-    const n2 = parseInt(arr2[i], 10) || 0
-    if (n1 > n2) {
+  const coreLength = Math.max(v1.core.length, v2.core.length)
+  for (let i = 0; i < coreLength; i++) {
+    const n1 = v1.core[i] || 0
+    const n2 = v2.core[i] || 0
+    if (n1 !== n2) {
+      return n1 > n2 ? 1 : -1
+    }
+  }
+
+  // 主版本号相同：正式版 > 预发布版
+  const pre1 = v1.prerelease
+  const pre2 = v2.prerelease
+  if (pre1.length === 0 && pre2.length === 0) {
+    return 0
+  }
+  if (pre1.length === 0) {
+    return 1
+  }
+  if (pre2.length === 0) {
+    return -1
+  }
+  const preLength = Math.max(pre1.length, pre2.length)
+  for (let i = 0; i < preLength; i++) {
+    if (pre1[i] === undefined) {
+      return -1
+    }
+    if (pre2[i] === undefined) {
       return 1
     }
-    if (n1 < n2) {
-      return -1
+    const result = comparePrereleaseIdentifiers(pre1[i], pre2[i])
+    if (result !== 0) {
+      return result
     }
   }
   return 0
@@ -92,8 +148,8 @@ function extractCodexVersionFromUserAgent(userAgent) {
   if (!userAgent || typeof userAgent !== 'string') {
     return null
   }
-  const match = userAgent.match(CODEX_UA_PATTERN)
-  return match ? match[1] : null
+  const parsed = parseCodexUserAgent(userAgent)
+  return parsed ? parsed.version : null
 }
 
 /**

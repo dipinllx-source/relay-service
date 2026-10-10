@@ -1,5 +1,6 @@
 const logger = require('../../utils/logger')
 const { CLIENT_DEFINITIONS } = require('../clientDefinitions')
+const { parseCodexUserAgent, normalizeOriginator } = require('../../utils/codexClientIdentity')
 
 /**
  * Codex CLI 验证器
@@ -43,8 +44,9 @@ class CodexCliValidator {
       // - codex_vscode/0.35.0 (Windows 10.0.26100; x86_64) unknown (Cursor; 0.4.10)
       // - codex_cli_rs/0.38.0 (Ubuntu 22.4.0; x86_64) WindowsTerminal
       // - codex_exec/0.89.0 (Mac OS 26.2.0; arm64) xterm-256color (非交互式/脚本模式)
-      const codexCliPattern = /^(codex_vscode|codex_cli_rs|codex_exec)\/[\d.]+/i
-      const uaMatch = userAgent.match(codexCliPattern)
+      // - Codex Desktop/0.162.0-alpha.17.2 (Mac OS 26.5.2; arm64) unknown (Codex Desktop; 26.1007.21159)
+      // 口径与 handleResponses 一致，统一由 utils/codexClientIdentity 解析
+      const uaMatch = parseCodexUserAgent(userAgent)
 
       if (!uaMatch) {
         logger.debug(`Codex CLI validation failed - UA mismatch: ${userAgent}`)
@@ -64,8 +66,8 @@ class CodexCliValidator {
       }
 
       // 3. 验证 originator 头必须与 UA 中的客户端类型匹配
-      const clientType = uaMatch[1].toLowerCase()
-      if (originator.toLowerCase() !== clientType) {
+      const { clientType } = uaMatch
+      if (normalizeOriginator(originator) !== clientType) {
         logger.debug(
           `Codex CLI validation failed - originator mismatch. UA: ${clientType}, originator: ${originator}`
         )

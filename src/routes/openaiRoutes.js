@@ -13,6 +13,7 @@ const redis = require('../models/redis')
 const crypto = require('crypto')
 const ProxyHelper = require('../utils/proxyHelper')
 const codexClientVersion = require('../utils/codexClientVersion')
+const { detectCodexClient } = require('../utils/codexClientIdentity')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const { IncrementalSSEParser } = require('../utils/sseParser')
 const { getSafeMessage } = require('../utils/errorSanitizer')
@@ -307,15 +308,16 @@ const handleResponses = async (req, res) => {
 
     const isStream = req.body?.stream !== false // 默认为流式（兼容现有行为）
 
-    // 判断是否为 Codex CLI 的请求（基于 User-Agent）
-    // 支持: codex_vscode, codex_cli_rs, codex_exec (非交互式/脚本模式)
+    // 判断是否为 Codex 官方客户端的请求（User-Agent 前缀或 originator 头）
+    // 支持: codex_cli_rs, codex_exec (非交互式/脚本模式), codex_vscode,
+    //       Codex Desktop (ChatGPT.app 内置 Codex App)
     const userAgent = req.headers['user-agent'] || ''
-    const codexCliPattern = /^(codex_vscode|codex_cli_rs|codex_exec)\/[\d.]+/i
-    const isCodexCLI = codexCliPattern.test(userAgent)
+    const codexClient = detectCodexClient(req.headers)
+    const isCodexCLI = Boolean(codexClient)
 
     // 从真实 Codex 流量学习客户端版本（单调不降），供模型清单拉取使用。
-    // 不阻塞主链路：失败仅记日志。
-    if (isCodexCLI) {
+    // 不阻塞主链路：失败仅记日志。仅 UA 带版本号时才有可学习的值。
+    if (codexClient?.version) {
       codexClientVersion.captureClientVersionFromUserAgent(userAgent).catch((error) => {
         logger.debug(`ℹ️ Skipped Codex client version capture: ${error.message}`)
       })
@@ -348,7 +350,10 @@ const handleResponses = async (req, res) => {
 
       logger.info('📝 Non-Codex CLI request detected, applying Codex CLI adaptation')
     } else {
-      logger.info('✅ Codex CLI request detected, forwarding as-is')
+      const clientLabel = codexClient
+        ? ` (${codexClient.clientType} via ${codexClient.source})`
+        : ' (unified endpoint)'
+      logger.info(`✅ Codex CLI request detected${clientLabel}, forwarding as-is`)
     }
 
     // 使用调度器选择账户

@@ -1,5 +1,5 @@
 <template>
-  <div class="mb-4 sm:mb-10 sm:mb-6">
+  <div id="tut-step-node" class="mb-4 sm:mb-10 sm:mb-6">
     <h4
       class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
     >

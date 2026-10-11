@@ -31,7 +31,7 @@
     </div>
 
     <!-- 第二步：安装 OpenClaw -->
-    <div class="mb-6 sm:mb-10">
+    <div id="tut-step-install" class="mb-6 sm:mb-10">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -162,7 +162,7 @@
     </div>
 
     <!-- 第三步：初始化 -->
-    <div class="mb-6 sm:mb-10">
+    <div id="tut-step-config" class="mb-6 sm:mb-10">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >

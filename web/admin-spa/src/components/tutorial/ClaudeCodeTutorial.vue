@@ -4,7 +4,7 @@
     <NodeInstallTutorial :platform="platform" :step-number="1" tool-name="Claude Code" />
 
     <!-- 第二步：安装 Claude Code -->
-    <div class="mb-4 sm:mb-10 sm:mb-6">
+    <div id="tut-step-install" class="mb-4 sm:mb-10 sm:mb-6">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -118,7 +118,7 @@
     </div>
 
     <!-- 第三步：设置环境变量 -->
-    <div class="mb-6 sm:mb-10">
+    <div id="tut-step-config" class="mb-6 sm:mb-10">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -393,7 +393,7 @@
     </div>
 
     <!-- 第四步：开始使用 -->
-    <div class="mb-6 sm:mb-8">
+    <div id="tut-step-usage" class="mb-6 sm:mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -511,7 +511,7 @@
     </div>
 
     <!-- 故障排除 -->
-    <div class="mb-8">
+    <div id="tut-step-faq" class="mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >

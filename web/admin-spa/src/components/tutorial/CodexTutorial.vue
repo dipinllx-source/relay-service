@@ -4,7 +4,7 @@
     <NodeInstallTutorial :platform="platform" :step-number="1" tool-name="Codex" />
 
     <!-- 第二步：安装 Codex CLI -->
-    <div class="mb-4 sm:mb-6">
+    <div id="tut-step-install" class="mb-4 sm:mb-6">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -120,7 +120,7 @@
     </div>
 
     <!-- 第三步：配置 Codex -->
-    <div class="mb-4 sm:mb-6">
+    <div id="tut-step-config" class="mb-4 sm:mb-6">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -295,7 +295,7 @@
     </div>
 
     <!-- 第四步：启动并使用 Codex -->
-    <div class="mb-6 sm:mb-8">
+    <div id="tut-step-usage" class="mb-6 sm:mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
@@ -377,8 +377,125 @@
       </div>
     </div>
 
+    <!-- 第五步：Codex Desktop 开启 Fast 模式（仅 macOS） -->
+    <div v-if="platform === 'macos'" id="tut-step-fast" class="mb-6 sm:mb-8">
+      <h4
+        class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
+      >
+        <span
+          class="tutorial-step-marker mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-500 text-xs font-bold text-white sm:mr-3 sm:h-8 sm:w-8 sm:text-sm"
+          >5</span
+        >
+        Codex Desktop 开启 Fast 模式
+      </h4>
+      <div
+        class="rounded-xl border border-yellow-100 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 dark:border-yellow-500/40 dark:from-yellow-950/30 dark:to-amber-950/30 sm:p-6"
+      >
+        <p class="mb-4 text-sm text-gray-700 dark:text-gray-300 sm:text-base">
+          Codex Desktop（ChatGPT.app）只有在登录方式为 ChatGPT 账号或 Personal Access Token
+          时才会显示闪电（Fast）开关。通过中转服务使用 API Key 登录时，开关会被隐藏。 下面的 Shim
+          脚本会拦截 Desktop 与内置 CLI 之间的通信，将登录方式改写，
+          让闪电开关重新出现。开关打开后，每个请求会携带
+          <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">service_tier: "priority"</code
+          >， 获得更快的推理速度（实测吞吐量提升约 40%）。
+        </p>
+        <div class="space-y-4">
+          <div
+            class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-500/40 dark:bg-yellow-950/30 sm:p-4"
+          >
+            <h6 class="mb-2 font-medium text-yellow-800 dark:text-yellow-300">1. 创建 Shim</h6>
+            <p class="mb-3 text-sm text-yellow-700 dark:text-yellow-300">
+              在终端中执行以下命令，创建 Shim 包装脚本和代理程序。脚本会拦截 Desktop 的
+              <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">app-server</code>
+              子进程通信，将
+              <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">authMethod</code>
+              从 apikey 改为 personalAccessToken：
+            </p>
+            <div class="tutorial-command-box">
+              <div class="mb-2"># 创建目录并下载 Shim 脚本</div>
+              <div class="whitespace-nowrap text-gray-300">mkdir -p ~/.codex/fast-shim</div>
+              <div class="mb-2 mt-2"># 创建包装脚本（codex）和代理（proxy.mjs）</div>
+              <div class="whitespace-nowrap text-gray-300">
+                curl -fsSL
+                https://raw.githubusercontent.com/dipinllx-source/relay-service/main/resources/fast-shim/codex
+                -o ~/.codex/fast-shim/codex
+              </div>
+              <div class="whitespace-nowrap text-gray-300">
+                curl -fsSL
+                https://raw.githubusercontent.com/dipinllx-source/relay-service/main/resources/fast-shim/proxy.mjs
+                -o ~/.codex/fast-shim/proxy.mjs
+              </div>
+              <div class="whitespace-nowrap text-gray-300">chmod +x ~/.codex/fast-shim/codex</div>
+            </div>
+            <p class="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
+              💡 也可以手动创建这两个文件，内容见仓库 resources/fast-shim/ 目录。
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-500/40 dark:bg-yellow-950/30 sm:p-4"
+          >
+            <h6 class="mb-2 font-medium text-yellow-800 dark:text-yellow-300">
+              2. 启用并重启 Desktop
+            </h6>
+            <div class="tutorial-command-box">
+              <div class="mb-2"># 让 Desktop 使用 Shim 作为内置 CLI</div>
+              <div class="whitespace-nowrap text-gray-300">
+                launchctl setenv CODEX_CLI_PATH ~/.codex/fast-shim/codex
+              </div>
+              <div class="mb-2 mt-2"># 完全退出 Codex Desktop（Cmd+Q），再重新打开</div>
+              <div class="mb-2 mt-2"># 在输入框旁边打开闪电开关</div>
+            </div>
+          </div>
+          <div
+            class="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-500/40 dark:bg-green-950/30 sm:p-4"
+          >
+            <h6 class="mb-2 font-medium text-green-800 dark:text-green-300">3. 验证</h6>
+            <div class="tutorial-command-box">
+              <div class="whitespace-nowrap text-gray-300">tail ~/.codex/fast-shim/shim.log</div>
+            </div>
+            <p class="mt-2 text-sm text-green-700 dark:text-green-300">
+              看到
+              <code class="rounded bg-green-100 px-1 dark:bg-green-900"
+                >rewrote getAuthStatus ... apikey-&gt;personalAccessToken</code
+              >
+              即成功。
+            </p>
+          </div>
+          <div
+            class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-500/40 dark:bg-blue-950/30 sm:p-4"
+          >
+            <h6 class="mb-2 font-medium text-blue-800 dark:text-blue-300">注意事项</h6>
+            <ul class="space-y-1 text-sm text-blue-700 dark:text-blue-300">
+              <li>
+                • <strong>重启电脑后需要重新执行</strong>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">launchctl setenv</code
+                >，再重启 Desktop。
+              </li>
+              <li>
+                • <strong>Desktop 更新后</strong>如果启动异常，先执行
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >launchctl unsetenv CODEX_CLI_PATH</code
+                >
+                关闭 Shim 排查。
+              </li>
+              <li>
+                • <strong>关闭 Fast：</strong>
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >launchctl unsetenv CODEX_CLI_PATH</code
+                >
+                并重启 Desktop。
+              </li>
+              <li>
+                • <strong>计费：</strong>开启 Fast 后按 priority 档位计费，约为标准价的 2 倍。
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 故障排除 -->
-    <div class="mb-8">
+    <div id="tut-step-faq" class="mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >

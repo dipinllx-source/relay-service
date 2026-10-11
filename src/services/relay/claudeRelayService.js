@@ -19,6 +19,7 @@ const { createClaudeTestPayload } = require('../../utils/testPayloadHelper')
 const userMessageQueueService = require('../userMessageQueueService')
 const { isStreamWritable } = require('../../utils/streamHelper')
 const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
+const createClaudeSseDiagnostics = require('../../utils/claudeSseDiagnostics')
 const metadataUserIdHelper = require('../../utils/metadataUserIdHelper')
 const {
   getHttpsAgentForStream,
@@ -3719,6 +3720,7 @@ class ClaudeRelayService {
         }
 
         let buffer = ''
+        const sseDiagnostics = createClaudeSseDiagnostics(logger, accountId)
         const allUsageData = [] // 收集所有的usage事件
         let currentUsageData = {} // 当前正在收集的usage数据
         let rateLimitDetected = false // 限流检测标志
@@ -3746,6 +3748,8 @@ class ClaudeRelayService {
           })
           dataSource = res.pipe(decompressStream)
         }
+
+        sseDiagnostics.watch(res, dataSource, req, responseStream, () => buffer)
 
         dataSource.on('data', (chunk) => {
           try {
@@ -3787,6 +3791,7 @@ class ClaudeRelayService {
                 }
                 try {
                   const data = JSON.parse(jsonStr)
+                  sseDiagnostics.event(data)
 
                   // 收集来自不同事件的usage数据
                   if (data.type === 'message_start' && data.message && data.message.usage) {
@@ -3871,8 +3876,8 @@ class ClaudeRelayService {
                     logger.warn(`🚫 Rate limit detected in stream for account ${accountId}`)
                   }
                 } catch (parseError) {
-                  // 忽略JSON解析错误，继续处理
-                  logger.debug('🔍 SSE line not JSON or no usage data:', line.slice(0, 100))
+                  // Count failures without logging potentially sensitive SSE content.
+                  sseDiagnostics.parseFailure()
                 }
               }
             }
@@ -3893,6 +3898,11 @@ class ClaudeRelayService {
         })
 
         dataSource.on('end', async () => {
+          sseDiagnostics.end(
+            buffer,
+            currentUsageData.input_tokens !== undefined &&
+              currentUsageData.output_tokens === undefined
+          )
           try {
             // 处理缓冲区中剩余的数据
             if (buffer.trim() && isStreamWritable(responseStream)) {

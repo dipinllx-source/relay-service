@@ -257,6 +257,7 @@ router.post('/claude-code-version/clear', authenticateAdmin, async (req, res) =>
 // ==================== 模型价格管理 ====================
 
 const pricingService = require('../../services/pricingService')
+const modelReleaseService = require('../../services/modelReleaseService')
 
 // 获取所有模型价格数据
 router.get('/models/pricing', authenticateAdmin, async (req, res) => {
@@ -275,6 +276,28 @@ router.get('/models/pricing', authenticateAdmin, async (req, res) => {
   }
 })
 
+// 获取官方模型价格列表（按发布日期倒序；价格取自计费实际使用的价格表）
+router.get('/models/pricing/official', authenticateAdmin, async (req, res) => {
+  try {
+    if (!pricingService.pricingData || Object.keys(pricingService.pricingData).length === 0) {
+      await pricingService.loadPricingData()
+    }
+    modelReleaseService.refreshInBackground()
+    const pricingData = pricingService.pricingData || {}
+    res.json({
+      success: true,
+      data: {
+        models: modelReleaseService.buildOfficialPriceList(pricingData),
+        totalPricingModels: Object.keys(pricingData).filter((key) => key !== 'sample_spec').length,
+        releaseSource: modelReleaseService.getStatus()
+      }
+    })
+  } catch (error) {
+    logger.error('Failed to get official model pricing:', error)
+    res.status(500).json({ error: 'Failed to get official model pricing', message: error.message })
+  }
+})
+
 // 获取价格服务状态
 router.get('/models/pricing/status', authenticateAdmin, async (req, res) => {
   try {
@@ -290,6 +313,8 @@ router.get('/models/pricing/status', authenticateAdmin, async (req, res) => {
 router.post('/models/pricing/refresh', authenticateAdmin, async (req, res) => {
   try {
     const result = await pricingService.forceUpdate()
+    // 发布日期目录一并刷新；失败不影响价格刷新结果（继续用缓存/内置快照）
+    await modelReleaseService.refresh().catch(() => {})
     res.json({ success: result.success, message: result.message })
   } catch (error) {
     logger.error('Failed to refresh pricing:', error)

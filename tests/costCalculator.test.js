@@ -155,4 +155,77 @@ describe('CostCalculator', () => {
     expect(result.debug.usedFallbackPricing).toBe(false)
     expect(result.debug.pricingSource).toBe('dynamic')
   })
+
+  it('legacy path applies service tier prices without supports_service_tier flag', () => {
+    pricingService.getModelPricing.mockReturnValue({
+      litellm_provider: 'openai',
+      input_cost_per_token: 0.000002,
+      output_cost_per_token: 0.00001,
+      cache_read_input_token_cost: 1e-7,
+      input_cost_per_token_priority: 0.000004,
+      output_cost_per_token_priority: 0.00002,
+      cache_read_input_token_cost_priority: 2e-7,
+      input_cost_per_token_above_272k_tokens: 0.000004,
+      input_cost_per_token_above_272k_tokens_priority: 0.000008,
+      output_cost_per_token_above_272k_tokens_priority: 0.00003
+    })
+
+    const usage = {
+      input_tokens: 1000,
+      output_tokens: 1000,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 1000
+    }
+
+    const standard = CostCalculator.calculateCost(usage, 'gpt-6.1-sol')
+    expect(standard.pricing.input).toBeCloseTo(2, 10)
+    expect(standard.pricing.output).toBeCloseTo(10, 10)
+    expect(standard.debug.serviceTier).toBeNull()
+
+    const priority = CostCalculator.calculateCost(usage, 'gpt-6.1-sol', 'priority')
+    expect(priority.pricing.input).toBeCloseTo(4, 10)
+    expect(priority.pricing.output).toBeCloseTo(20, 10)
+    expect(priority.pricing.cacheRead).toBeCloseTo(0.2, 10)
+    expect(priority.debug.serviceTier).toBe('priority')
+    expect(priority.costs.total).toBeCloseTo((1000 * 4 + 1000 * 20 + 1000 * 0.2) / 1e6, 12)
+
+    const fast = CostCalculator.calculateCost(usage, 'gpt-6.1-sol', 'fast')
+    expect(fast.pricing.input).toBeCloseTo(4, 10)
+
+    const longPriority = CostCalculator.calculateCost(
+      { ...usage, input_tokens: 300000 },
+      'gpt-6.1-sol',
+      'priority'
+    )
+    expect(longPriority.isLongContextRequest).toBe(true)
+    expect(longPriority.debug.longContextThreshold).toBe('272k')
+    expect(longPriority.pricing.input).toBeCloseTo(8, 10)
+    expect(longPriority.pricing.output).toBeCloseTo(30, 10)
+  })
+
+  it('passes service tier to pricingService on the detailed path', () => {
+    pricingService.calculateCost.mockReturnValue({
+      hasPricing: true,
+      isLongContextRequest: false,
+      serviceTier: 'priority',
+      longContextThreshold: null,
+      inputCost: 0.004,
+      outputCost: 0.02,
+      cacheCreateCost: 0,
+      cacheReadCost: 0,
+      totalCost: 0.024,
+      pricing: { input: 0.000004, output: 0.00002, cacheCreate: 0.000004, cacheRead: 2e-7 }
+    })
+
+    const usage = {
+      input_tokens: 1000,
+      output_tokens: 1000,
+      cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 }
+    }
+    const result = CostCalculator.calculateCost(usage, 'gpt-6.1-sol', 'priority')
+
+    expect(pricingService.calculateCost).toHaveBeenCalledWith(usage, 'gpt-6.1-sol', 'priority')
+    expect(result.debug.serviceTier).toBe('priority')
+    expect(result.costs.total).toBeCloseTo(0.024, 10)
+  })
 })

@@ -6,6 +6,8 @@ export const getModelsApi = () => request({ url: '/apiStats/models', method: 'GE
 
 // 模型价格管理
 export const getModelPricingApi = () => request({ url: '/admin/models/pricing', method: 'GET' })
+export const getOfficialModelPricingApi = () =>
+  request({ url: '/admin/models/pricing/official', method: 'GET' })
 export const getModelPricingStatusApi = () =>
   request({ url: '/admin/models/pricing/status', method: 'GET' })
 export const refreshModelPricingApi = () =>

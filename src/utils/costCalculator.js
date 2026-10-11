@@ -1,4 +1,5 @@
 const pricingService = require('../services/pricingService')
+const { resolveTokenRates } = require('./litellmPricing')
 const logger = require('./logger')
 
 const warnedDetailedPricingFallbackModels = new Set()
@@ -184,6 +185,8 @@ class CostCalculator {
         cacheWritePriceUsed: result.pricing.cacheCreate * 1000000,
         isLongContextModel: typeof model === 'string' && model.includes('[1m]'),
         isLongContextRequest: result.isLongContextRequest || false,
+        serviceTier: result.serviceTier || null,
+        longContextThreshold: result.longContextThreshold || null,
         usedFallbackPricing: false,
         pricingSource: 'dynamic'
       }
@@ -202,38 +205,25 @@ class CostCalculator {
     const pricingSource = this.getPricingSource(safeModel, pricingData)
     let pricing
     let usingDynamicPricing = false
+    let resolvedServiceTier = null
+    let longContextThreshold = null
 
     if (pricingData) {
-      const usePriority = serviceTier === 'priority' && pricingData.supports_service_tier
-
-      const inputPrice =
-        ((usePriority && pricingData.input_cost_per_token_priority) ||
-          pricingData.input_cost_per_token ||
-          0) * 1000000
-      const outputPrice =
-        ((usePriority && pricingData.output_cost_per_token_priority) ||
-          pricingData.output_cost_per_token ||
-          0) * 1000000
-      const cacheReadPrice =
-        ((usePriority && pricingData.cache_read_input_token_cost_priority) ||
-          pricingData.cache_read_input_token_cost ||
-          0) * 1000000
-
-      let cacheWritePrice = (pricingData.cache_creation_input_token_cost || 0) * 1000000
-
-      if (
-        this.isOpenAIModel(safeModel, pricingData) &&
-        !pricingData.cache_creation_input_token_cost &&
-        cacheCreateTokens > 0
-      ) {
-        cacheWritePrice = inputPrice
-      }
+      // 按 LiteLLM 规则解析单价：档位键（*_priority/*_flex/*_ultrafast）存在就用，缺失回退标准价；
+      // 非 Claude 模型按 input_cost_per_token_above_<N>k_tokens 选择长上下文价格
+      const rates = resolveTokenRates(pricingData, {
+        modelName: safeModel,
+        promptTokens: inputTokens + cacheCreateTokens + cacheReadTokens,
+        serviceTier
+      })
+      resolvedServiceTier = rates.serviceTier
+      ;({ longContextThreshold } = rates)
 
       pricing = {
-        input: inputPrice,
-        output: outputPrice,
-        cacheWrite: cacheWritePrice,
-        cacheRead: cacheReadPrice
+        input: rates.input * 1000000,
+        output: rates.output * 1000000,
+        cacheWrite: rates.cacheCreate * 1000000,
+        cacheRead: rates.cacheRead * 1000000
       }
       usingDynamicPricing = true
     } else {
@@ -251,6 +241,7 @@ class CostCalculator {
       model: safeModel,
       pricing,
       usingDynamicPricing,
+      isLongContextRequest: !!longContextThreshold,
       usage: {
         inputTokens,
         outputTokens,
@@ -278,7 +269,9 @@ class CostCalculator {
         cacheCreateTokens,
         cacheWritePriceUsed: pricing.cacheWrite,
         isLongContextModel: typeof safeModel === 'string' && safeModel.includes('[1m]'),
-        isLongContextRequest: false,
+        isLongContextRequest: !!longContextThreshold,
+        serviceTier: resolvedServiceTier,
+        longContextThreshold,
         usedFallbackPricing:
           options.usedFallbackPricing === true || pricingSource === 'unknown-fallback',
         pricingSource
@@ -299,7 +292,7 @@ class CostCalculator {
   static calculateCost(usage, model = 'unknown', serviceTier = null) {
     // 如果 usage 包含详细的 cache_creation 对象或是 1M 模型，优先使用 pricingService
     if (this.isDetailedPricingRequest(usage, model)) {
-      const result = pricingService.calculateCost(usage, model)
+      const result = pricingService.calculateCost(usage, model, serviceTier)
       if (this.isValidPricingServiceResult(result)) {
         return this.buildDetailedPricingResult(usage, model, result)
       }

@@ -4,6 +4,25 @@ const https = require('https')
 const crypto = require('crypto')
 const pricingSource = require('../../config/pricingSource')
 const logger = require('../utils/logger')
+const {
+  CLAUDE_CACHE_MULTIPLIERS,
+  resolveTokenRates,
+  hasTokenPricing
+} = require('../utils/litellmPricing')
+
+// 补充价格：LiteLLM 原版缺失的模型（仅在上游没有该模型时补入，不覆盖上游价格）
+const SUPPLEMENTS_FILE = path.join(
+  __dirname,
+  '..',
+  '..',
+  'resources',
+  'model-pricing',
+  'model_pricing_supplements.json'
+)
+
+// 模糊匹配时跳过的条目：带供应商前缀的键（如 chatgpt/xxx、azure_ai/xxx）
+// 以及 Bedrock 风格前缀（如 anthropic.xxx、us.anthropic.xxx），避免误用第三方售价或无价条目
+const PROVIDER_PREFIXED_KEY = /^[a-z_-]+\./i
 
 class PricingService {
   constructor() {
@@ -18,8 +37,13 @@ class PricingService {
       'model_prices_and_context_window.json'
     )
     this.localHashFile = path.join(this.dataDir, 'model_pricing.sha256')
+    this.localEtagFile = path.join(this.dataDir, 'model_pricing.etag')
+    // 本地覆盖价格（可选，运维手工维护）：按模型逐字段覆盖上游价格，优先级最高
+    this.overridesFile = path.join(this.dataDir, 'model_pricing_overrides.json')
     this.pricingData = null
     this.lastUpdated = null
+    this.lookupCache = new Map() // 模型名 -> 价格键 的查找缓存
+    this.lookupCacheSource = null // 缓存对应的 pricingData 引用，数据替换后自动失效
     this.updateInterval = 24 * 60 * 60 * 1000 // 24小时
     this.hashCheckInterval = 10 * 60 * 1000 // 10分钟哈希校验
     this.fileWatcher = null // 文件监听器
@@ -29,11 +53,7 @@ class PricingService {
     this.hashSyncInProgress = false // 哈希同步状态
 
     // Claude Prompt Caching 官方倍率（基于输入价格）— 仅作为 model_pricing.json 缺失字段时的兜底
-    this.claudeCacheMultipliers = {
-      write5m: 1.25,
-      write1h: 2,
-      read: 0.1
-    }
+    this.claudeCacheMultipliers = { ...CLAUDE_CACHE_MULTIPLIERS }
 
     // Claude 扩展计费特性
     this.claudeFeatureFlags = {
@@ -138,10 +158,14 @@ class PricingService {
       this.syncWithRemoteHash()
     }, this.hashCheckInterval)
 
-    logger.info('🕒 已启用价格文件哈希轮询（每10分钟校验一次）')
+    logger.info(
+      this.hashUrl
+        ? '🕒 已启用价格文件哈希轮询（每10分钟校验一次）'
+        : '🕒 已启用价格文件 ETag 轮询（每10分钟条件请求一次）'
+    )
   }
 
-  // 与远端哈希对比
+  // 与远端哈希对比（未配置哈希文件地址时改用 ETag 条件请求，如 LiteLLM 原版仓库）
   async syncWithRemoteHash() {
     if (this.hashSyncInProgress) {
       return
@@ -149,6 +173,11 @@ class PricingService {
 
     this.hashSyncInProgress = true
     try {
+      if (!this.hashUrl) {
+        await this.syncWithRemoteEtag()
+        return
+      }
+
       const remoteHash = await this.fetchRemoteHash()
 
       if (!remoteHash) {
@@ -171,6 +200,58 @@ class PricingService {
       logger.warn(`⚠️  哈希校验失败：${error.message}`)
     } finally {
       this.hashSyncInProgress = false
+    }
+  }
+
+  // 通过 ETag 条件请求检测远端更新：未变化时远端返回 304，不重复下载
+  async syncWithRemoteEtag() {
+    if (!fs.existsSync(this.pricingFile)) {
+      logger.info('📄 本地价格文件缺失，尝试下载最新版本')
+      await this.downloadPricingData()
+      return
+    }
+
+    const result = await this._downloadFromRemote({
+      ifNoneMatch: this.readLocalEtag(),
+      skipIfUnchanged: true
+    })
+
+    if (result && result.notModified) {
+      logger.debug('💰 远端价格文件未变化（ETag 校验）')
+    } else {
+      logger.info('🔁 检测到远端价格文件更新，已下载最新数据')
+    }
+  }
+
+  readLocalEtag() {
+    try {
+      if (fs.existsSync(this.localEtagFile)) {
+        const etag = fs.readFileSync(this.localEtagFile, 'utf8').trim()
+        return etag || null
+      }
+    } catch (error) {
+      logger.debug(`💰 读取本地 ETag 失败：${error.message}`)
+    }
+    return null
+  }
+
+  persistLocalEtag(etag) {
+    try {
+      if (etag) {
+        fs.writeFileSync(this.localEtagFile, `${etag}\n`)
+      }
+    } catch (error) {
+      logger.debug(`💰 写入本地 ETag 失败：${error.message}`)
+    }
+  }
+
+  clearLocalEtag() {
+    try {
+      if (fs.existsSync(this.localEtagFile)) {
+        fs.unlinkSync(this.localEtagFile)
+      }
+    } catch (error) {
+      logger.debug(`💰 清除本地 ETag 失败：${error.message}`)
     }
   }
 
@@ -237,14 +318,26 @@ class PricingService {
   }
 
   // 实际的下载逻辑
-  _downloadFromRemote() {
+  // options.ifNoneMatch：上次下载的 ETag，远端未变化时返回 304
+  // options.skipIfUnchanged：内容与本地一致时不重写文件（避免触发文件监听重载）
+  _downloadFromRemote(options = {}) {
+    const { ifNoneMatch = null, skipIfUnchanged = false } = options
     return new Promise((resolve, reject) => {
-      const request = https.get(this.pricingUrl, (response) => {
+      const requestOptions = ifNoneMatch ? { headers: { 'If-None-Match': ifNoneMatch } } : {}
+      const request = https.get(this.pricingUrl, requestOptions, (response) => {
+        if (response.statusCode === 304 && ifNoneMatch) {
+          response.resume()
+          resolve({ notModified: true })
+          return
+        }
+
         if (response.statusCode !== 200) {
+          response.resume()
           reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`))
           return
         }
 
+        const etag = response.headers ? response.headers.etag : null
         const chunks = []
         response.on('data', (chunk) => {
           const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
@@ -257,20 +350,38 @@ class PricingService {
             const rawContent = buffer.toString('utf8')
             const jsonData = JSON.parse(rawContent)
 
-            // 保存到文件并更新哈希
+            if (
+              !jsonData ||
+              typeof jsonData !== 'object' ||
+              Array.isArray(jsonData) ||
+              Object.keys(jsonData).length === 0
+            ) {
+              throw new Error('Invalid pricing data structure')
+            }
+
+            if (skipIfUnchanged && fs.existsSync(this.pricingFile)) {
+              const remoteHash = crypto.createHash('sha256').update(buffer).digest('hex')
+              if (remoteHash === this.computeLocalHash()) {
+                this.persistLocalEtag(etag)
+                resolve({ notModified: true })
+                return
+              }
+            }
+
+            // 保存到文件并更新哈希（文件保存上游原始内容，本地补充/覆盖只在内存中合并）
             fs.writeFileSync(this.pricingFile, rawContent)
             this.persistLocalHash(buffer)
+            this.persistLocalEtag(etag)
 
             // 更新内存中的数据
-            this.pricingData = jsonData
-            this.lastUpdated = new Date()
+            this.setPricingData(jsonData)
 
             logger.success(`Downloaded pricing data for ${Object.keys(jsonData).length} models`)
 
             // 设置或重新设置文件监听器
             this.setupFileWatcher()
 
-            resolve()
+            resolve({ notModified: false })
           } catch (error) {
             reject(new Error(`Failed to parse pricing data: ${error.message}`))
           }
@@ -288,12 +399,81 @@ class PricingService {
     })
   }
 
+  // 读取补充价格（LiteLLM 原版缺失的模型，随代码发布）
+  loadSupplements() {
+    try {
+      const data = JSON.parse(fs.readFileSync(SUPPLEMENTS_FILE, 'utf8'))
+      return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        logger.warn(`⚠️  Failed to load pricing supplements: ${error.message}`)
+      }
+      return {}
+    }
+  }
+
+  // 读取本地覆盖价格（可选）：data/model_pricing_overrides.json
+  loadOverrides() {
+    try {
+      if (!fs.existsSync(this.overridesFile)) {
+        return {}
+      }
+      const data = JSON.parse(fs.readFileSync(this.overridesFile, 'utf8'))
+      return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
+    } catch (error) {
+      logger.warn(`⚠️  Failed to load pricing overrides (${this.overridesFile}): ${error.message}`)
+      return {}
+    }
+  }
+
+  // 在上游价格表上合并本地数据：补充（仅补缺失模型） < 上游 < 覆盖（逐字段覆盖）
+  applyLocalPricing(upstreamData) {
+    const merged = { ...(upstreamData || {}) }
+    let supplemented = 0
+    let overridden = 0
+
+    for (const [model, entry] of Object.entries(this.loadSupplements())) {
+      if (model.startsWith('_') || !entry || typeof entry !== 'object') {
+        continue
+      }
+      if (!Object.prototype.hasOwnProperty.call(merged, model)) {
+        merged[model] = entry
+        supplemented++
+      }
+    }
+
+    for (const [model, entry] of Object.entries(this.loadOverrides())) {
+      if (model.startsWith('_') || !entry || typeof entry !== 'object') {
+        continue
+      }
+      const base = merged[model] && typeof merged[model] === 'object' ? merged[model] : {}
+      merged[model] = { ...base, ...entry }
+      overridden++
+    }
+
+    if (supplemented > 0 || overridden > 0) {
+      logger.debug(
+        `💰 Applied local pricing: ${supplemented} supplemented model(s), ${overridden} overridden model(s)`
+      )
+    }
+
+    return merged
+  }
+
+  // 设置内存中的价格数据（统一入口，保证本地补充/覆盖始终生效）
+  setPricingData(upstreamData) {
+    this.pricingData = this.applyLocalPricing(upstreamData)
+    this.lastUpdated = new Date()
+    this.lookupCache.clear()
+    this.lookupCacheSource = this.pricingData
+  }
+
   // 加载本地价格数据
   async loadPricingData() {
     try {
       if (fs.existsSync(this.pricingFile)) {
         const data = fs.readFileSync(this.pricingFile, 'utf8')
-        this.pricingData = JSON.parse(data)
+        this.setPricingData(JSON.parse(data))
 
         const stats = fs.statSync(this.pricingFile)
         this.lastUpdated = stats.mtime
@@ -326,10 +506,11 @@ class PricingService {
         // 保存到data目录
         fs.writeFileSync(this.pricingFile, formattedJson)
         this.persistLocalHash(formattedJson)
+        // 本地文件已不是远端版本，清除 ETag，下次轮询强制完整下载
+        this.clearLocalEtag()
 
         // 更新内存中的数据
-        this.pricingData = jsonData
-        this.lastUpdated = new Date()
+        this.setPricingData(jsonData)
 
         // 设置或重新设置文件监听器
         this.setupFileWatcher()
@@ -386,14 +567,10 @@ class PricingService {
     }
 
     // 尝试模糊匹配（处理版本号等变化）
-    const normalizedModel = modelName.toLowerCase().replace(/[_-]/g, '')
-
-    for (const [key, value] of Object.entries(this.pricingData)) {
-      const normalizedKey = key.toLowerCase().replace(/[_-]/g, '')
-      if (normalizedKey.includes(normalizedModel) || normalizedModel.includes(normalizedKey)) {
-        logger.debug(`💰 Found pricing for ${modelName} using fuzzy match: ${key}`)
-        return value
-      }
+    const fuzzyMatch = this.findFuzzyPricing(modelName)
+    if (fuzzyMatch) {
+      logger.debug(`💰 Found pricing for ${modelName} using fuzzy match: ${fuzzyMatch.key}`)
+      return fuzzyMatch.value
     }
 
     // 对于Bedrock模型，尝试更智能的匹配
@@ -411,6 +588,61 @@ class PricingService {
 
     logger.debug(`💰 No pricing found for model: ${modelName}`)
     return null
+  }
+
+  // 模糊匹配候选：排除带供应商前缀的条目（如 chatgpt/xxx、openrouter/xxx、vertex_ai/xxx、
+  // azure.xxx 等，这些是第三方渠道价格或无价格字段）以及没有 token 单价的条目
+  isFuzzyCandidate(key, value) {
+    return (
+      key !== 'sample_spec' &&
+      !key.includes('/') &&
+      !PROVIDER_PREFIXED_KEY.test(key) &&
+      hasTokenPricing(value)
+    )
+  }
+
+  // 模糊匹配：优先选择被模型名包含的最长键（如 gpt-5.4-2026xxxx → gpt-5.4），
+  // 其次选择包含模型名的最短键；结果按 pricingData 实例缓存
+  findFuzzyPricing(modelName) {
+    if (this.lookupCacheSource !== this.pricingData) {
+      this.lookupCache.clear()
+      this.lookupCacheSource = this.pricingData
+    }
+
+    if (this.lookupCache.has(modelName)) {
+      return this.lookupCache.get(modelName)
+    }
+
+    const normalize = (value) => value.toLowerCase().replace(/[_-]/g, '')
+    const normalizedModel = normalize(modelName)
+    let containedBest = null
+    let containingBest = null
+
+    if (normalizedModel) {
+      for (const [key, value] of Object.entries(this.pricingData)) {
+        if (!this.isFuzzyCandidate(key, value)) {
+          continue
+        }
+        const normalizedKey = normalize(key)
+        if (!normalizedKey) {
+          continue
+        }
+        if (normalizedModel.includes(normalizedKey)) {
+          if (!containedBest || normalizedKey.length > containedBest.length) {
+            containedBest = { key, value, length: normalizedKey.length }
+          }
+        } else if (normalizedKey.includes(normalizedModel)) {
+          if (!containingBest || normalizedKey.length < containingBest.length) {
+            containingBest = { key, value, length: normalizedKey.length }
+          }
+        }
+      }
+    }
+
+    const best = containedBest || containingBest
+    const result = best ? { key: best.key, value: best.value } : null
+    this.lookupCache.set(modelName, result)
+    return result
   }
 
   // 确保价格对象包含缓存价格
@@ -501,15 +733,15 @@ class PricingService {
   }
 
   // 计算使用费用
-  calculateCost(usage, modelName) {
+  // serviceTier：请求实际生效的服务档位（flex/priority/fast/ultrafast），按 LiteLLM 规则选择档位价格
+  calculateCost(usage, modelName, serviceTier = null) {
     const normalizedModelName = this.stripLongContextSuffix(modelName)
 
     // 检查是否为 1M 上下文模型（用户通过 [1m] 后缀主动选择长上下文模式）
     const isLongContextModel = typeof modelName === 'string' && modelName.includes('[1m]')
     let isLongContextRequest = false
-    let useLongContextPricing = false
 
-    // 计算总输入 tokens（用于判断是否超过 200K 阈值）
+    // 计算总输入 tokens（用于判断长上下文阈值）
     const inputTokens = usage.input_tokens || 0
     const cacheCreationTokens = usage.cache_creation_input_tokens || 0
     const cacheReadTokens = usage.cache_read_input_tokens || 0
@@ -524,35 +756,8 @@ class PricingService {
       responseSpeed === this.claudeFeatureFlags.fastModeSpeed ||
       requestSpeed === this.claudeFeatureFlags.fastModeSpeed
     const isFastModeRequest = hasFastModeBeta && hasFastSpeedSignal
-    const standardPricing = this.getModelPricing(modelName)
-    const pricing = standardPricing
+    const pricing = this.getModelPricing(normalizedModelName)
     const isLongContextModeEnabled = isLongContextModel || hasContext1mBeta
-    // Per official Anthropic pricing: all Claude models have flat pricing with no 200K+ premium
-    // https://platform.claude.com/docs/en/about-claude/pricing
-    const ignores200kLongContextPricing =
-      (typeof normalizedModelName === 'string' &&
-        normalizedModelName.toLowerCase().includes('claude')) ||
-      (typeof standardPricing?.litellm_provider === 'string' &&
-        standardPricing.litellm_provider.toLowerCase().includes('anthropic'))
-
-    // Fast Mode 倍率：优先从 provider_specific_entry.fast 读取，默认 6 倍
-    const fastMultiplier = isFastModeRequest ? pricing?.provider_specific_entry?.fast || 6 : 1
-
-    // 当 [1m] 模型总输入超过 200K 时，进入 200K+ 计费逻辑
-    // 根据 Anthropic 官方文档：当总输入超过 200K 时，整个请求所有 token 类型都使用高档价格
-    if (isLongContextModeEnabled && totalInputTokens > 200000) {
-      if (ignores200kLongContextPricing) {
-        logger.info(
-          `💰 Skipping 200K+ pricing for ${modelName}: Claude models use flat pricing regardless of context length`
-        )
-      } else {
-        isLongContextRequest = true
-        useLongContextPricing = true
-        logger.info(
-          `💰 Using 200K+ pricing for ${modelName}: total input tokens = ${totalInputTokens.toLocaleString()}`
-        )
-      }
-    }
 
     if (!pricing) {
       return {
@@ -568,10 +773,30 @@ class PricingService {
       }
     }
 
-    const isClaudeModel =
-      (modelName && modelName.toLowerCase().includes('claude')) ||
-      (typeof pricing?.litellm_provider === 'string' &&
-        pricing.litellm_provider.toLowerCase().includes('anthropic'))
+    // Fast Mode 倍率：优先从 provider_specific_entry.fast 读取，默认 6 倍
+    const fastMultiplier = isFastModeRequest ? pricing?.provider_specific_entry?.fast || 6 : 1
+
+    // 单价解析（LiteLLM 规则）：
+    // - 档位价格键（*_priority / *_flex / *_ultrafast）存在就用，缺失回退标准价
+    // - 非 Claude 模型按 input_cost_per_token_above_<N>k_tokens 阈值选择长上下文价格（优先带档位的阈值键）
+    // - Claude 官方为统一价格（https://platform.claude.com/docs/en/about-claude/pricing），不套用阈值
+    // - 缓存价格缺失：Claude 按官方倍率从输入价推导，其他模型按输入价计
+    const rates = resolveTokenRates(pricing, {
+      modelName: normalizedModelName,
+      promptTokens: totalInputTokens,
+      serviceTier
+    })
+
+    if (rates.longContextThreshold) {
+      isLongContextRequest = true
+      logger.info(
+        `💰 Using above-${rates.longContextThreshold} pricing for ${modelName}: total input tokens = ${totalInputTokens.toLocaleString()}`
+      )
+    } else if (rates.isClaude && isLongContextModeEnabled && totalInputTokens > 200000) {
+      logger.info(
+        `💰 Skipping 200K+ pricing for ${modelName}: Claude models use flat pricing regardless of context length`
+      )
+    }
 
     if (isFastModeRequest && fastMultiplier > 1) {
       logger.info(
@@ -583,75 +808,11 @@ class PricingService {
       )
     }
 
-    const baseInputPrice = pricing.input_cost_per_token || 0
-    const hasInput200kPrice =
-      pricing.input_cost_per_token_above_200k_tokens !== null &&
-      pricing.input_cost_per_token_above_200k_tokens !== undefined
-
-    // 确定实际使用的输入价格（普通或 200K+ 高档价格）
-    // Claude 模型在 200K+ 场景下如果缺少官方字段，按 2 倍输入价兜底
-    let actualInputPrice = useLongContextPricing
-      ? hasInput200kPrice
-        ? pricing.input_cost_per_token_above_200k_tokens
-        : isClaudeModel
-          ? baseInputPrice * 2
-          : baseInputPrice
-      : baseInputPrice
-
-    const baseOutputPrice = pricing.output_cost_per_token || 0
-    const hasOutput200kPrice =
-      pricing.output_cost_per_token_above_200k_tokens !== null &&
-      pricing.output_cost_per_token_above_200k_tokens !== undefined
-    let actualOutputPrice = useLongContextPricing
-      ? hasOutput200kPrice
-        ? pricing.output_cost_per_token_above_200k_tokens
-        : baseOutputPrice
-      : baseOutputPrice
-
-    // 缓存价格：优先从 model_pricing.json 取，Claude 缺失时用倍率兜底
-    let actualCacheCreatePrice = 0
-    let actualCacheReadPrice = 0
-    let actualEphemeral1hPrice = 0
-
-    if (useLongContextPricing) {
-      // 200K+：Claude 仅用 above_200k 专用字段，缺失留 0 让下方兜底从 actualInputPrice 推导
-      actualCacheCreatePrice = isClaudeModel
-        ? pricing.cache_creation_input_token_cost_above_200k_tokens || 0
-        : pricing.cache_creation_input_token_cost_above_200k_tokens ||
-          pricing.cache_creation_input_token_cost ||
-          0
-      actualCacheReadPrice = isClaudeModel
-        ? pricing.cache_read_input_token_cost_above_200k_tokens || 0
-        : pricing.cache_read_input_token_cost_above_200k_tokens ||
-          pricing.cache_read_input_token_cost ||
-          0
-      const has1h200k =
-        pricing.cache_creation_input_token_cost_above_1hr_above_200k_tokens !== null &&
-        pricing.cache_creation_input_token_cost_above_1hr_above_200k_tokens !== undefined
-      actualEphemeral1hPrice = has1h200k
-        ? pricing.cache_creation_input_token_cost_above_1hr_above_200k_tokens
-        : isClaudeModel
-          ? 0
-          : pricing.cache_creation_input_token_cost_above_1hr || 0
-    } else {
-      actualCacheCreatePrice = pricing.cache_creation_input_token_cost || 0
-      actualCacheReadPrice = pricing.cache_read_input_token_cost || 0
-      actualEphemeral1hPrice = pricing.cache_creation_input_token_cost_above_1hr || 0
-    }
-
-    // Claude 兜底：pricing 字段缺失时用倍率从 actualInputPrice 推导
-    // 此时 actualInputPrice 尚未含 fastMultiplier，下方统一应用
-    if (isClaudeModel) {
-      if (!actualCacheCreatePrice) {
-        actualCacheCreatePrice = actualInputPrice * this.claudeCacheMultipliers.write5m
-      }
-      if (!actualCacheReadPrice) {
-        actualCacheReadPrice = actualInputPrice * this.claudeCacheMultipliers.read
-      }
-      if (!actualEphemeral1hPrice) {
-        actualEphemeral1hPrice = actualInputPrice * this.claudeCacheMultipliers.write1h
-      }
-    }
+    let actualInputPrice = rates.input
+    let actualOutputPrice = rates.output
+    let actualCacheCreatePrice = rates.cacheCreate
+    let actualCacheReadPrice = rates.cacheRead
+    let actualEphemeral1hPrice = rates.ephemeral1h
 
     // Fast Mode 倍率：统一一次性应用于所有价格
     if (fastMultiplier > 1) {
@@ -704,6 +865,8 @@ class PricingService {
       totalCost: inputCost + outputCost + cacheCreateCost + cacheReadCost,
       hasPricing: true,
       isLongContextRequest,
+      serviceTier: rates.serviceTier,
+      longContextThreshold: rates.longContextThreshold,
       pricing: {
         input: actualInputPrice,
         output: actualOutputPrice,
@@ -844,10 +1007,9 @@ class PricingService {
       }
 
       // 更新内存中的数据
-      this.pricingData = jsonData
-      this.lastUpdated = new Date()
+      this.setPricingData(jsonData)
 
-      const modelCount = Object.keys(jsonData).length
+      const modelCount = Object.keys(this.pricingData).length
       logger.success(`Reloaded pricing data for ${modelCount} models from file`)
 
       // 显示一些统计信息

@@ -13,10 +13,16 @@
           </div>
           <div>
             <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-              模型总数:
+              官方模型:
               <span class="font-bold text-blue-600 dark:text-blue-400">{{ modelCount }}</span>
+              <span class="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                （价格表共 {{ totalPricingModels }} 个）
+              </span>
             </p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">上次更新: {{ lastUpdated }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">价格更新: {{ lastUpdated }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              发布日期: {{ releaseSourceText }}
+            </p>
           </div>
         </div>
         <button
@@ -85,6 +91,16 @@
               />
             </th>
             <th
+              class="cursor-pointer whitespace-nowrap px-3 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              @click="toggleSort('releaseDate')"
+            >
+              发布日期
+              <i
+                v-if="sortField === 'releaseDate'"
+                :class="['fas ml-1', sortAsc ? 'fa-sort-up' : 'fa-sort-down']"
+              />
+            </th>
+            <th
               class="cursor-pointer px-3 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
               @click="toggleSort('input')"
             >
@@ -124,12 +140,21 @@
         <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
           <tr
             v-for="model in sortedModels"
-            :key="model.name"
+            :key="`${model.provider}:${model.id}`"
             class="transition hover:bg-gray-50 dark:hover:bg-gray-800/50"
           >
             <td class="whitespace-nowrap px-3 py-2.5">
-              <div class="font-medium text-gray-900 dark:text-gray-100">{{ model.name }}</div>
-              <div v-if="model.provider" class="text-xs text-gray-400">{{ model.provider }}</div>
+              <div class="font-medium text-gray-900 dark:text-gray-100">{{ model.id }}</div>
+              <div class="text-xs text-gray-400">
+                {{ model.providerLabel
+                }}{{ model.name && model.name !== model.id ? ` · ${model.name}` : '' }}
+              </div>
+              <div v-if="model.aliases.length" class="text-xs text-gray-400">
+                别名: {{ model.aliases.join(', ') }}
+              </div>
+            </td>
+            <td class="whitespace-nowrap px-3 py-2.5 text-gray-600 dark:text-gray-300">
+              {{ model.releaseDate }}
             </td>
             <td
               class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-gray-700 dark:text-gray-300"
@@ -154,11 +179,11 @@
             <td
               class="hidden whitespace-nowrap px-3 py-2.5 text-right text-gray-500 dark:text-gray-400 lg:table-cell"
             >
-              {{ formatContext(model.maxTokens) }}
+              {{ formatContext(model.contextWindow) }}
             </td>
           </tr>
           <tr v-if="sortedModels.length === 0">
-            <td class="px-3 py-8 text-center text-gray-500 dark:text-gray-400" colspan="6">
+            <td class="px-3 py-8 text-center text-gray-500 dark:text-gray-400" colspan="7">
               <i class="fas fa-search mb-2 text-2xl text-gray-300 dark:text-gray-600" />
               <p>没有匹配的模型</p>
             </td>
@@ -177,7 +202,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import {
-  getModelPricingApi,
+  getOfficialModelPricingApi,
   getModelPricingStatusApi,
   refreshModelPricingApi
 } from '@/utils/http_apis'
@@ -186,12 +211,14 @@ import { showToast } from '@/utils/tools'
 // ========== 状态 ==========
 const loading = ref(false)
 const refreshing = ref(false)
-const pricingData = ref({})
+const officialModels = ref([])
+const totalPricingModels = ref(0)
+const releaseSource = ref({})
 const pricingStatus = ref({})
 const searchQuery = ref('')
 const activePlatform = ref('all')
-const sortField = ref('name')
-const sortAsc = ref(true)
+const sortField = ref('releaseDate')
+const sortAsc = ref(false)
 
 const platformTabs = [
   { key: 'all', label: '全部' },
@@ -202,56 +229,44 @@ const platformTabs = [
 ]
 
 // ========== 计算属性 ==========
-const modelCount = computed(() => Object.keys(pricingData.value).length)
+const allModels = computed(() => officialModels.value)
 
-const lastUpdated = computed(() => {
-  if (!pricingStatus.value.lastUpdated) return '未知'
-  return new Date(pricingStatus.value.lastUpdated).toLocaleString('zh-CN')
+const modelCount = computed(() => allModels.value.length)
+
+const formatDateTime = (value) => (value ? new Date(value).toLocaleString('zh-CN') : '未知')
+
+const lastUpdated = computed(() => formatDateTime(pricingStatus.value.lastUpdated))
+
+const releaseSourceText = computed(() => {
+  const source = releaseSource.value
+  if (!source || !source.origin || source.origin === 'none') return '暂无数据'
+  let host = 'models.dev'
+  try {
+    host = new URL(source.source).host
+  } catch (e) {
+    host = source.source || host
+  }
+  if (source.origin === 'bundled') return `${host}（内置快照）`
+  return `${host}（${formatDateTime(source.checkedAt || source.fetchedAt)}）`
 })
-
-const allModels = computed(() =>
-  Object.entries(pricingData.value).map(([name, data]) => ({
-    name,
-    provider: detectProvider(name),
-    inputCost: (data.input_cost_per_token || 0) * 1e6,
-    outputCost: (data.output_cost_per_token || 0) * 1e6,
-    cacheCreateCost: (data.cache_creation_input_token_cost || 0) * 1e6,
-    cacheReadCost: (data.cache_read_input_token_cost || 0) * 1e6,
-    maxTokens: data.max_tokens || data.max_output_tokens || 0
-  }))
-)
 
 const filteredModels = computed(() => {
   let models = allModels.value
 
   // 平台筛选
   if (activePlatform.value !== 'all') {
-    const platformFilters = {
-      claude: (n) => n.includes('claude'),
-      gemini: (n) => n.includes('gemini'),
-      openai: (n) =>
-        n.includes('gpt') ||
-        n.includes('o1') ||
-        n.includes('o3') ||
-        n.includes('o4') ||
-        n.includes('codex'),
-      other: (n) =>
-        !n.includes('claude') &&
-        !n.includes('gemini') &&
-        !n.includes('gpt') &&
-        !n.includes('o1') &&
-        !n.includes('o3') &&
-        !n.includes('o4') &&
-        !n.includes('codex')
-    }
-    const filter = platformFilters[activePlatform.value]
-    if (filter) models = models.filter((m) => filter(m.name.toLowerCase()))
+    models = models.filter((m) => m.platform === activePlatform.value)
   }
 
-  // 搜索筛选
+  // 搜索筛选（模型 id / 名称 / 别名）
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    models = models.filter((m) => m.name.toLowerCase().includes(q))
+    models = models.filter(
+      (m) =>
+        m.id.toLowerCase().includes(q) ||
+        (m.name || '').toLowerCase().includes(q) ||
+        m.aliases.some((alias) => alias.toLowerCase().includes(q))
+    )
   }
 
   return models
@@ -260,13 +275,15 @@ const filteredModels = computed(() => {
 const sortedModels = computed(() => {
   const models = [...filteredModels.value]
   const fieldMap = {
-    name: (m) => m.name,
-    input: (m) => m.inputCost,
-    output: (m) => m.outputCost
+    name: (m) => m.id,
+    releaseDate: (m) => m.releaseDate || '',
+    input: (m) => m.inputCost || 0,
+    output: (m) => m.outputCost || 0
   }
   const getter = fieldMap[sortField.value]
   if (!getter) return models
 
+  // 稳定排序：同值保持后端顺序（发布日期倒序）
   models.sort((a, b) => {
     const va = getter(a)
     const vb = getter(b)
@@ -277,24 +294,6 @@ const sortedModels = computed(() => {
 })
 
 // ========== 方法 ==========
-const detectProvider = (name) => {
-  const n = name.toLowerCase()
-  if (n.includes('claude')) return 'Anthropic'
-  if (n.includes('gemini')) return 'Google'
-  if (
-    n.includes('gpt') ||
-    n.includes('o1') ||
-    n.includes('o3') ||
-    n.includes('o4') ||
-    n.includes('codex')
-  )
-    return 'OpenAI'
-  if (n.includes('deepseek')) return 'DeepSeek'
-  if (n.includes('llama') || n.includes('meta')) return 'Meta'
-  if (n.includes('mistral')) return 'Mistral'
-  return ''
-}
-
 const formatPrice = (price) => {
   if (!price || price === 0) return '-'
   if (price < 0.01) return `$${price.toFixed(4)}`
@@ -314,18 +313,21 @@ const toggleSort = (field) => {
     sortAsc.value = !sortAsc.value
   } else {
     sortField.value = field
-    sortAsc.value = true
+    // 发布日期默认从新到旧，其余默认升序
+    sortAsc.value = field !== 'releaseDate'
   }
 }
 
 const loadData = async () => {
   loading.value = true
   const [pricingResult, statusResult] = await Promise.all([
-    getModelPricingApi(),
+    getOfficialModelPricingApi(),
     getModelPricingStatusApi()
   ])
   if (pricingResult.success) {
-    pricingData.value = pricingResult.data
+    officialModels.value = pricingResult.data?.models || []
+    totalPricingModels.value = pricingResult.data?.totalPricingModels || 0
+    releaseSource.value = pricingResult.data?.releaseSource || {}
   } else {
     showToast(pricingResult.message || '加载模型价格失败', 'error')
   }

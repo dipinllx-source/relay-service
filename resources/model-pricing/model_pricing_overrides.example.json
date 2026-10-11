@@ -1,0 +1,76 @@
+{
+  "_comment": "示例：旧价格镜像(price-mirror)与 LiteLLM 原版不一致的价格。如需沿用镜像价格，复制为 data/model_pricing_overrides.json（按模型逐字段覆盖上游，优先级最高），重启服务或等待价格文件下次重载后生效。以 _ 开头的键会被忽略。",
+  "claude-sonnet-5-5": {
+    "cache_read_input_token_cost": 2e-7
+  },
+  "gpt-5.1-chat-latest": {
+    "input_cost_per_token_priority": 0.0000025,
+    "output_cost_per_token_priority": 0.00002,
+    "cache_read_input_token_cost_priority": 2.5e-7
+  },
+  "gpt-5.1-codex": {
+    "input_cost_per_token_priority": 0.0000025,
+    "output_cost_per_token_priority": 0.00002,
+    "cache_read_input_token_cost_priority": 2.5e-7
+  },
+  "gpt-5.1-codex-mini": {
+    "input_cost_per_token_priority": 4.5e-7,
+    "output_cost_per_token_priority": 0.0000036,
+    "cache_read_input_token_cost_priority": 4.5e-8
+  },
+  "gpt-5.2-chat-latest": {
+    "input_cost_per_token_priority": 0.0000035,
+    "output_cost_per_token_priority": 0.000028,
+    "cache_read_input_token_cost_priority": 3.5e-7
+  },
+  "gpt-5.2-codex": {
+    "input_cost_per_token_priority": 0.0000035,
+    "output_cost_per_token_priority": 0.000028,
+    "cache_read_input_token_cost_priority": 3.5e-7
+  },
+  "gpt-5.3-chat-latest": {
+    "input_cost_per_token_priority": 0.0000035,
+    "output_cost_per_token_priority": 0.000028,
+    "cache_read_input_token_cost_priority": 3.5e-7
+  },
+  "gpt-5.4-pro": {
+    "cache_read_input_token_cost": 0.000003
+  },
+  "gpt-5.4-pro-2026-03-05": {
+    "cache_read_input_token_cost": 0.000003
+  },
+  "gpt-5.5": {
+    "input_cost_per_token_priority": 0.00001,
+    "output_cost_per_token_priority": 0.00006,
+    "cache_read_input_token_cost_priority": 0.000001
+  },
+  "gpt-5.5-2026-04-23": {
+    "input_cost_per_token_priority": 0.00001,
+    "output_cost_per_token_priority": 0.00006,
+    "cache_read_input_token_cost_priority": 0.000001
+  },
+  "gpt-5.5-pro": {
+    "cache_read_input_token_cost": 0.000003
+  },
+  "gpt-5.5-pro-2026-04-23": {
+    "cache_read_input_token_cost": 0.000003
+  },
+  "gpt-5.6-sol": {
+    "input_cost_per_token": 0.000005,
+    "output_cost_per_token": 0.00003,
+    "cache_read_input_token_cost": 5e-7,
+    "cache_creation_input_token_cost": 0.00000625,
+    "input_cost_per_token_priority": 0.00001,
+    "output_cost_per_token_priority": 0.00006,
+    "cache_read_input_token_cost_priority": 0.000001,
+    "input_cost_per_token_flex": 0.0000025,
+    "output_cost_per_token_flex": 0.000015,
+    "cache_read_input_token_cost_flex": 2.5e-7
+  },
+  "o4-mini": {
+    "cache_read_input_token_cost_flex": 1.375e-7
+  },
+  "o4-mini-2025-04-16": {
+    "cache_read_input_token_cost_flex": 1.375e-7
+  }
+}

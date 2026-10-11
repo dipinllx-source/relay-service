@@ -324,11 +324,22 @@ const handleResponses = async (req, res) => {
       })
     }
 
-    // 提取 service_tier 用于后续费用计算（在字段被移除前保存）
+    // 提取 service_tier 用于后续费用计算；若下方适配删除了该字段，会重置为 null，
+    // 保证计费口径与实际发往上游的请求一致
     req._serviceTier = req.body?.service_tier || null
 
     // 如果不是 Codex CLI 请求且不是来自 unified 端点（已完成格式转换），则进行适配
     if (!isCodexCLI && !req._fromUnifiedEndpoint) {
+      // service_tier 将被删除、上游按默认档位处理：不能再按请求里的档位（如 priority）计费
+      if (req._serviceTier) {
+        logger.warn(
+          `⚠️ Dropping service_tier="${req._serviceTier}" for non-Codex client ` +
+            `(API Key: ${apiKeyData.name || apiKeyData.id || 'unknown'}, ` +
+            `UA: ${String(userAgent).slice(0, 120) || 'none'}); upstream will use default tier`
+        )
+        req._serviceTier = null
+      }
+
       // 移除不需要的请求体字段
       const fieldsToRemove = [
         'temperature',

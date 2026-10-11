@@ -50,6 +50,7 @@ const unifiedOpenAIScheduler = require('../src/services/scheduler/unifiedOpenAIS
 const openaiResponsesAccountService = require('../src/services/account/openaiResponsesAccountService')
 const openaiResponsesRelayService = require('../src/services/relay/openaiResponsesRelayService')
 const codexClientVersion = require('../src/utils/codexClientVersion')
+const logger = require('../src/utils/logger')
 const { handleResponses, CODEX_CLI_INSTRUCTIONS } = require('../src/routes/openaiRoutes')
 
 const DESKTOP_UA =
@@ -159,9 +160,28 @@ describe('handleResponses Codex 客户端识别', () => {
     expect(forwardedBody).not.toHaveProperty('service_tier')
     expect(forwardedBody).not.toHaveProperty('text')
     expect(forwardedBody).not.toHaveProperty('truncation')
-    // 计费用的 service_tier 在删除前已保存
-    expect(req._serviceTier).toBe('priority')
+    // service_tier 已被删除、上游按默认档位处理：计费档位必须同步清空，不能按 priority 计费
+    expect(req._serviceTier).toBeNull()
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Dropping service_tier="priority" for non-Codex client')
+    )
     expect(codexClientVersion.captureClientVersionFromUserAgent).not.toHaveBeenCalled()
+  })
+
+  test('非 Codex UA 且未携带 service_tier：不记 service_tier 丢弃日志', async () => {
+    const req = createReq({ 'user-agent': 'curl/8.7.1' })
+    delete req.body.service_tier
+    await handleResponses(req, createRes())
+
+    expect(req._serviceTier).toBeNull()
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('Dropping service_tier'))
+  })
+
+  test('Codex 客户端：保留计费档位且不记丢弃日志', async () => {
+    const { req } = await runHandleResponses({ 'user-agent': CLI_UA, originator: 'codex_cli_rs' })
+
+    expect(req._serviceTier).toBe('priority')
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('Dropping service_tier'))
   })
 
   test('非 Codex UA + 未知 originator：仍做适配', async () => {

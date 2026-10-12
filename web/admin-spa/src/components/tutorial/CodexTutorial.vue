@@ -416,19 +416,18 @@
               <div class="whitespace-nowrap text-gray-300">mkdir -p ~/.codex/fast-shim</div>
               <div class="mb-2 mt-2"># 创建包装脚本（codex）和代理（proxy.mjs）</div>
               <div class="whitespace-nowrap text-gray-300">
-                curl -fsSL
-                https://raw.githubusercontent.com/dipinllx-source/relay-service/main/resources/fast-shim/codex
-                -o ~/.codex/fast-shim/codex
+                curl -fsSL {{ fastShimCodexUrl }} -o ~/.codex/fast-shim/codex
               </div>
               <div class="whitespace-nowrap text-gray-300">
-                curl -fsSL
-                https://raw.githubusercontent.com/dipinllx-source/relay-service/main/resources/fast-shim/proxy.mjs
-                -o ~/.codex/fast-shim/proxy.mjs
+                curl -fsSL {{ fastShimProxyUrl }} -o ~/.codex/fast-shim/proxy.mjs
               </div>
               <div class="whitespace-nowrap text-gray-300">chmod +x ~/.codex/fast-shim/codex</div>
             </div>
             <p class="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
-              💡 也可以手动创建这两个文件，内容见仓库 resources/fast-shim/ 目录。
+              💡 两个文件由本服务直接提供，无需访问 GitHub。也可以手动下载
+              <a class="underline" download="codex" :href="fastShimCodexUrl">codex</a> 和
+              <a class="underline" download="proxy.mjs" :href="fastShimProxyUrl">proxy.mjs</a>
+              后放到 ~/.codex/fast-shim/ 目录。
             </p>
           </div>
           <div
@@ -611,6 +610,12 @@ const props = defineProps({
 })
 
 const { openaiBaseUrl, ipv6OpenaiBaseUrl } = useTutorialUrls()
+
+// Fast shim 文件随前端构建产出（public/fast-shim -> dist/fast-shim），
+// 由本服务直接提供下载，不依赖 GitHub（国内无法访问 raw.githubusercontent.com）
+const fastShimBase = `${window.location.origin}${import.meta.env.BASE_URL}fast-shim`
+const fastShimCodexUrl = `${fastShimBase}/codex`
+const fastShimProxyUrl = `${fastShimBase}/proxy.mjs`
 
 const relayModels = useRelayModels()
 const codexModel = computed(

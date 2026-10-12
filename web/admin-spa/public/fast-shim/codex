@@ -1,0 +1,43 @@
+#!/bin/bash
+# Codex Desktop app-server shim: makes the desktop UI treat API-key auth as
+# "personalAccessToken" so the Fast (lightning) service tier is not filtered out.
+# Every invocation other than the stdio app-server is exec'd straight to the real CLI.
+#
+# Env:
+#   CODEX_FAST_SHIM_REAL     real codex binary (default: bundled in ChatGPT.app)
+#   CODEX_FAST_SHIM_DISABLE  set to 1 to bypass the proxy entirely
+
+REAL="${CODEX_FAST_SHIM_REAL:-/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex}"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+passthrough() { exec "$REAL" "$@"; }
+
+[ "${CODEX_FAST_SHIM_DISABLE:-0}" = "1" ] && passthrough "$@"
+
+# Find the first two positional args, skipping "-c <value>" / "--config <value>" pairs.
+pos1="" pos2=""
+args=("$@")
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  a="${args[$i]}"
+  case "$a" in
+    -c|--config) i=$((i + 2)); continue ;;
+    -*) i=$((i + 1)); continue ;;
+  esac
+  if [ -z "$pos1" ]; then pos1="$a"; else pos2="$a"; break; fi
+  i=$((i + 1))
+done
+
+# Only the plain stdio app-server (no sub-subcommand such as "daemon") is proxied.
+if [ "$pos1" != "app-server" ] || [ -n "$pos2" ]; then
+  passthrough "$@"
+fi
+
+NODE=""
+for n in "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node" "/opt/homebrew/bin/node" "/usr/local/bin/node"; do
+  [ -x "$n" ] && { NODE="$n"; break; }
+done
+# Fail open: without node or the proxy, run the real app-server unchanged.
+[ -z "$NODE" ] || [ ! -f "$DIR/proxy.mjs" ] && passthrough "$@"
+
+exec "$NODE" "$DIR/proxy.mjs" "$REAL" "$@"

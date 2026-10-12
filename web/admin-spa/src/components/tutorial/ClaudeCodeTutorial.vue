@@ -518,16 +518,10 @@
         <i class="fas fa-wrench mr-2 text-red-600 sm:mr-3" />
         {{ platformName }} 常见问题解决
       </h4>
-      <div class="space-y-4">
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            安装时提示 "permission denied" 错误
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+      <div class="apple-accordion-group">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">安装时提示 "permission denied" 错误</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">这通常是权限问题，尝试以下解决方法：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <template v-if="platform === 'windows'">
@@ -547,15 +541,11 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">
             安装后提示 native binary not found 或 claude 命令不可用
           </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+          <div class="apple-accordion__content">
             <p class="mb-2">这通常与 Claude Code 的平台原生包或 npm optional dependencies 有关：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <li>
@@ -580,16 +570,9 @@
           </div>
         </details>
 
-        <details
-          v-if="platform === 'windows'"
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            PowerShell 执行策略错误
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details v-if="platform === 'windows'" class="apple-accordion">
+          <summary class="apple-accordion__summary">PowerShell 执行策略错误</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">如果遇到执行策略限制，运行：</p>
             <div class="tutorial-command-box">
               <div class="whitespace-nowrap text-gray-300">
@@ -599,15 +582,9 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            环境变量设置后不生效
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">环境变量设置后不生效</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">设置永久环境变量后需要：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <template v-if="platform === 'windows'">
@@ -639,16 +616,9 @@
           </div>
         </details>
 
-        <details
-          v-if="platform === 'linux'"
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            WSL2 中无法访问 Windows 文件
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details v-if="platform === 'linux'" class="apple-accordion">
+          <summary class="apple-accordion__summary">WSL2 中无法访问 Windows 文件</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">WSL2 可以通过 /mnt/ 路径访问 Windows 文件：</p>
             <div class="tutorial-command-box">
               <div class="whitespace-nowrap text-gray-300">cd /mnt/c/Users/你的用户名/项目目录</div>

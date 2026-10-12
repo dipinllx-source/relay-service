@@ -10,13 +10,24 @@
         <h1 class="tut-hero__title">在几分钟内，完成接入。</h1>
         <p class="tut-hero__sub">选择你的操作系统，按步骤在本地完成安装与认证。</p>
 
-        <!-- OS selector (also menu-styled) -->
-        <div class="os-menu">
+        <!-- OS selector：Apple「Explore the lineup」式分段控件，选中胶囊平滑滑动 -->
+        <div
+          ref="osMenuRef"
+          aria-label="选择操作系统"
+          class="os-menu"
+          :class="{ 'os-menu--ready': osIndicatorReady }"
+          role="tablist"
+        >
+          <span aria-hidden="true" class="os-menu__indicator" :style="osIndicatorStyle"></span>
           <button
             v-for="system in tutorialSystems"
             :key="system.key"
+            :aria-selected="activeTutorialSystem === system.key"
             class="os-menu__item"
             :class="{ 'os-menu__item--active': activeTutorialSystem === system.key }"
+            :data-os="system.key"
+            role="tab"
+            type="button"
             @click="activeTutorialSystem = system.key"
           >
             <i :class="system.icon" />
@@ -125,6 +136,25 @@ const tocGroups = computed(() => {
   return groups
 })
 
+/* ---- OS 分段控件：选中胶囊跟随定位 ---- */
+const osMenuRef = ref(null)
+const osIndicatorStyle = ref({ opacity: 0 })
+const osIndicatorReady = ref(false)
+
+const updateOsIndicator = () => {
+  const menu = osMenuRef.value
+  if (!menu) return
+  const btn = menu.querySelector(`[data-os="${activeTutorialSystem.value}"]`)
+  if (!btn) return
+  osIndicatorStyle.value = {
+    width: `${btn.offsetWidth}px`,
+    transform: `translateX(${btn.offsetLeft}px)`,
+    opacity: 1
+  }
+}
+
+watch(activeTutorialSystem, () => nextTick(updateOsIndicator))
+
 /* ---- Scroll tracking via IntersectionObserver ---- */
 let observer = null
 
@@ -207,12 +237,20 @@ watch([activeCliTool, activeTutorialSystem], () => {
 })
 
 onMounted(() => {
+  nextTick(() => {
+    updateOsIndicator()
+    // 首帧定位完成后再开启过渡，避免初次渲染时胶囊从左侧滑入
+    requestAnimationFrame(() => (osIndicatorReady.value = true))
+  })
+  document.fonts?.ready?.then(updateOsIndicator)
+  window.addEventListener('resize', updateOsIndicator)
   applyToolFromQuery()
   refreshCommandCopyButtons()
   setupObserver()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateOsIndicator)
   cleanupObserver()
 })
 </script>
@@ -257,40 +295,6 @@ onBeforeUnmount(() => {
   font-size: 19px;
   color: #6e6e73;
   margin: 0 0 36px;
-}
-
-/* OS menu */
-.os-menu {
-  display: inline-flex;
-  gap: 6px;
-  padding: 6px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 980px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-.os-menu__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 18px;
-  border: none;
-  background: transparent;
-  border-radius: 980px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #1d1d1f;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
-.os-menu__item:hover {
-  background: rgba(255, 255, 255, 0.6);
-}
-.os-menu__item--active {
-  background: #fff;
-  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.15);
-  color: #0071e3;
 }
 
 /* ---------- Demo ---------- */
@@ -496,15 +500,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6);
 }
 
-.dark .os-menu__item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.dark .os-menu__item--active {
-  background: #1f2937;
-  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.5);
-}
-
 .dark .tut-hero__title {
   background: linear-gradient(180deg, #f9fafb 0%, #d1d5db 100%);
   -webkit-background-clip: text;
@@ -513,10 +508,6 @@ onBeforeUnmount(() => {
 
 .dark .tut-hero__sub {
   color: #9ca3af;
-}
-
-.dark .os-menu__item {
-  color: #d1d5db;
 }
 
 .dark .demo__crumbs-sep {
@@ -547,5 +538,102 @@ onBeforeUnmount(() => {
 .dark .finder-sidebar__item--active {
   background: #0071e3;
   color: #fff;
+}
+
+/* ---------- OS 分段控件（参考 apple.com/mac「Explore the lineup」） ---------- */
+.os-menu {
+  position: relative;
+  display: inline-flex;
+  gap: 4px;
+  padding: 6px;
+  background: #e8e8ed;
+  border-radius: 980px;
+  isolation: isolate;
+}
+.os-menu__indicator {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  z-index: 0;
+  border-radius: 980px;
+  background: #1d1d1f;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  will-change: transform, width;
+}
+.os-menu--ready .os-menu__indicator {
+  transition:
+    transform 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+    width 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.2s ease;
+}
+.os-menu__item {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 26px;
+  border: none;
+  background: transparent;
+  border-radius: 980px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.022em;
+  color: #1d1d1f;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 0.4s cubic-bezier(0.32, 0.72, 0, 1),
+    transform 0.2s ease;
+}
+.os-menu__item i {
+  font-size: 15px;
+  opacity: 0.85;
+}
+.os-menu__item:not(.os-menu__item--active):hover {
+  color: #000;
+}
+.os-menu__item:active {
+  transform: scale(0.97);
+}
+.os-menu__item--active {
+  color: #fff;
+}
+.os-menu__item--active i {
+  opacity: 1;
+}
+.os-menu__item:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
+}
+@media (max-width: 720px) {
+  .os-menu__item {
+    padding: 10px 16px;
+    font-size: 15px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .os-menu--ready .os-menu__indicator,
+  .os-menu__item {
+    transition: none;
+  }
+}
+.dark .os-menu {
+  background: rgba(255, 255, 255, 0.1);
+}
+.dark .os-menu__indicator {
+  background: #f5f5f7;
+}
+.dark .os-menu__item {
+  color: #d1d5db;
+}
+.dark .os-menu__item:not(.os-menu__item--active):hover {
+  color: #fff;
+}
+.dark .os-menu__item--active {
+  color: #1d1d1f;
 }
 </style>

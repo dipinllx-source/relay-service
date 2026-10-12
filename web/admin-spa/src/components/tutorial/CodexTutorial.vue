@@ -501,16 +501,10 @@
         <i class="fas fa-wrench mr-2 text-red-600 sm:mr-3" />
         {{ platformName }} 常见问题解决
       </h4>
-      <div class="space-y-4">
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            安装后提示 codex 命令不可用
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+      <div class="apple-accordion-group">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">安装后提示 codex 命令不可用</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">这通常是 npm 全局安装目录没有加入 PATH：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <template v-if="platform === 'windows'">
@@ -534,15 +528,9 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            中国大陆镜像安装失败或版本落后
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">中国大陆镜像安装失败或版本落后</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">npm 镜像可能需要时间同步最新包，可以尝试：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <li>等待镜像同步后重新执行安装命令</li>
@@ -557,15 +545,9 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            Codex 没有走中转服务
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">Codex 没有走中转服务</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">请检查以下配置项：</p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               <li>

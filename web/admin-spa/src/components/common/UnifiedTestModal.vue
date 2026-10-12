@@ -129,14 +129,13 @@
             <div v-if="mode === 'apikey'" class="text-sm">
               <div class="mb-1 flex items-center justify-between">
                 <span class="text-gray-500 dark:text-gray-400">最大输出 Token</span>
-                <select
+                <CustomDropdown
                   v-model="maxTokens"
-                  class="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  <option v-for="opt in maxTokensOptions" :key="opt.value" :value="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
+                  icon="fa-sliders-h"
+                  icon-color="text-indigo-500"
+                  :options="maxTokensOptions"
+                  placeholder="选择上限"
+                />
               </div>
             </div>
             <!-- [apikey] 测试服务 -->
@@ -286,6 +285,7 @@ import { APP_CONFIG } from '@/utils/tools'
 import { getModelsApi } from '@/utils/http_apis'
 import { useTestState } from '@/utils/useTestState'
 import ModelSelector from '@/components/common/ModelSelector.vue'
+import CustomDropdown from '@/components/common/CustomDropdown.vue'
 
 const props = defineProps({
   show: { type: Boolean, default: false },

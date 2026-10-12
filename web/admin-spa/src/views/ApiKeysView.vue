@@ -644,10 +644,8 @@
                             @click="toggleApiKeyModelStats(key.id)"
                           >
                             <i
-                              :class="[
-                                'fas',
-                                expandedApiKeys[key.id] ? 'fa-chevron-up' : 'fa-chevron-down'
-                              ]"
+                              class="fas fa-chevron-down apple-chevron"
+                              :class="{ 'apple-chevron--open': expandedApiKeys[key.id] }"
                             />
                             <span class="ml-1">模型</span>
                           </button>
@@ -711,10 +709,8 @@
                             @click="toggleApiKeyModelStats(key.id)"
                           >
                             <i
-                              :class="[
-                                'fas',
-                                expandedApiKeys[key.id] ? 'fa-chevron-up' : 'fa-chevron-down'
-                              ]"
+                              class="fas fa-chevron-down apple-chevron"
+                              :class="{ 'apple-chevron--open': expandedApiKeys[key.id] }"
                             />
                           </button>
                           <!-- 更多操作下拉菜单 -->
@@ -723,266 +719,294 @@
                       </td>
                     </tr>
 
-                    <!-- 模型统计展开区域 -->
-                    <tr v-if="key && key.id && expandedApiKeys[key.id]">
-                      <td
-                        class="bg-gray-50 px-3 py-3 dark:bg-gray-700"
-                        :colspan="shouldShowCheckboxes ? 9 : 8"
-                      >
-                        <div v-if="!apiKeyModelStats[key.id]" class="py-4 text-center">
-                          <div class="loading-spinner mx-auto" />
-                          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                            加载模型统计...
-                          </p>
-                        </div>
-                        <div class="space-y-4">
-                          <!-- 通用的标题和时间筛选器，无论是否有数据都显示 -->
-                          <div class="mb-4 flex items-center justify-between">
-                            <h5
-                              class="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300"
-                            >
-                              <i class="fas fa-chart-pie mr-2 text-indigo-500" />
-                              模型使用分布
-                            </h5>
-                            <div class="flex items-center gap-2">
-                              <span
-                                v-if="
-                                  apiKeyModelStats[key.id] && apiKeyModelStats[key.id].length > 0
-                                "
-                                class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                              >
-                                {{ apiKeyModelStats[key.id].length }} 个模型
-                              </span>
-
-                              <!-- API Keys日期筛选器 -->
-                              <div class="flex items-center gap-1">
-                                <!-- 快捷日期选择 -->
-                                <div class="flex gap-1 rounded bg-gray-100 p-1 dark:bg-gray-700">
-                                  <button
-                                    v-for="option in getApiKeyDateFilter(key.id).presetOptions"
-                                    :key="option.value"
-                                    :class="[
-                                      'rounded px-2 py-1 text-xs font-medium transition-colors',
-                                      getApiKeyDateFilter(key.id).preset === option.value &&
-                                      getApiKeyDateFilter(key.id).type === 'preset'
-                                        ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
-                                        : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-                                    ]"
-                                    @click="setApiKeyDateFilterPreset(option.value, key.id)"
+                    <!-- 模型统计展开区域（Apple 风格高度过渡） -->
+                    <Transition :css="false" @enter="expandEnter" @leave="expandLeave">
+                      <tr v-if="key && key.id && expandedApiKeys[key.id]">
+                        <td
+                          class="bg-gray-50 p-0 dark:bg-gray-700"
+                          :colspan="shouldShowCheckboxes ? 9 : 8"
+                        >
+                          <div class="apple-expand__inner">
+                            <div class="px-3 py-3">
+                              <div v-if="!apiKeyModelStats[key.id]" class="py-4 text-center">
+                                <div class="loading-spinner mx-auto" />
+                                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                  加载模型统计...
+                                </p>
+                              </div>
+                              <div class="space-y-4">
+                                <!-- 通用的标题和时间筛选器，无论是否有数据都显示 -->
+                                <div class="mb-4 flex items-center justify-between">
+                                  <h5
+                                    class="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300"
                                   >
-                                    {{ option.label }}
-                                  </button>
+                                    <i class="fas fa-chart-pie mr-2 text-indigo-500" />
+                                    模型使用分布
+                                  </h5>
+                                  <div class="flex items-center gap-2">
+                                    <span
+                                      v-if="
+                                        apiKeyModelStats[key.id] &&
+                                        apiKeyModelStats[key.id].length > 0
+                                      "
+                                      class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400"
+                                    >
+                                      {{ apiKeyModelStats[key.id].length }} 个模型
+                                    </span>
+
+                                    <!-- API Keys日期筛选器 -->
+                                    <div class="flex items-center gap-1">
+                                      <!-- 快捷日期选择 -->
+                                      <div
+                                        class="flex gap-1 rounded bg-gray-100 p-1 dark:bg-gray-700"
+                                      >
+                                        <button
+                                          v-for="option in getApiKeyDateFilter(key.id)
+                                            .presetOptions"
+                                          :key="option.value"
+                                          :class="[
+                                            'rounded px-2 py-1 text-xs font-medium transition-colors',
+                                            getApiKeyDateFilter(key.id).preset === option.value &&
+                                            getApiKeyDateFilter(key.id).type === 'preset'
+                                              ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800'
+                                              : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                                          ]"
+                                          @click="setApiKeyDateFilterPreset(option.value, key.id)"
+                                        >
+                                          {{ option.label }}
+                                        </button>
+                                      </div>
+
+                                      <!-- Element Plus 日期范围选择器 -->
+                                      <el-date-picker
+                                        class="api-key-date-picker"
+                                        :clearable="true"
+                                        :default-time="defaultTime"
+                                        :disabled-date="disabledDate"
+                                        end-placeholder="结束日期"
+                                        format="YYYY-MM-DD HH:mm:ss"
+                                        :model-value="getApiKeyDateFilter(key.id).customRange"
+                                        range-separator="至"
+                                        size="small"
+                                        start-placeholder="开始日期"
+                                        style="width: 280px"
+                                        type="datetimerange"
+                                        :unlink-panels="false"
+                                        value-format="YYYY-MM-DD HH:mm:ss"
+                                        @update:model-value="
+                                          (value) => onApiKeyCustomDateRangeChange(key.id, value)
+                                        "
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
 
-                                <!-- Element Plus 日期范围选择器 -->
-                                <el-date-picker
-                                  class="api-key-date-picker"
-                                  :clearable="true"
-                                  :default-time="defaultTime"
-                                  :disabled-date="disabledDate"
-                                  end-placeholder="结束日期"
-                                  format="YYYY-MM-DD HH:mm:ss"
-                                  :model-value="getApiKeyDateFilter(key.id).customRange"
-                                  range-separator="至"
-                                  size="small"
-                                  start-placeholder="开始日期"
-                                  style="width: 280px"
-                                  type="datetimerange"
-                                  :unlink-panels="false"
-                                  value-format="YYYY-MM-DD HH:mm:ss"
-                                  @update:model-value="
-                                    (value) => onApiKeyCustomDateRangeChange(key.id, value)
+                                <!-- 数据展示区域 -->
+                                <div
+                                  v-if="
+                                    apiKeyModelStats[key.id] &&
+                                    apiKeyModelStats[key.id].length === 0
                                   "
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          <!-- 数据展示区域 -->
-                          <div
-                            v-if="apiKeyModelStats[key.id] && apiKeyModelStats[key.id].length === 0"
-                            class="py-8 text-center"
-                          >
-                            <div class="mb-3 flex items-center justify-center gap-2">
-                              <i class="fas fa-chart-line text-lg text-gray-400" />
-                              <p class="text-sm text-gray-500 dark:text-gray-400">
-                                暂无模型使用数据
-                              </p>
-                              <button
-                                class="ml-2 flex items-center gap-1 text-sm text-blue-500 transition-colors hover:text-blue-700"
-                                title="重置筛选条件并刷新"
-                                @click="resetApiKeyDateFilter(key.id)"
-                              >
-                                <i class="fas fa-sync-alt text-xs" />
-                                <span class="text-xs">刷新</span>
-                              </button>
-                            </div>
-                            <p class="text-xs text-gray-400">
-                              尝试调整时间范围或点击刷新重新加载数据
-                            </p>
-                          </div>
-                          <div
-                            v-else-if="
-                              apiKeyModelStats[key.id] && apiKeyModelStats[key.id].length > 0
-                            "
-                            class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-                          >
-                            <div
-                              v-for="stat in apiKeyModelStats[key.id]"
-                              :key="stat.model"
-                              class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all duration-200 hover:border-indigo-300 hover:shadow-lg dark:border-gray-600 dark:from-gray-800 dark:to-gray-700 dark:hover:border-indigo-500"
-                            >
-                              <div class="mb-3 flex items-start justify-between">
-                                <div class="flex-1">
-                                  <span
-                                    class="mb-1 block text-sm font-semibold text-gray-800 dark:text-gray-200"
-                                    >{{ stat.model }}</span
-                                  >
-                                  <span
-                                    class="rounded-full bg-blue-50 px-2 py-1 text-xs text-gray-500 dark:bg-blue-900/30 dark:text-gray-400"
-                                    >{{ stat.requests }} 次请求</span
-                                  >
-                                </div>
-                              </div>
-
-                              <div class="mb-3 space-y-2">
-                                <div class="flex items-center justify-between text-sm">
-                                  <span class="flex items-center text-gray-600 dark:text-gray-400">
-                                    <i class="fas fa-coins mr-1 text-xs text-yellow-500" />
-                                    总Token:
-                                  </span>
-                                  <span class="font-semibold text-gray-900 dark:text-gray-100">{{
-                                    formatTokenCount(stat.allTokens)
-                                  }}</span>
-                                </div>
-                                <div class="flex items-center justify-between text-sm">
-                                  <span class="flex items-center text-gray-600 dark:text-gray-400">
-                                    <i class="fas fa-dollar-sign mr-1 text-xs text-green-500" />
-                                    费用:
-                                  </span>
-                                  <span class="font-semibold text-green-600">{{
-                                    calculateModelCost(stat)
-                                  }}</span>
+                                  class="py-8 text-center"
+                                >
+                                  <div class="mb-3 flex items-center justify-center gap-2">
+                                    <i class="fas fa-chart-line text-lg text-gray-400" />
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                      暂无模型使用数据
+                                    </p>
+                                    <button
+                                      class="ml-2 flex items-center gap-1 text-sm text-blue-500 transition-colors hover:text-blue-700"
+                                      title="重置筛选条件并刷新"
+                                      @click="resetApiKeyDateFilter(key.id)"
+                                    >
+                                      <i class="fas fa-sync-alt text-xs" />
+                                      <span class="text-xs">刷新</span>
+                                    </button>
+                                  </div>
+                                  <p class="text-xs text-gray-400">
+                                    尝试调整时间范围或点击刷新重新加载数据
+                                  </p>
                                 </div>
                                 <div
-                                  class="mt-2 border-t border-gray-100 pt-2 dark:border-gray-600"
+                                  v-else-if="
+                                    apiKeyModelStats[key.id] && apiKeyModelStats[key.id].length > 0
+                                  "
+                                  class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
                                 >
                                   <div
-                                    class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
+                                    v-for="stat in apiKeyModelStats[key.id]"
+                                    :key="stat.model"
+                                    class="rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all duration-200 hover:border-indigo-300 hover:shadow-lg dark:border-gray-600 dark:from-gray-800 dark:to-gray-700 dark:hover:border-indigo-500"
                                   >
-                                    <span class="flex items-center">
-                                      <i class="fas fa-arrow-down mr-1 text-green-500" />
-                                      输入:
-                                    </span>
-                                    <span class="font-medium">{{
-                                      formatTokenCount(stat.inputTokens)
-                                    }}</span>
+                                    <div class="mb-3 flex items-start justify-between">
+                                      <div class="flex-1">
+                                        <span
+                                          class="mb-1 block text-sm font-semibold text-gray-800 dark:text-gray-200"
+                                          >{{ stat.model }}</span
+                                        >
+                                        <span
+                                          class="rounded-full bg-blue-50 px-2 py-1 text-xs text-gray-500 dark:bg-blue-900/30 dark:text-gray-400"
+                                          >{{ stat.requests }} 次请求</span
+                                        >
+                                      </div>
+                                    </div>
+
+                                    <div class="mb-3 space-y-2">
+                                      <div class="flex items-center justify-between text-sm">
+                                        <span
+                                          class="flex items-center text-gray-600 dark:text-gray-400"
+                                        >
+                                          <i class="fas fa-coins mr-1 text-xs text-yellow-500" />
+                                          总Token:
+                                        </span>
+                                        <span
+                                          class="font-semibold text-gray-900 dark:text-gray-100"
+                                          >{{ formatTokenCount(stat.allTokens) }}</span
+                                        >
+                                      </div>
+                                      <div class="flex items-center justify-between text-sm">
+                                        <span
+                                          class="flex items-center text-gray-600 dark:text-gray-400"
+                                        >
+                                          <i
+                                            class="fas fa-dollar-sign mr-1 text-xs text-green-500"
+                                          />
+                                          费用:
+                                        </span>
+                                        <span class="font-semibold text-green-600">{{
+                                          calculateModelCost(stat)
+                                        }}</span>
+                                      </div>
+                                      <div
+                                        class="mt-2 border-t border-gray-100 pt-2 dark:border-gray-600"
+                                      >
+                                        <div
+                                          class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
+                                        >
+                                          <span class="flex items-center">
+                                            <i class="fas fa-arrow-down mr-1 text-green-500" />
+                                            输入:
+                                          </span>
+                                          <span class="font-medium">{{
+                                            formatTokenCount(stat.inputTokens)
+                                          }}</span>
+                                        </div>
+                                        <div
+                                          class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
+                                        >
+                                          <span class="flex items-center">
+                                            <i class="fas fa-arrow-up mr-1 text-blue-500" />
+                                            输出:
+                                          </span>
+                                          <span class="font-medium">{{
+                                            formatTokenCount(stat.outputTokens)
+                                          }}</span>
+                                        </div>
+                                        <div
+                                          v-if="stat.cacheCreateTokens > 0"
+                                          class="flex items-center justify-between text-xs text-purple-600"
+                                        >
+                                          <span class="flex items-center">
+                                            <i class="fas fa-save mr-1" />
+                                            缓存创建:
+                                          </span>
+                                          <span class="font-medium">{{
+                                            formatTokenCount(stat.cacheCreateTokens)
+                                          }}</span>
+                                        </div>
+                                        <div
+                                          v-if="stat.cacheReadTokens > 0"
+                                          class="flex items-center justify-between text-xs text-purple-600"
+                                        >
+                                          <span class="flex items-center">
+                                            <i class="fas fa-download mr-1" />
+                                            缓存读取:
+                                          </span>
+                                          <span class="font-medium">{{
+                                            formatTokenCount(stat.cacheReadTokens)
+                                          }}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <!-- 进度条 -->
+                                    <div
+                                      class="mt-3 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700"
+                                    >
+                                      <div
+                                        class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-500"
+                                        :style="{
+                                          width:
+                                            calculateApiKeyModelPercentage(
+                                              stat.allTokens,
+                                              apiKeyModelStats[key.id]
+                                            ) + '%'
+                                        }"
+                                      />
+                                    </div>
+                                    <div class="mt-1 text-right">
+                                      <span class="text-xs font-medium text-indigo-600">
+                                        {{
+                                          calculateApiKeyModelPercentage(
+                                            stat.allTokens,
+                                            apiKeyModelStats[key.id]
+                                          )
+                                        }}%
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div
-                                    class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
-                                  >
-                                    <span class="flex items-center">
-                                      <i class="fas fa-arrow-up mr-1 text-blue-500" />
-                                      输出:
+                                </div>
+
+                                <!-- 总计统计，仅在有数据时显示 -->
+                                <div
+                                  v-if="
+                                    apiKeyModelStats[key.id] && apiKeyModelStats[key.id].length > 0
+                                  "
+                                  class="mt-4 rounded-lg border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-3 dark:border-indigo-700 dark:from-indigo-900/20 dark:to-purple-900/20"
+                                >
+                                  <div class="flex items-center justify-between text-sm">
+                                    <span
+                                      class="flex items-center font-semibold text-gray-700 dark:text-gray-300"
+                                    >
+                                      <i class="fas fa-calculator mr-2 text-indigo-500" />
+                                      总计统计
                                     </span>
-                                    <span class="font-medium">{{
-                                      formatTokenCount(stat.outputTokens)
-                                    }}</span>
-                                  </div>
-                                  <div
-                                    v-if="stat.cacheCreateTokens > 0"
-                                    class="flex items-center justify-between text-xs text-purple-600"
-                                  >
-                                    <span class="flex items-center">
-                                      <i class="fas fa-save mr-1" />
-                                      缓存创建:
-                                    </span>
-                                    <span class="font-medium">{{
-                                      formatTokenCount(stat.cacheCreateTokens)
-                                    }}</span>
-                                  </div>
-                                  <div
-                                    v-if="stat.cacheReadTokens > 0"
-                                    class="flex items-center justify-between text-xs text-purple-600"
-                                  >
-                                    <span class="flex items-center">
-                                      <i class="fas fa-download mr-1" />
-                                      缓存读取:
-                                    </span>
-                                    <span class="font-medium">{{
-                                      formatTokenCount(stat.cacheReadTokens)
-                                    }}</span>
+                                    <div class="flex gap-4 text-xs">
+                                      <span class="text-gray-600 dark:text-gray-400">
+                                        总请求:
+                                        <span
+                                          class="font-semibold text-gray-800 dark:text-gray-200"
+                                          >{{
+                                            apiKeyModelStats[key.id].reduce(
+                                              (sum, stat) => sum + stat.requests,
+                                              0
+                                            )
+                                          }}</span
+                                        >
+                                      </span>
+                                      <span class="text-gray-600 dark:text-gray-400">
+                                        总Token:
+                                        <span
+                                          class="font-semibold text-gray-800 dark:text-gray-200"
+                                          >{{
+                                            formatTokenCount(
+                                              apiKeyModelStats[key.id].reduce(
+                                                (sum, stat) => sum + stat.allTokens,
+                                                0
+                                              )
+                                            )
+                                          }}</span
+                                        >
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-
-                              <!-- 进度条 -->
-                              <div
-                                class="mt-3 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700"
-                              >
-                                <div
-                                  class="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-500"
-                                  :style="{
-                                    width:
-                                      calculateApiKeyModelPercentage(
-                                        stat.allTokens,
-                                        apiKeyModelStats[key.id]
-                                      ) + '%'
-                                  }"
-                                />
-                              </div>
-                              <div class="mt-1 text-right">
-                                <span class="text-xs font-medium text-indigo-600">
-                                  {{
-                                    calculateApiKeyModelPercentage(
-                                      stat.allTokens,
-                                      apiKeyModelStats[key.id]
-                                    )
-                                  }}%
-                                </span>
-                              </div>
                             </div>
                           </div>
-
-                          <!-- 总计统计，仅在有数据时显示 -->
-                          <div
-                            v-if="apiKeyModelStats[key.id] && apiKeyModelStats[key.id].length > 0"
-                            class="mt-4 rounded-lg border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-3 dark:border-indigo-700 dark:from-indigo-900/20 dark:to-purple-900/20"
-                          >
-                            <div class="flex items-center justify-between text-sm">
-                              <span
-                                class="flex items-center font-semibold text-gray-700 dark:text-gray-300"
-                              >
-                                <i class="fas fa-calculator mr-2 text-indigo-500" />
-                                总计统计
-                              </span>
-                              <div class="flex gap-4 text-xs">
-                                <span class="text-gray-600 dark:text-gray-400">
-                                  总请求:
-                                  <span class="font-semibold text-gray-800 dark:text-gray-200">{{
-                                    apiKeyModelStats[key.id].reduce(
-                                      (sum, stat) => sum + stat.requests,
-                                      0
-                                    )
-                                  }}</span>
-                                </span>
-                                <span class="text-gray-600 dark:text-gray-400">
-                                  总Token:
-                                  <span class="font-semibold text-gray-800 dark:text-gray-200">{{
-                                    formatTokenCount(
-                                      apiKeyModelStats[key.id].reduce(
-                                        (sum, stat) => sum + stat.allTokens,
-                                        0
-                                      )
-                                    )
-                                  }}</span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                    </Transition>
                   </template>
                 </tbody>
               </table>
@@ -1883,6 +1907,7 @@
 </template>
 
 <script setup>
+import { expandEnter, expandLeave } from '@/utils/appleAccordion'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, copyText, formatNumber, formatDate } from '@/utils/tools'

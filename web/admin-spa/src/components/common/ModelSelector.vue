@@ -1,23 +1,25 @@
 <template>
   <div class="flex items-center gap-2">
-    <!-- 下拉选择模式 -->
-    <select
+    <!-- 下拉选择模式：与列表筛选器统一使用 CustomDropdown -->
+    <div
       v-if="!customMode"
-      class="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300"
-      :disabled="disabled"
-      :value="modelValue"
-      @change="handleSelectChange"
+      class="min-w-0 flex-1"
+      :class="disabled && 'pointer-events-none opacity-60'"
     >
-      <option v-for="m in models" :key="m.value" :value="m.value">
-        {{ m.label }}
-      </option>
-      <option value="__custom__">自定义模型...</option>
-    </select>
+      <CustomDropdown
+        icon="fa-cube"
+        icon-color="text-blue-500"
+        :model-value="modelValue"
+        :options="dropdownOptions"
+        placeholder="选择模型"
+        @update:model-value="handleSelect"
+      />
+    </div>
 
     <!-- 自定义输入模式 -->
     <template v-else>
       <input
-        class="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 placeholder-gray-400 transition focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:placeholder-gray-500"
+        class="h-8 min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-[13px] text-gray-700 placeholder-gray-400 shadow-sm transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:placeholder-gray-500"
         :disabled="disabled"
         :placeholder="placeholder"
         type="text"
@@ -25,19 +27,23 @@
         @input="$emit('update:modelValue', $event.target.value)"
       />
       <button
-        class="flex-shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-500 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+        class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition hover:shadow-md dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400"
         :disabled="disabled"
         title="返回列表"
+        type="button"
         @click="exitCustomMode"
       >
-        <i class="fas fa-list text-[10px]" />
+        <i class="fas fa-list text-xs" />
       </button>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import CustomDropdown from '@/components/common/CustomDropdown.vue'
+
+const CUSTOM_VALUE = '__custom__'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -50,12 +56,17 @@ const emit = defineEmits(['update:modelValue'])
 
 const customMode = ref(false)
 
-const handleSelectChange = (e) => {
-  if (e.target.value === '__custom__') {
+const dropdownOptions = computed(() => [
+  ...props.models.map((m) => ({ value: m.value, label: m.label, icon: m.icon })),
+  { value: CUSTOM_VALUE, label: '自定义模型...', icon: 'fa-pen' }
+])
+
+const handleSelect = (value) => {
+  if (value === CUSTOM_VALUE) {
     customMode.value = true
     emit('update:modelValue', '')
   } else {
-    emit('update:modelValue', e.target.value)
+    emit('update:modelValue', value)
   }
 }
 

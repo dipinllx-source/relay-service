@@ -1323,19 +1323,19 @@ button.switch-track:disabled {
   color: var(--tutorial-text) !important;
 }
 
-.tutorial-section details,
-.tutorial-content details {
+.tutorial-section details:not(.apple-accordion),
+.tutorial-content details:not(.apple-accordion) {
   overflow: hidden;
   border-radius: 18px !important;
 }
-.tutorial-section summary,
-.tutorial-content summary {
+.tutorial-section details:not(.apple-accordion) > summary,
+.tutorial-content details:not(.apple-accordion) > summary {
   transition:
     background 0.2s ease,
     color 0.2s ease;
 }
-.tutorial-section summary:hover,
-.tutorial-content summary:hover {
+.tutorial-section details:not(.apple-accordion) > summary:hover,
+.tutorial-content details:not(.apple-accordion) > summary:hover {
   background: rgba(0, 113, 227, 0.06) !important;
   color: var(--tutorial-blue) !important;
 }
@@ -1582,5 +1582,138 @@ button.switch-track:disabled {
     min-height: 26px;
     padding: 5px 8px;
     font-size: 11px !important;
+  }
+}
+
+/* 原生单选下拉框统一外观
+ * macOS/Chromium 会给原生箭头按钮单独绘制一圈高亮轮廓，导致箭头区域
+ * 像额外套了一层蓝框。仅处理未使用 appearance-none 自定义箭头的 select，
+ * Element Plus 与已有自定义箭头的下拉框不受影响。
+ */
+select:not([multiple]):not(.appearance-none) {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 2.5rem !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m5.5 7.5 4.5 4.5 4.5-4.5' stroke='%234b5563' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+}
+
+select:not([multiple]):not(.appearance-none):focus,
+select:not([multiple]):not(.appearance-none):focus-visible {
+  outline: none;
+}
+
+.dark select:not([multiple]):not(.appearance-none) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='m5.5 7.5 4.5 4.5 4.5-4.5' stroke='%239ca3af' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* ---------- Apple 风格折叠问答（参考 apple.com/applecare FAQ） ----------
+ * 分隔线式列表、右侧箭头旋转；高度/淡入动画由 utils/appleAccordion.js 驱动。
+ */
+.apple-accordion {
+  border: 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  /* 覆盖教程区旧的 details 卡片样式（圆角/底色），保持 Apple 分隔线列表 */
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.apple-accordion > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.apple-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+.apple-accordion > summary::marker {
+  content: '';
+}
+
+.apple-accordion > summary::after {
+  content: '';
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  background-color: #6e6e73;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 7.5 10 13l5.5-5.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 7.5 10 13l5.5-5.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  transition:
+    transform 0.38s cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 0.2s ease;
+}
+
+.apple-accordion[open]:not([data-state='closed']) > summary::after,
+.apple-accordion[data-state='open'] > summary::after {
+  transform: rotate(180deg);
+}
+
+.apple-accordion > summary:hover::after {
+  background-color: #1d1d1f;
+}
+
+.apple-accordion > summary:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.apple-accordion__content {
+  padding: 0 42px 20px 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #424245;
+}
+
+.dark .apple-accordion {
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.dark .apple-accordion > summary {
+  color: #f5f5f7;
+}
+
+.dark .apple-accordion > summary::after {
+  background-color: #a1a1a6;
+}
+
+.dark .apple-accordion > summary:hover::after {
+  background-color: #f5f5f7;
+}
+
+.dark .apple-accordion__content {
+  color: #d1d5db;
+}
+
+/* 单个箭头旋转（替代上/下两个图标直接切换） */
+.apple-chevron {
+  display: inline-block;
+  transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.apple-chevron--open {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-accordion > summary::after,
+  .apple-chevron {
+    transition: none;
   }
 }

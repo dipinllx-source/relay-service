@@ -368,16 +368,10 @@
         <i class="fas fa-wrench mr-2 text-red-600 sm:mr-3" />
         {{ platformName }} 常见问题解决
       </h4>
-      <div class="space-y-4">
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            安装后提示找不到 openclaw 命令
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+      <div class="apple-accordion-group">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">安装后提示找不到 openclaw 命令</summary>
+          <div class="apple-accordion__content">
             <ul class="list-inside list-disc space-y-1 text-sm">
               <li>先关闭并重新打开终端</li>
               <li>
@@ -388,15 +382,11 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">
             npm 提示 blocked because they are not covered by allowScripts
           </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+          <div class="apple-accordion__content">
             <p class="mb-2">
               新版 npm 默认拦截安装脚本，重新执行带
               <code>--allow-scripts=openclaw</code> 的安装命令即可。注意
@@ -405,15 +395,9 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            请求返回 401 或提示 API Key 无效
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">请求返回 401 或提示 API Key 无效</summary>
+          <div class="apple-accordion__content">
             <ul class="list-inside list-disc space-y-1 text-sm">
               <li>
                 打开 <code>{{ envPath }}</code
@@ -425,15 +409,9 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            GPT 模型返回 400，Claude 正常
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">GPT 模型返回 400，Claude 正常</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">
               通常是该 API Key 没有 OpenAI 权限，或所在分组暂无可用的 GPT
               账号。请在「实时数据」页查询 Key 的权限，或联系管理员开通。
@@ -441,15 +419,11 @@
           </div>
         </details>
 
-        <details
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">
             Claude 提示 "thinking.type.disabled" is not supported
           </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+          <div class="apple-accordion__content">
             <p class="mb-2">
               新版 Claude 模型不支持关闭思考。请不要使用 <code>--thinking off</code> 或
               <code>/think off</code>，改用 <code>low</code> 等最低档位。
@@ -457,16 +431,9 @@
           </div>
         </details>
 
-        <details
-          v-if="platform === 'windows'"
-          class="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
-        >
-          <summary
-            class="cursor-pointer p-3 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:p-4 sm:text-base"
-          >
-            PowerShell 执行策略错误
-          </summary>
-          <div class="px-3 pb-3 text-gray-600 dark:text-gray-400 sm:px-4 sm:pb-4">
+        <details v-if="platform === 'windows'" class="apple-accordion">
+          <summary class="apple-accordion__summary">PowerShell 执行策略错误</summary>
+          <div class="apple-accordion__content">
             <p class="mb-2">如果遇到执行策略限制，运行：</p>
             <div class="tutorial-command-box">
               <div class="whitespace-nowrap text-gray-300">

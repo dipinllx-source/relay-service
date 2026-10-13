@@ -19,6 +19,7 @@ const ProxyHelper = require('../../utils/proxyHelper')
 const openaiAccountService = require('../account/openaiAccountService')
 const modelsConfig = require('../../../config/models')
 const { createOpenAITestPayload, extractErrorMessage } = require('../../utils/testPayloadHelper')
+const { extractCodexUsageHeaders } = require('../../utils/codexUsageHeaders')
 
 const CODEX_RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
 const TEST_TIMEOUT_MS = 30000
@@ -149,9 +150,6 @@ class OpenAIRelayService {
    *   {type:'test_start'} / {type:'content', text} / {type:'test_complete', success, error}
    */
   async testAccountConnection(accountId, res, model) {
-    const testModel = model || getDefaultTestModel()
-    const startTime = Date.now()
-
     if (!res.headersSent) {
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
@@ -180,6 +178,62 @@ class OpenAIRelayService {
       }
     }
 
+    await this._runConnectionTest(accountId, model, write)
+    finish()
+  }
+
+  /**
+   * 📊 非 SSE 的用量探测：发一次最小 Codex 请求，用响应头刷新 codexUsage 快照。
+   * 供空闲账号用量刷新任务使用；事件契约与 testAccountConnection 相同，只是收集而非写回。
+   * @returns {Promise<{success: boolean, rateLimited: boolean, reachable: boolean, usageUpdated: boolean, error: string|null}>}
+   */
+  async probeAccountUsage(accountId, model) {
+    let completeEvent = null
+    const write = (event) => {
+      if (event && event.type === 'test_complete') {
+        completeEvent = event
+      }
+    }
+    const { usageUpdated } = await this._runConnectionTest(accountId, model, write)
+    const success = !!completeEvent?.success
+    const rateLimited = !!completeEvent?.rateLimited
+    return {
+      success,
+      rateLimited,
+      // 429/流内限流也说明鉴权正常、上游已响应，且同样带回了额度头
+      reachable: success || rateLimited,
+      usageUpdated,
+      error: success ? null : completeEvent?.error || '未收到测试结果'
+    }
+  }
+
+  /**
+   * 把 Codex 响应头中的额度写回账户（与业务链路同一份 codexUsage 快照）
+   * @returns {Promise<boolean>} 是否写入了快照
+   */
+  async _recordCodexUsage(accountId, headers) {
+    const snapshot = extractCodexUsageHeaders(headers)
+    if (!snapshot) {
+      return false
+    }
+    try {
+      await openaiAccountService.updateCodexUsageSnapshot(accountId, snapshot)
+      return true
+    } catch (error) {
+      logger.error(`⚠️ Failed to update Codex usage snapshot after test: ${error.message}`)
+      return false
+    }
+  }
+
+  /**
+   * 连通性测试核心：通过 write 回调输出事件，不关心输出目标（SSE / 内存收集）
+   * @returns {Promise<{usageUpdated: boolean}>}
+   */
+  async _runConnectionTest(accountId, model, write) {
+    const testModel = model || getDefaultTestModel()
+    const startTime = Date.now()
+    let usageUpdated = false
+
     try {
       const { account, accessToken, proxyAgent } = await this._prepareAccountForTest(accountId)
 
@@ -198,11 +252,13 @@ class OpenAIRelayService {
 
       const upstream = await axios.post(CODEX_RESPONSES_ENDPOINT, payload, axiosConfig)
 
+      // 测试与业务请求消耗同一份配额，响应头里的额度同样有效（含 429）
+      usageUpdated = await this._recordCodexUsage(accountId, upstream.headers)
+
       // 429：账户可达但配额已耗尽 —— 与"连接失败"是两回事
       if (upstream.status === 429) {
         await this._handleRateLimited({ upstream, accountId, account, write })
-        finish()
-        return
+        return { usageUpdated }
       }
 
       if (upstream.status >= 400) {
@@ -223,12 +279,11 @@ class OpenAIRelayService {
           error: `上游返回 HTTP ${upstream.status}：${message}`,
           latency: Date.now() - startTime
         })
-        finish()
-        return
+        return { usageUpdated }
       }
 
       await this._pipeTestStream({ upstream, write, accountId, account, startTime, testModel })
-      finish()
+      return { usageUpdated }
     } catch (error) {
       // 真实连接失败（token 失效 / 代理不通 / DNS 等）：如实报错，且不标记限流
       logger.error(`❌ OpenAI (Codex) account test error: ${accountId}`, error.message)
@@ -238,7 +293,7 @@ class OpenAIRelayService {
         error: error.message || '测试失败',
         latency: Date.now() - startTime
       })
-      finish()
+      return { usageUpdated }
     }
   }
 
@@ -290,6 +345,7 @@ class OpenAIRelayService {
     write({
       type: 'test_complete',
       success: false,
+      rateLimited: true,
       error:
         `账户可达但已被限流${resetText ? `，约 ${resetText}后重置` : ''}` +
         (marked ? '；已标记该账户限流' : '')
@@ -386,6 +442,7 @@ class OpenAIRelayService {
           write({
             type: 'test_complete',
             success: false,
+            rateLimited: true,
             error:
               `账户可达但已被限流${resetText ? `，约 ${resetText}后重置` : ''}` +
               (marked ? '；已标记该账户限流' : ''),

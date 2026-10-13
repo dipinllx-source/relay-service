@@ -1,34 +1,44 @@
 <template>
-  <div class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700/70" :title="snapshotTitle">
-    <div class="flex items-center gap-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-300">
-      <i aria-hidden="true" class="far fa-image" />
-      <span>GPT-Image-2</span>
-    </div>
-    <template v-if="windows.length">
-      <div v-for="window in windows" :key="window.name" class="mt-1.5">
-        <div class="flex items-center gap-2">
-          <span class="min-w-[32px] text-[11px] text-gray-500 dark:text-gray-400">{{
-            window.label
-          }}</span>
-          <div
-            class="h-2 min-w-[40px] flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600"
-          >
-            <div
-              class="h-2 rounded-full"
-              :class="
-                window.stale ? 'bg-gray-400' : window.percent >= 90 ? 'bg-red-500' : 'bg-blue-500'
-              "
-              :style="{ width: `${window.percent === null ? 0 : Math.min(100, window.percent)}%` }"
-            />
+  <div class="space-y-2" :title="snapshotTitle">
+    <div
+      v-for="window in displayWindows"
+      :key="window.name"
+      class="rounded-lg bg-gray-50 p-2 dark:bg-gray-700/70"
+    >
+      <div class="flex items-center gap-2">
+        <span
+          class="inline-flex min-w-[32px] justify-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-600 dark:bg-purple-500/20 dark:text-purple-300"
+          :title="`GPT-Image-2 · ${window.label}`"
+        >
+          image-2
+        </span>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <div class="h-2 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
+              <div
+                class="h-2 rounded-full transition-all duration-300"
+                :class="
+                  window.stale
+                    ? 'bg-gray-400'
+                    : window.percent >= 90
+                      ? 'bg-gradient-to-r from-red-500 to-red-600'
+                      : window.percent >= 60
+                        ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                        : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+                "
+                :style="{
+                  width: `${window.percent === null ? 0 : Math.min(100, window.percent)}%`
+                }"
+              />
+            </div>
+            <span class="w-12 text-right text-xs font-semibold text-gray-800 dark:text-gray-100">{{
+              window.percent === null ? '未知' : `${window.percent}%`
+            }}</span>
           </div>
-          <span class="w-12 text-right text-xs font-semibold text-gray-800 dark:text-gray-100">{{
-            window.percent === null ? '未知' : `${window.percent}%`
-          }}</span>
         </div>
-        <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ window.resetLabel }}</div>
       </div>
-    </template>
-    <div v-else class="mt-1 text-[11px] text-gray-400">待生图更新</div>
+      <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ window.resetLabel }}</div>
+    </div>
   </div>
 </template>
 
@@ -73,11 +83,35 @@ const windows = computed(() =>
     let resetLabel = '重置时间未知'
     if (stale) resetLabel = '快照已过期，待生图更新'
     else if (Number.isFinite(resetMs)) {
-      const remainingMinutes = Math.ceil((resetMs - now.value) / 60000)
-      const hours = Math.floor(remainingMinutes / 60)
-      resetLabel = `重置剩余 ${hours ? `${hours}h ` : ''}${remainingMinutes % 60}m`
+      const seconds = Math.max(0, Math.floor((resetMs - now.value) / 1000))
+      const days = Math.floor(seconds / 86400)
+      const hours = Math.floor((seconds % 86400) / 3600)
+      const minutes = Math.floor((seconds % 3600) / 60)
+      const remaining =
+        days > 0
+          ? `${days}天${hours > 0 ? `${hours}小时` : ''}`
+          : hours > 0
+            ? `${hours}小时${minutes > 0 ? `${minutes}分钟` : ''}`
+            : minutes > 0
+              ? `${minutes}分钟`
+              : '不足1分钟'
+      resetLabel = `重置剩余 ${remaining}`
     }
     return [{ name, label, percent, stale, resetLabel }]
   })
+)
+// 无快照时保持同样的额度卡片布局，不能把未知用量展示成 0%。
+const displayWindows = computed(() =>
+  windows.value.length
+    ? windows.value
+    : [
+        {
+          name: 'pending',
+          label: '额度',
+          percent: null,
+          stale: false,
+          resetLabel: '待生图更新'
+        }
+      ]
 )
 </script>

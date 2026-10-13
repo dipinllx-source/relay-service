@@ -1022,6 +1022,14 @@ class Application {
     } else {
       logger.info('🧪 Account test scheduler service disabled')
     }
+
+    // 📊 启动空闲账号用量刷新（每分钟；lastUsedAt 超过阈值的账号刷新用量快照，保证调度负载均衡依据最新）
+    try {
+      const accountUsageRefreshService = require('./services/accountUsageRefreshService')
+      accountUsageRefreshService.start()
+    } catch (error) {
+      logger.error('❌ Failed to start account usage refresh service:', error)
+    }
   }
 
   setupGracefulShutdown() {
@@ -1074,6 +1082,15 @@ class Application {
             logger.info('📊 Cost rank service stopped')
           } catch (error) {
             logger.error('❌ Error stopping cost rank service:', error)
+          }
+
+          // 停止空闲账号用量刷新
+          try {
+            const accountUsageRefreshService = require('./services/accountUsageRefreshService')
+            accountUsageRefreshService.stop()
+            logger.info('📊 Account usage refresh service stopped')
+          } catch (error) {
+            logger.error('❌ Error stopping account usage refresh service:', error)
           }
 
           // 停止账户定时测试调度器

@@ -30,7 +30,9 @@ jest.mock('../src/services/scheduler/unifiedOpenAIScheduler', () => ({
 jest.mock('../src/services/account/openaiAccountService', () => ({
   getAccount: jest.fn(),
   isTokenExpired: jest.fn(() => false),
-  decrypt: jest.fn(() => 'decrypted-access-token')
+  decrypt: jest.fn(() => 'decrypted-access-token'),
+  updateImageGenUsageSnapshot: jest.fn(async () => {}),
+  updateCodexUsageSnapshot: jest.fn(async () => {})
 }))
 jest.mock('../src/services/account/openaiResponsesAccountService', () => ({
   getAccount: jest.fn()
@@ -80,7 +82,13 @@ require('../src/routes/openaiRoutes')
 
 const UPSTREAM_OK = {
   status: 200,
-  headers: { 'x-codex-imagegen-request-id': 'imgreq-1' },
+  headers: {
+    'x-codex-imagegen-request-id': 'imgreq-1',
+    'x-codex-active-limit': 'imagegen_premium',
+    'x-codex-primary-used-percent': '3',
+    'x-codex-primary-window-minutes': '1440',
+    'x-codex-primary-reset-after-seconds': '86400'
+  },
   data: {
     created: 1,
     data: [{ b64_json: 'aW1hZ2U=', generation_id: 'gen-1' }],
@@ -154,6 +162,14 @@ describe('OpenAI images routes', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual(UPSTREAM_OK.data)
     expect(res.headers['x-request-id']).toBe('imgreq-1')
+    expect(openaiAccountService.updateImageGenUsageSnapshot).toHaveBeenCalledWith(
+      'acc-1',
+      expect.objectContaining({
+        activeLimit: 'imagegen_premium',
+        primary: expect.objectContaining({ usedPercent: 3 })
+      })
+    )
+    expect(openaiAccountService.updateCodexUsageSnapshot).not.toHaveBeenCalled()
 
     expect(axios.post).toHaveBeenCalledTimes(1)
     const [url, body, axiosConfig] = axios.post.mock.calls[0]

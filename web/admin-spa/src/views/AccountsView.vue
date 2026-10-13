@@ -1152,6 +1152,7 @@
                     <div v-else class="text-sm text-gray-400">
                       <span class="text-xs">N/A</span>
                     </div>
+                    <ImageGenUsage :usage="account.imageGenUsage" />
                   </div>
                   <div v-else class="text-sm text-gray-400">
                     <span class="text-xs">N/A</span>
@@ -1686,6 +1687,7 @@
               <div v-if="!hasAnyCodexWindowData(account.codexUsage)" class="text-xs text-gray-400">
                 暂无统计
               </div>
+              <ImageGenUsage :usage="account.imageGenUsage" />
             </div>
 
             <!-- 最后使用时间 -->
@@ -2145,6 +2147,7 @@ import CustomDropdown from '@/components/common/CustomDropdown.vue'
 import ActionDropdown from '@/components/common/ActionDropdown.vue'
 import GroupManagementModal from '@/components/accounts/GroupManagementModal.vue'
 import BalanceDisplay from '@/components/accounts/BalanceDisplay.vue'
+import ImageGenUsage from '@/components/accounts/ImageGenUsage.vue'
 import AccountBalanceScriptModal from '@/components/accounts/AccountBalanceScriptModal.vue'
 
 // 确认弹窗状态

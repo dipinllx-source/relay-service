@@ -19,6 +19,7 @@ const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const { IncrementalSSEParser } = require('../utils/sseParser')
 const { getSafeMessage } = require('../utils/errorSanitizer')
 const openaiImages = require('../utils/openaiImages')
+const { extractImageGenUsageHeaders } = require('../utils/imageGenUsage')
 const CostCalculator = require('../utils/costCalculator')
 const {
   createRequestDetailMeta,
@@ -957,7 +958,7 @@ const handleResponses = async (req, res) => {
 // 注册两个路由路径，都使用相同的处理函数
 // ===== OpenAI Images（gpt-image-*）=====
 // 转发到 ChatGPT Codex 后端 Images 接口（Codex CLI 内置 image_gen 同款），使用账户 OAuth token。
-// 生图配额（imagegen）与对话额度相互独立，因此这里不更新 Codex 用量快照、也不据 429 限流账户。
+// 生图配额（imagegen）独立保存，不覆盖聊天 Codex 用量快照、也不据生图 429 限流聊天账户。
 const DEFAULT_IMAGE_CLIENT_UA = 'codex_exec/0.162.0'
 
 function sendImageError(res, status, message, type = 'invalid_request_error') {
@@ -1059,6 +1060,14 @@ const createImagesHandler = (kind) => async (req, res) => {
     return sendImageError(res, 502, 'Upstream image service is unavailable', 'upstream_error')
   }
 
+  const imageGenUsage = extractImageGenUsageHeaders(upstream.headers)
+  if (imageGenUsage) {
+    try {
+      await openaiAccountService.updateImageGenUsageSnapshot(accountId, imageGenUsage)
+    } catch (error) {
+      logger.warn(`Failed to save image generation quota: ${error.message}`)
+    }
+  }
   const durationMs = Date.now() - startedAt
   const upstreamRequestId =
     upstream.headers?.['x-codex-imagegen-request-id'] || upstream.headers?.['x-oai-request-id']

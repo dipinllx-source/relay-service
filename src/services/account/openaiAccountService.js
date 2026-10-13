@@ -16,6 +16,7 @@ const {
 const tokenRefreshService = require('../tokenRefreshService')
 const { createEncryptor } = require('../../utils/commonHelper')
 const codexClientVersion = require('../../utils/codexClientVersion')
+const { buildImageGenUsageSnapshot } = require('../../utils/imageGenUsage')
 
 // 使用 commonHelper 的加密器
 const encryptor = createEncryptor('openai-account-salt')
@@ -695,6 +696,8 @@ async function getAllAccounts() {
     const accountData = dataList[i]
     if (accountData && Object.keys(accountData).length > 0) {
       const codexUsage = buildCodexUsageSnapshot(accountData)
+      const imageGenUsage = buildImageGenUsageSnapshot(accountData.imageGenUsageSnapshot)
+      delete accountData.imageGenUsageSnapshot
 
       // 解密敏感数据（但不返回给前端）
       if (accountData.email) {
@@ -777,7 +780,8 @@ async function getAllAccounts() {
               rateLimitResetAt: null,
               minutesRemaining: 0
             },
-        codexUsage
+        codexUsage,
+        imageGenUsage
       })
     }
   }
@@ -822,6 +826,7 @@ async function getAccountOverview(accountId) {
       minutesRemaining: 0
     },
     codexUsage,
+    imageGenUsage: buildImageGenUsageSnapshot(accountData.imageGenUsageSnapshot),
     scopes
   }
 }
@@ -1231,6 +1236,29 @@ async function updateCodexUsageSnapshot(accountId, usageSnapshot) {
   await client.hset(`${OPENAI_ACCOUNT_KEY_PREFIX}${accountId}`, updates)
 }
 
+async function updateImageGenUsageSnapshot(accountId, snapshot) {
+  if (!snapshot || !buildImageGenUsageSnapshot(snapshot)) {
+    return
+  }
+  const client = redisClient.getClientSafe()
+  // 多个生图请求可能并发返回；原子比较更新时间，避免较旧快照覆盖新快照。
+  await client.eval(
+    `local existing = redis.call("HGET", KEYS[1], "imageGenUsageSnapshot")
+     if existing then
+       local ok, current = pcall(cjson.decode, existing)
+       if ok and type(current) == "table" and type(current.updatedAt) == "string" then
+         if current.updatedAt > ARGV[2] then return 0 end
+       end
+     end
+     redis.call("HSET", KEYS[1], "imageGenUsageSnapshot", ARGV[1])
+     return 1`,
+    1,
+    `${OPENAI_ACCOUNT_KEY_PREFIX}${accountId}`,
+    JSON.stringify(snapshot),
+    snapshot.updatedAt
+  )
+}
+
 // ==================== 上游模型清单动态拉取 ====================
 // 对称照搬 claudeAccountService.fetchAvailableModels 的范式：
 // 可用账户 → 有效 token → 上游 GET → 成功/失败双 TTL 缓存 → 失败由调用处兜底静态。
@@ -1447,6 +1475,7 @@ module.exports = {
   updateAccountUsage,
   recordUsage, // 别名，指向updateAccountUsage
   updateCodexUsageSnapshot,
+  updateImageGenUsageSnapshot,
   encrypt,
   decrypt,
   encryptor, // 暴露加密器以便测试和监控

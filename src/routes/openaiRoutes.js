@@ -18,6 +18,8 @@ const modelCatalogService = require('../services/modelCatalogService')
 const { updateRateLimitCounters } = require('../utils/rateLimitHelper')
 const { IncrementalSSEParser } = require('../utils/sseParser')
 const { getSafeMessage } = require('../utils/errorSanitizer')
+const openaiImages = require('../utils/openaiImages')
+const CostCalculator = require('../utils/costCalculator')
 const {
   createRequestDetailMeta,
   extractOpenAICacheReadTokens
@@ -953,6 +955,181 @@ const handleResponses = async (req, res) => {
 }
 
 // 注册两个路由路径，都使用相同的处理函数
+// ===== OpenAI Images（gpt-image-*）=====
+// 转发到 ChatGPT Codex 后端 Images 接口（Codex CLI 内置 image_gen 同款），使用账户 OAuth token。
+// 生图配额（imagegen）与对话额度相互独立，因此这里不更新 Codex 用量快照、也不据 429 限流账户。
+const DEFAULT_IMAGE_CLIENT_UA = 'codex_exec/0.162.0'
+
+function sendImageError(res, status, message, type = 'invalid_request_error') {
+  return res.status(status).json({ error: { message, type, code: type } })
+}
+
+const createImagesHandler = (kind) => async (req, res) => {
+  const apiKeyData = req.apiKey || {}
+  const startedAt = Date.now()
+
+  if (!checkOpenAIPermissions(apiKeyData)) {
+    logger.security(
+      `🚫 API Key ${apiKeyData.id || 'unknown'} 缺少 OpenAI 权限，拒绝访问 ${req.originalUrl}`
+    )
+    return res.status(403).json({
+      error: {
+        message: 'This API key does not have permission to access OpenAI',
+        type: 'permission_denied',
+        code: 'permission_denied'
+      }
+    })
+  }
+
+  let body
+  try {
+    const contentType = String(req.headers['content-type'] || '').toLowerCase()
+    const raw =
+      kind === 'edits' && contentType.includes('multipart/form-data')
+        ? await openaiImages.parseMultipartEditRequest(req)
+        : req.body
+    body = openaiImages.normalizeImageRequest(raw, { kind })
+  } catch (error) {
+    return sendImageError(
+      res,
+      error.statusCode || 400,
+      error.message || 'Invalid image request',
+      error.code || 'invalid_request_error'
+    )
+  }
+
+  let auth
+  try {
+    auth = await getOpenAIAuthToken(apiKeyData, null, body.model)
+  } catch (error) {
+    const status = error.statusCode || 500
+    return sendImageError(
+      res,
+      status,
+      getSafeMessage(error) || 'Failed to select an OpenAI account',
+      status === 402 ? 'insufficient_quota' : 'api_error'
+    )
+  }
+
+  const { accessToken, accountId, accountType, proxy, account } = auth
+  if (accountType === 'openai-responses') {
+    return sendImageError(
+      res,
+      501,
+      'Image generation is only available for ChatGPT OAuth OpenAI accounts',
+      'not_supported'
+    )
+  }
+
+  const codexClient = detectCodexClient(req.headers)
+  const headers = {
+    authorization: `Bearer ${accessToken}`,
+    'chatgpt-account-id': account.accountId || account.chatgptUserId || accountId,
+    'content-type': 'application/json',
+    accept: 'application/json',
+    originator: req.headers['originator'] || codexClient?.clientType || 'codex_exec',
+    'user-agent':
+      codexClient && req.headers['user-agent']
+        ? req.headers['user-agent']
+        : DEFAULT_IMAGE_CLIENT_UA,
+    'x-codex-image-turn-id': req.headers['x-codex-image-turn-id'] || `relay-${crypto.randomUUID()}`
+  }
+
+  const axiosConfig = {
+    headers,
+    timeout: config.requestTimeout || 600000,
+    validateStatus: () => true,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity
+  }
+  const proxyAgent = createProxyAgent(proxy)
+  if (proxyAgent) {
+    axiosConfig.httpAgent = proxyAgent
+    axiosConfig.httpsAgent = proxyAgent
+    axiosConfig.proxy = false
+  }
+
+  let upstream
+  try {
+    upstream = await axios.post(`${openaiImages.CODEX_IMAGES_BASE_URL}/${kind}`, body, axiosConfig)
+  } catch (error) {
+    logger.error(
+      `❌ OpenAI image ${kind} upstream request failed (account ${account?.name || accountId}): ${error.message}`
+    )
+    return sendImageError(res, 502, 'Upstream image service is unavailable', 'upstream_error')
+  }
+
+  const durationMs = Date.now() - startedAt
+  const upstreamRequestId =
+    upstream.headers?.['x-codex-imagegen-request-id'] || upstream.headers?.['x-oai-request-id']
+  if (upstreamRequestId) {
+    res.setHeader('x-request-id', String(upstreamRequestId))
+  }
+
+  if (upstream.status < 200 || upstream.status >= 300) {
+    const errorBody = openaiImages.toOpenAIErrorBody(upstream.status, upstream.data)
+    logger.warn(
+      `⚠️ OpenAI image ${kind} failed: ${upstream.status} ${errorBody.error.message.slice(0, 200)} (account ${account?.name || accountId}, ${durationMs}ms)`
+    )
+    return res.status(upstream.status).json(errorBody)
+  }
+
+  const { data } = upstream
+  const usage = openaiImages.extractImageUsage(data)
+  if (usage && (usage.inputTokens > 0 || usage.outputTokens > 0)) {
+    try {
+      const costInfo = CostCalculator.calculateImageGenerationCost(usage, body.model)
+      const costs = await apiKeyService.recordUsage(
+        apiKeyData.id,
+        usage.inputTokens,
+        usage.outputTokens,
+        0,
+        0,
+        body.model,
+        accountId,
+        'openai',
+        null,
+        createRequestDetailMeta(req, {
+          requestBody: openaiImages.summarizeImageRequest(body, kind),
+          stream: false,
+          statusCode: upstream.status
+        }),
+        { costInfo }
+      )
+      await applyRateLimitTracking(
+        req,
+        {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cacheCreateTokens: 0,
+          cacheReadTokens: 0
+        },
+        body.model,
+        `openai-images-${kind}`,
+        'openai',
+        costs
+      )
+      logger.info(
+        `🖼️ Recorded OpenAI image ${kind} usage - Input: ${usage.inputTokens}(text:${usage.inputTextTokens}+image:${usage.inputImageTokens}), Output: ${usage.outputTokens}(image:${usage.outputImageTokens}), Images: ${Array.isArray(data?.data) ? data.data.length : 0}, Model: ${body.model}, Cost: $${costInfo.costs.total.toFixed(6)}, ${durationMs}ms`
+      )
+    } catch (error) {
+      logger.error(`❌ Failed to record OpenAI image usage: ${error.message}`)
+    }
+  } else {
+    logger.warn(`⚠️ OpenAI image ${kind} response has no usage; nothing recorded (${body.model})`)
+  }
+
+  return res.status(upstream.status).json(data)
+}
+
+const handleImageGenerations = createImagesHandler('generations')
+const handleImageEdits = createImagesHandler('edits')
+
+router.post('/images/generations', authenticateApiKey, handleImageGenerations)
+router.post('/v1/images/generations', authenticateApiKey, handleImageGenerations)
+router.post('/images/edits', authenticateApiKey, handleImageEdits)
+router.post('/v1/images/edits', authenticateApiKey, handleImageEdits)
+
 router.post('/responses', authenticateApiKey, handleResponses)
 router.post('/v1/responses', authenticateApiKey, handleResponses)
 router.post('/responses/compact', authenticateApiKey, handleResponses)
@@ -1110,4 +1287,6 @@ router.get('/key-info', authenticateApiKey, async (req, res) => {
 module.exports = router
 module.exports.handleResponses = handleResponses
 module.exports.handleCodexModelCatalog = handleCodexModelCatalog
+module.exports.handleImageGenerations = handleImageGenerations
+module.exports.handleImageEdits = handleImageEdits
 module.exports.CODEX_CLI_INSTRUCTIONS = CODEX_CLI_INSTRUCTIONS

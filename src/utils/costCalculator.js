@@ -308,6 +308,89 @@ class CostCalculator {
   }
 
   /**
+   * 计算图像生成（gpt-image-*）费用，与 LiteLLM 计价口径一致：
+   * 文本输入 × input_cost_per_token，图像输入 × input_cost_per_image_token，
+   * 图像输出 × output_cost_per_image_token，文本输出 × output_cost_per_token。
+   * 缺失的单价回退到同方向的另一种单价。
+   * @param {Object} imageUsage - extractImageUsage() 的结果
+   * @param {string} model - 模型名称
+   * @returns {Object} 与 calculateCost 相同结构的费用详情
+   */
+  static calculateImageGenerationCost(imageUsage = {}, model = 'gpt-image-2') {
+    const safeModel = typeof model === 'string' && model ? model : 'gpt-image-2'
+    const pricingData = pricingService.getModelPricing(safeModel)
+    const rate = (value) =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+    const count = (value) =>
+      typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+
+    const textInputRate = rate(pricingData?.input_cost_per_token)
+    const imageInputRate = rate(pricingData?.input_cost_per_image_token) || textInputRate
+    const imageOutputRate =
+      rate(pricingData?.output_cost_per_image_token) || rate(pricingData?.output_cost_per_token)
+    const textOutputRate = rate(pricingData?.output_cost_per_token) || imageOutputRate
+
+    const inputTextTokens = count(imageUsage.inputTextTokens)
+    const inputImageTokens = count(imageUsage.inputImageTokens)
+    const outputTextTokens = count(imageUsage.outputTextTokens)
+    const outputImageTokens = count(imageUsage.outputImageTokens)
+    const inputTokens = count(imageUsage.inputTokens) || inputTextTokens + inputImageTokens
+    const outputTokens = count(imageUsage.outputTokens) || outputTextTokens + outputImageTokens
+
+    const inputCost = inputTextTokens * textInputRate + inputImageTokens * imageInputRate
+    const outputCost = outputImageTokens * imageOutputRate + outputTextTokens * textOutputRate
+    const totalCost = inputCost + outputCost
+
+    if (!pricingData) {
+      logger.warn(`⚠️ No pricing data for image model ${safeModel}; image cost recorded as 0`)
+    }
+
+    return {
+      model: safeModel,
+      pricing: {
+        input: textInputRate * 1000000,
+        output: imageOutputRate * 1000000,
+        inputImage: imageInputRate * 1000000,
+        outputText: textOutputRate * 1000000,
+        cacheWrite: 0,
+        cacheRead: 0
+      },
+      usingDynamicPricing: !!pricingData,
+      isLongContextRequest: false,
+      usage: {
+        inputTokens,
+        outputTokens,
+        cacheCreateTokens: 0,
+        cacheReadTokens: 0,
+        totalTokens: inputTokens + outputTokens
+      },
+      costs: {
+        input: inputCost,
+        output: outputCost,
+        cacheWrite: 0,
+        cacheRead: 0,
+        total: totalCost
+      },
+      formatted: {
+        input: this.formatCost(inputCost),
+        output: this.formatCost(outputCost),
+        cacheWrite: this.formatCost(0),
+        cacheRead: this.formatCost(0),
+        total: this.formatCost(totalCost)
+      },
+      debug: {
+        isImageGeneration: true,
+        inputTextTokens,
+        inputImageTokens,
+        outputTextTokens,
+        outputImageTokens,
+        usedFallbackPricing: !pricingData,
+        pricingSource: this.getPricingSource(safeModel, pricingData)
+      }
+    }
+  }
+
+  /**
    * 计算聚合使用量的费用
    * @param {Object} aggregatedUsage - 聚合使用量数据
    * @param {string} model - 模型名称

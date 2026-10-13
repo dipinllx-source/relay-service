@@ -1,5 +1,5 @@
 // 空闲账号用量刷新服务单元测试
-// 覆盖：资格筛选（只看 lastUsedAt 是否在 5h 之前）、每轮最多 2 个、无符合条件账号不处理、
+// 覆盖：资格筛选（只看 lastUsedAt 是否在 5h 之前）、默认每小时最多 1 个、无符合条件账号不处理、
 //       处理后（成功/失败）lastUsedAt 更新为当前时间从而 5h 内不重复处理、锁互斥、并发重入、配置回退
 
 jest.mock('../src/utils/logger', () => ({
@@ -13,9 +13,9 @@ jest.mock('../src/utils/logger', () => ({
 const mockConfig = {
   accountUsageRefresh: {
     enabled: true,
-    intervalMs: 60000,
+    intervalMs: 3600000,
     idleHours: 5,
-    maxPerTick: 2,
+    maxPerTick: 1,
     model: null
   }
 }
@@ -119,7 +119,7 @@ beforeEach(() => {
   openaiAccountService.getAccount.mockResolvedValue({ codexPrimaryUsedPercent: '12' })
   upstreamErrorHelper.isTempUnavailable.mockResolvedValue(false)
   openaiRelayService.probeAccountUsage.mockResolvedValue(probeOk)
-  mockConfig.accountUsageRefresh.maxPerTick = 2
+  mockConfig.accountUsageRefresh.maxPerTick = 1
   service = new AccountUsageRefreshService()
 })
 
@@ -168,34 +168,42 @@ describe('资格筛选', () => {
 })
 
 describe('每轮上限与无候选', () => {
-  test('5 个符合条件时本轮只处理最久未用的 2 个，其余留到下一轮', async () => {
+  test('3 个符合条件时每小时只处理最久未用的 1 个，其余逐小时处理', async () => {
     setAccounts([
       makeAccount('b', { lastUsedAt: hoursAgo(10) }),
-      makeAccount('c', { lastUsedAt: hoursAgo(8) }),
       makeAccount('a', { lastUsedAt: hoursAgo(72) }),
-      makeAccount('d', { lastUsedAt: hoursAgo(7) }),
-      makeAccount('e', { lastUsedAt: hoursAgo(6) })
+      makeAccount('c', { lastUsedAt: hoursAgo(6) })
     ])
 
     const first = await service.runOnce(NOW)
-    expect(first.refreshed).toEqual(['a', 'b'])
-    expect(openaiRelayService.probeAccountUsage).toHaveBeenCalledTimes(2)
-
-    // a、b 的 lastUsedAt 已更新为当前时间；下一轮继续处理 c、d
+    expect(first.refreshed).toEqual(['a'])
+    expect(openaiRelayService.probeAccountUsage).toHaveBeenCalledTimes(1)
     expect(lastUsedOf('a')).toBe(new Date(NOW).toISOString())
-    expect(lastUsedOf('b')).toBe(new Date(NOW).toISOString())
-    mockClock = NOW + 60 * 1000
-    const second = await service.runOnce(mockClock)
-    expect(second.refreshed).toEqual(['c', 'd'])
 
-    mockClock = NOW + 2 * 60 * 1000
-    const third = await service.runOnce(mockClock)
-    expect(third.refreshed).toEqual(['e'])
+    // a 的 lastUsedAt 已更新为当前时间；1 小时后处理 b，再 1 小时后处理 c
+    mockClock = NOW + HOUR
+    expect((await service.runOnce(mockClock)).refreshed).toEqual(['b'])
+    mockClock = NOW + 2 * HOUR
+    expect((await service.runOnce(mockClock)).refreshed).toEqual(['c'])
 
-    // 全部处理过：之后 5 小时内的轮次什么都不做
-    mockClock = NOW + 3 * 60 * 1000
+    // 全部处理过：之后在 5 小时阈值内什么都不做
+    mockClock = NOW + 3 * HOUR
     expect(await service.runOnce(mockClock)).toEqual({ refreshed: [], failed: [] })
-    expect(openaiRelayService.probeAccountUsage).toHaveBeenCalledTimes(5)
+    expect(openaiRelayService.probeAccountUsage).toHaveBeenCalledTimes(3)
+
+    // 第一次处理 a 满 5 小时后，a 再次符合条件
+    mockClock = NOW + 5 * HOUR
+    expect((await service.runOnce(mockClock)).refreshed).toEqual(['a'])
+  })
+
+  test('maxPerTick 可配置为多个', async () => {
+    mockConfig.accountUsageRefresh.maxPerTick = 2
+    setAccounts([
+      makeAccount('b', { lastUsedAt: hoursAgo(10) }),
+      makeAccount('a', { lastUsedAt: hoursAgo(72) }),
+      makeAccount('c', { lastUsedAt: hoursAgo(6) })
+    ])
+    expect((await service.runOnce(NOW)).refreshed).toEqual(['a', 'b'])
   })
 
   test('没有符合条件的账号时不做任何处理', async () => {
@@ -303,16 +311,23 @@ describe('配置回退', () => {
     mockConfig.accountUsageRefresh = saved
     delete process.env.ACCOUNT_USAGE_REFRESH_IDLE_HOURS
     delete process.env.ACCOUNT_USAGE_REFRESH_ENABLED
+    delete process.env.ACCOUNT_USAGE_REFRESH_INTERVAL_MINUTES
   })
 
-  test('config 缺少配置段时读取环境变量，默认每轮 2 个', () => {
+  test('config 缺少配置段时读取环境变量，默认每小时 1 个', () => {
     delete mockConfig.accountUsageRefresh
     process.env.ACCOUNT_USAGE_REFRESH_IDLE_HOURS = '3'
     const settings = getSettings()
     expect(settings.enabled).toBe(true)
     expect(settings.idleMs).toBe(3 * HOUR)
-    expect(settings.maxPerTick).toBe(2)
-    expect(settings.intervalMs).toBe(60000)
+    expect(settings.maxPerTick).toBe(1)
+    expect(settings.intervalMs).toBe(HOUR)
+  })
+
+  test('间隔可通过环境变量调整', () => {
+    delete mockConfig.accountUsageRefresh
+    process.env.ACCOUNT_USAGE_REFRESH_INTERVAL_MINUTES = '30'
+    expect(getSettings().intervalMs).toBe(30 * 60 * 1000)
   })
 
   test('默认阈值 5 小时', () => {

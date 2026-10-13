@@ -118,13 +118,13 @@ const config = {
     })()
   },
 
-  // 📊 空闲账号用量刷新：每分钟最多处理 maxPerTick 个 lastUsedAt 超过 idleHours 的 OpenAI(Codex) 账号，
+  // 📊 空闲账号用量刷新：每 intervalMs（默认 1 小时）最多处理 maxPerTick（默认 1）个 lastUsedAt 超过 idleHours 的 OpenAI(Codex) 账号，
   //    发最小探测请求刷新 codexUsage，处理后 lastUsedAt 更新为当前时间；无符合条件的账号则不处理
   accountUsageRefresh: {
     enabled: process.env.ACCOUNT_USAGE_REFRESH_ENABLED !== 'false',
-    intervalMs: 60 * 1000,
+    intervalMs: (parseFloat(process.env.ACCOUNT_USAGE_REFRESH_INTERVAL_MINUTES) || 60) * 60 * 1000,
     idleHours: parseFloat(process.env.ACCOUNT_USAGE_REFRESH_IDLE_HOURS) || 5,
-    maxPerTick: parseInt(process.env.ACCOUNT_USAGE_REFRESH_MAX_PER_TICK) || 2,
+    maxPerTick: parseInt(process.env.ACCOUNT_USAGE_REFRESH_MAX_PER_TICK) || 1,
     // 留空使用默认测试模型（模型清单首项）
     model: process.env.ACCOUNT_USAGE_REFRESH_MODEL || null
   },

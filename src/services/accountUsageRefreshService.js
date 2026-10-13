@@ -4,12 +4,12 @@
  * 为什么需要：Codex 账号的额度（codexUsage）只能从真实请求的响应头里拿到。
  * 调度器按"用量档位 → lastUsedAt"排序，若某账号长时间没被选中，它的用量快照会一直停留在
  * 旧值（例如几天前的 72%），导致它一直落在高档位、继续不被选中 —— 形成"越旧越不用"的死循环，
- * 负载均衡失真。本服务每分钟扫描一次，对 lastUsedAt 超过阈值（默认 5 小时）的账号发一次
+ * 负载均衡失真。本服务每小时扫描一次（默认），对 lastUsedAt 超过阈值（默认 5 小时）的账号发一次
  * 最小探测请求，刷新用量快照并更新 lastUsedAt。
  *
  * 处理规则：
  *   - 只看账号自身记录的最后使用时间（lastUsedAt），不引入额外标识
- *   - 每轮最多处理 maxPerTick（默认 2）个 lastUsedAt 在阈值之前的账号，最久未用的优先，串行执行；
+ *   - 每轮最多处理 maxPerTick（默认 1）个 lastUsedAt 在阈值之前的账号，最久未用的优先，串行执行；
  *     没有符合条件的账号则本轮不做任何事
  *   - 账号处理后（无论探测成功或失败）lastUsedAt 都更新为当前时间，因此阈值内不会重复处理
  *   - 仅处理激活、可调度、未限流、未临时不可用、状态正常的 OpenAI (Codex OAuth) 账号
@@ -34,6 +34,7 @@ function readEnvSettings() {
   return {
     enabled: env.ACCOUNT_USAGE_REFRESH_ENABLED !== 'false',
     idleHours: parseFloat(env.ACCOUNT_USAGE_REFRESH_IDLE_HOURS),
+    intervalMs: (parseFloat(env.ACCOUNT_USAGE_REFRESH_INTERVAL_MINUTES) || 60) * 60 * 1000,
     maxPerTick: parseInt(env.ACCOUNT_USAGE_REFRESH_MAX_PER_TICK),
     model: env.ACCOUNT_USAGE_REFRESH_MODEL || null
   }
@@ -47,9 +48,9 @@ function getSettings() {
   }
   return {
     enabled: raw.enabled !== false,
-    intervalMs: positive(raw.intervalMs, 60 * 1000),
+    intervalMs: positive(raw.intervalMs, 60 * 60 * 1000),
     idleMs: positive(raw.idleHours, 5) * 60 * 60 * 1000,
-    maxPerTick: Math.floor(positive(raw.maxPerTick, 2)),
+    maxPerTick: Math.floor(positive(raw.maxPerTick, 1)),
     model: raw.model || null
   }
 }
@@ -86,7 +87,7 @@ class AccountUsageRefreshService {
       this.timer.unref()
     }
     logger.info(
-      `📊 Account usage refresh service started (every ${Math.round(settings.intervalMs / 1000)}s, idle threshold ${settings.idleMs / 3600000}h, max ${settings.maxPerTick}/tick)`
+      `📊 Account usage refresh service started (every ${Math.round(settings.intervalMs / 60000)} min, idle threshold ${settings.idleMs / 3600000}h, max ${settings.maxPerTick}/tick)`
     )
   }
 

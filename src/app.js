@@ -1023,7 +1023,7 @@ class Application {
       logger.info('🧪 Account test scheduler service disabled')
     }
 
-    // 📊 启动空闲账号用量刷新（每分钟；lastUsedAt 超过阈值的账号刷新用量快照，保证调度负载均衡依据最新）
+    // 📊 启动空闲账号用量刷新（默认每小时 1 个；lastUsedAt 超过阈值的账号刷新用量快照，保证调度负载均衡依据最新）
     try {
       const accountUsageRefreshService = require('./services/accountUsageRefreshService')
       accountUsageRefreshService.start()

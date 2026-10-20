@@ -31,13 +31,24 @@
                 }"
               />
             </div>
-            <span class="w-12 text-right text-xs font-semibold text-gray-800 dark:text-gray-100">{{
-              window.percent === null ? '未知' : `${window.percent}%`
-            }}</span>
+            <span
+              class="w-12 text-right text-xs font-semibold"
+              :class="
+                window.stale
+                  ? 'text-gray-400 dark:text-gray-500'
+                  : 'text-gray-800 dark:text-gray-100'
+              "
+              >{{
+                window.stale ? '已重置' : window.percent === null ? '未知' : `${window.percent}%`
+              }}</span
+            >
           </div>
         </div>
       </div>
       <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ window.resetLabel }}</div>
+      <div v-if="window.lastSnapshotLabel" class="text-[11px] text-gray-400 dark:text-gray-500">
+        {{ window.lastSnapshotLabel }}
+      </div>
     </div>
   </div>
 </template>
@@ -57,9 +68,17 @@ onUnmounted(() => clearInterval(timer))
 
 const snapshotTitle = computed(() =>
   props.usage?.updatedAt
-    ? `生图额度快照：${new Date(props.usage.updatedAt).toLocaleString()}。仅生图请求返回后更新，与聊天额度独立。`
+    ? `生图额度快照：${new Date(props.usage.updatedAt).toLocaleString()}。仅生图请求返回后更新，与聊天额度独立；额度窗口按上游固定周期重置，不随每次生图重新计时。`
     : '暂无生图额度快照；下一次生图请求返回后更新。'
 )
+
+const pad = (value) => String(value).padStart(2, '0')
+// 过期快照只作为历史参考展示，标注采集时间，避免被误读为当前额度。
+const formatSnapshotTime = (value) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '时间未知'
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 
 const windows = computed(() =>
   ['primary', 'secondary'].flatMap((name) => {
@@ -80,8 +99,16 @@ const windows = computed(() =>
           : minutes > 0
             ? `${minutes}m`
             : '额度'
+    const lastPercent =
+      typeof value.usedPercent === 'number' && Number.isFinite(value.usedPercent)
+        ? `${Math.max(0, value.usedPercent)}%`
+        : '未知'
+    // 窗口重置后旧百分比不再代表当前额度，但保留为“上次快照”供参考。
+    const lastSnapshotLabel = stale
+      ? `上次快照：${lastPercent} · ${formatSnapshotTime(props.usage?.updatedAt)} 更新`
+      : ''
     let resetLabel = '重置时间未知'
-    if (stale) resetLabel = '快照已过期，待生图更新'
+    if (stale) resetLabel = '上一配额窗口已重置，下次生图后刷新'
     else if (Number.isFinite(resetMs)) {
       const seconds = Math.max(0, Math.floor((resetMs - now.value) / 1000))
       const days = Math.floor(seconds / 86400)
@@ -97,7 +124,7 @@ const windows = computed(() =>
               : '不足1分钟'
       resetLabel = `重置剩余 ${remaining}`
     }
-    return [{ name, label, percent, stale, resetLabel }]
+    return [{ name, label, percent, stale, resetLabel, lastSnapshotLabel }]
   })
 )
 // 无快照时保持同样的额度卡片布局，不能把未知用量展示成 0%。
@@ -110,7 +137,8 @@ const displayWindows = computed(() =>
           label: '额度',
           percent: null,
           stale: false,
-          resetLabel: '待生图更新'
+          resetLabel: '待生图更新',
+          lastSnapshotLabel: ''
         }
       ]
 )

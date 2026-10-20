@@ -44,8 +44,8 @@ export const cliToolSteps = {
     { id: 'tut-step-usage', label: '启动并使用', icon: 'fas fa-play', group: 'steps' },
     {
       id: 'tut-step-fast',
-      label: '开启 Fast 模式',
-      icon: 'fas fa-bolt',
+      label: 'Fast 与原生生图',
+      icon: 'fas fa-wand-magic-sparkles',
       group: 'steps',
       platform: 'macos'
     },

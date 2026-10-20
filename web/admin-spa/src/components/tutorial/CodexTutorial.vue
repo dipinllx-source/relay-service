@@ -377,7 +377,7 @@
       </div>
     </div>
 
-    <!-- 第五步：Codex Desktop 开启 Fast 模式（仅 macOS） -->
+    <!-- 第五步：Codex Desktop 开启 Fast 与原生生图（仅 macOS） -->
     <div v-if="platform === 'macos'" id="tut-step-fast" class="mb-6 sm:mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
@@ -386,18 +386,22 @@
           class="tutorial-step-marker mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-500 text-xs font-bold text-white sm:mr-3 sm:h-8 sm:w-8 sm:text-sm"
           >5</span
         >
-        Codex Desktop 开启 Fast 模式
+        Codex Desktop 开启 Fast 与原生生图
       </h4>
       <div
         class="rounded-xl border border-yellow-100 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 dark:border-yellow-500/40 dark:from-yellow-950/30 dark:to-amber-950/30 sm:p-6"
       >
         <p class="mb-4 text-sm text-gray-700 dark:text-gray-300 sm:text-base">
-          Codex Desktop（ChatGPT.app）只有在登录方式为 ChatGPT 账号或 Personal Access Token
-          时才会显示闪电（Fast）开关。通过中转服务使用 API Key 登录时，开关会被隐藏。 下面的 Shim
-          脚本会拦截 Desktop 与内置 CLI 之间的通信，将登录方式改写，
-          让闪电开关重新出现。开关打开后，每个请求会携带
+          Codex Desktop（ChatGPT.app）通过中转服务使用 API Key 登录时，会隐藏闪电（Fast）开关，
+          当前会话也不会暴露内置的
+          <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">image_gen</code>
+          图像生成工具。下面的 Shim 会同时恢复这两项能力：让 Fast 开关重新出现，并让系统自带的
+          imagegen 技能直接调用原生图像工具，无需额外安装 Skill、配置 Python SDK 或改用 CLI/API
+          出图。开启 Fast 后，请求会携带
           <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">service_tier: "priority"</code
-          >， 获得更快的推理速度（实测吞吐量提升约 40%）。
+          >；原生生图会继续通过当前中转的
+          <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">/openai/images/*</code>
+          接口转发。
         </p>
         <div class="space-y-4">
           <div
@@ -405,11 +409,13 @@
           >
             <h6 class="mb-2 font-medium text-yellow-800 dark:text-yellow-300">1. 创建 Shim</h6>
             <p class="mb-3 text-sm text-yellow-700 dark:text-yellow-300">
-              在终端中执行以下命令，创建 Shim 包装脚本和代理程序。脚本会拦截 Desktop 的
+              在终端中执行以下命令，创建 Shim 包装脚本和代理程序。它只代理 Desktop 的
               <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">app-server</code>
-              子进程通信，将
-              <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">authMethod</code>
-              从 apikey 改为 personalAccessToken：
+              子进程：将 apikey 登录状态映射为 personalAccessToken 以恢复 Fast，同时从现有
+              <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">auth.json</code>
+              读取 API Key，仅注入子进程环境，启用原生
+              <code class="rounded bg-yellow-100 px-1 dark:bg-yellow-900">image_gen</code>。 普通
+              Codex CLI、用户提示词和图片结果不会被改写，本机也不会新增监听端口。
             </p>
             <div class="tutorial-command-box">
               <div class="mb-2"># 创建目录并下载 Shim 脚本</div>
@@ -448,16 +454,32 @@
           <div
             class="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-500/40 dark:bg-green-950/30 sm:p-4"
           >
-            <h6 class="mb-2 font-medium text-green-800 dark:text-green-300">3. 验证</h6>
+            <h6 class="mb-2 font-medium text-green-800 dark:text-green-300">
+              3. 验证 Fast 与原生生图
+            </h6>
             <div class="tutorial-command-box">
-              <div class="whitespace-nowrap text-gray-300">tail ~/.codex/fast-shim/shim.log</div>
+              <div class="whitespace-nowrap text-gray-300">
+                tail -n 50 ~/.codex/fast-shim/shim.log
+              </div>
             </div>
             <p class="mt-2 text-sm text-green-700 dark:text-green-300">
-              看到
+              日志出现
               <code class="rounded bg-green-100 px-1 dark:bg-green-900"
-                >rewrote getAuthStatus ... apikey-&gt;personalAccessToken</code
+                >native image_gen enabled provider=crs; model unchanged</code
+              >，以及
+              <code class="rounded bg-green-100 px-1 dark:bg-green-900"
+                >rewrote getAuthStatus ... for Fast UI</code
               >
-              即成功。
+              或
+              <code class="rounded bg-green-100 px-1 dark:bg-green-900"
+                >restored API-key account status ...</code
+              >，说明 Shim 已加载。随后在 Desktop
+              <strong>新建对话</strong>并直接输入“生成一张白底蓝色咖啡杯图片”，
+              应在会话内看到原生图片，而不是收到“改用 CLI/API 出图”的提示。
+            </p>
+            <p class="mt-2 text-xs text-green-600 dark:text-green-400">
+              💡 图片默认保存在 <code>~/.codex/generated_images/</code>；修改 Shim、更新 API Key
+              或重新登录后，都需要完全退出并重启 Desktop。
             </p>
           </div>
           <div
@@ -478,14 +500,34 @@
                 关闭 Shim 排查。
               </li>
               <li>
-                • <strong>关闭 Fast：</strong>
+                • <strong>只关闭原生生图、保留 Fast：</strong>执行
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >launchctl setenv CODEX_NATIVE_IMAGE_DISABLE 1</code
+                >
+                后重启 Desktop；恢复时执行
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
+                  >launchctl unsetenv CODEX_NATIVE_IMAGE_DISABLE</code
+                >，然后再次重启 Desktop。
+              </li>
+              <li>
+                • <strong>关闭整个 Shim：</strong>
                 <code class="rounded bg-blue-100 px-1 dark:bg-blue-900"
                   >launchctl unsetenv CODEX_CLI_PATH</code
                 >
                 并重启 Desktop。
               </li>
               <li>
-                • <strong>计费：</strong>开启 Fast 后按 priority 档位计费，约为标准价的 2 倍。
+                • <strong>图像模型：</strong>Codex 当前内置工具固定使用
+                <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">gpt-image-2</code>
+                ，不能在对话中切换为其他图片模型。
+              </li>
+              <li>
+                • <strong>账号要求：</strong>中转账号池必须有可用的 ChatGPT OAuth OpenAI
+                账号；仅配置 openai-responses 类型账号无法生图。
+              </li>
+              <li>
+                • <strong>计费：</strong>Fast 按 priority
+                档位计费；图片生成和编辑按图片模型单独计费。
               </li>
             </ul>
           </div>
@@ -541,6 +583,26 @@
                 >
               </li>
               <li>确认没有把镜像源永久保留在 CI 或生产环境中</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">Codex 提示没有可用的内置图像生成工具</summary>
+          <div class="apple-accordion__content">
+            <ul class="list-inside list-disc space-y-1 text-sm">
+              <li>确认系统选择为 macOS，并已完成上面的 Shim 安装和 Desktop 重启</li>
+              <li>
+                执行 <code>tail -n 50 ~/.codex/fast-shim/shim.log</code>，确认存在
+                <code>nativeImageOverrides=true</code> 和
+                <code>native thread provider adapted</code>
+              </li>
+              <li>请在重启后新建对话，旧会话不会自动刷新工具列表</li>
+              <li>确认当前模型支持图片输入，并且中转账号池有可用的 ChatGPT OAuth OpenAI 账号</li>
+              <li>
+                Codex 的 code mode 会把工具显示为 <code>image_gen__imagegen</code>，中转日志的
+                <code>additional_tools</code> 命名空间列表里看不到 image_gen 属正常现象
+              </li>
             </ul>
           </div>
         </details>

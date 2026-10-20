@@ -4,8 +4,9 @@
 # Every invocation other than the stdio app-server is exec'd straight to the real CLI.
 #
 # Env:
-#   CODEX_FAST_SHIM_REAL     real codex binary (default: bundled in ChatGPT.app)
-#   CODEX_FAST_SHIM_DISABLE  set to 1 to bypass the proxy entirely
+#   CODEX_FAST_SHIM_REAL       real codex binary (default: bundled in ChatGPT.app)
+#   CODEX_FAST_SHIM_DISABLE    set to 1 to bypass the proxy entirely
+#   CODEX_NATIVE_IMAGE_DISABLE set to 1 to disable native image_gen relay overrides only
 
 REAL="${CODEX_FAST_SHIM_REAL:-/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

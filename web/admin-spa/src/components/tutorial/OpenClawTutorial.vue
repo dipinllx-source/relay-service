@@ -284,14 +284,90 @@
       </div>
     </div>
 
-    <!-- 第五步：开始使用 -->
+    <!-- 第五步：配置生图（可选） -->
+    <div id="tut-step-image" class="mb-6 sm:mb-10">
+      <h4
+        class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
+      >
+        <span
+          class="tutorial-step-marker mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-pink-500 text-xs font-bold text-white sm:mr-3 sm:h-8 sm:w-8 sm:text-sm"
+          >5</span
+        >
+        配置生图模型 {{ IMAGE_MODEL }}（可选）
+      </h4>
+      <div
+        class="mb-4 rounded-lg border border-pink-200 bg-white p-3 dark:border-pink-700 dark:bg-gray-800 sm:mb-6 sm:p-4"
+      >
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          OpenClaw 的 <code>image_generate</code> 工具使用内置的 OpenAI
+          生图通道。下面的脚本把它指向本服务的 <code>{{ imageBaseUrl }}</code
+          >，并把生图模型设为 <code>{{ imagePrimary }}</code
+          >。API Key 复用上一步 GPT 的 <code>{{ GPT_ENV_KEY }}</code
+          >（同样只写入 <code>{{ envPath }}</code
+          >），不会修改默认对话模型。在 {{ shellName }} 中整段粘贴执行：
+        </p>
+        <div class="tutorial-command-box">
+          <div
+            v-for="(line, index) in imageScriptLines"
+            :key="`image-${index}`"
+            class="whitespace-nowrap text-gray-300"
+          >
+            {{ line }}
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-gray-600 dark:text-gray-400">
+          输出 <code>Applied ... config update(s)</code> 后执行
+          <code>openclaw gateway restart</code
+          >。之后在对话里直接说“生成一张……图片”即可；编辑图片时把原图发给它并说明要改的地方。
+        </p>
+      </div>
+
+      <div
+        class="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-500/40 dark:bg-green-950/30 sm:mb-6 sm:p-4"
+      >
+        <h6 class="mb-2 text-sm font-medium text-green-800 dark:text-green-300 sm:text-base">
+          命令行验证（会实际生成一张图并计费）
+        </h6>
+        <div class="tutorial-command-box">
+          <div class="whitespace-nowrap text-gray-300">
+            openclaw infer image generate --prompt "白底绿色梨子图标" --size 1024x1024 --output
+            pear.png
+          </div>
+        </div>
+        <p class="mt-2 text-xs text-green-700 dark:text-green-300">
+          生成 <code>pear.png</code> 即配置成功；临时换用 gpt-image-2 可加
+          <code>--model openai/gpt-image-2</code>。
+        </p>
+      </div>
+
+      <div
+        class="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-500/40 dark:bg-blue-950/30 sm:p-4"
+      >
+        <h6 class="mb-2 text-sm font-medium text-blue-800 dark:text-blue-300 sm:text-base">说明</h6>
+        <ul class="space-y-1 text-xs text-blue-700 dark:text-blue-300 sm:text-sm">
+          <li>
+            • 生图配置写在 <code>agents.defaults.mediaModels.image</code>；<code>imageModel</code>
+            是看图理解用的模型，两者不要混淆
+          </li>
+          <li>
+            • 脚本会把 OpenClaw 内置的
+            <code>{{ IMAGE_PROVIDER_ID }}</code> 通道改为指向本服务；如果你同时直连 OpenAI
+            官方，请注意二者共用这一配置
+          </li>
+          <li>• 需要 API Key 具备 OpenAI 权限；生成和编辑按图片 token 单独计费</li>
+          <li>• 尺寸由 OpenClaw 传给本服务，常用 1024x1024、1536x1024、1024x1536、2048x1152</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 第六步：开始使用 -->
     <div class="mb-6 sm:mb-8">
       <h4
         class="mb-3 flex items-center text-lg font-semibold text-gray-800 dark:text-gray-300 sm:mb-4 sm:text-xl"
       >
         <span
           class="tutorial-step-marker mr-2 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white sm:mr-3 sm:h-8 sm:w-8 sm:text-sm"
-          >5</span
+          >6</span
         >
         验证并开始使用
       </h4>
@@ -421,6 +497,33 @@
 
         <details class="apple-accordion">
           <summary class="apple-accordion__summary">
+            生图失败，提示 MiniMax / 其他服务商 API Key 无效
+          </summary>
+          <div class="apple-accordion__content">
+            <p class="mb-2">
+              说明还没有配置生图模型，OpenClaw 退回到了其他内置生图服务商。执行第 5 步的脚本并
+              <code>openclaw gateway restart</code>；可用
+              <code>openclaw config get agents.defaults.mediaModels</code> 确认已设为
+              <code>{{ imagePrimary }}</code
+              >。
+            </p>
+          </div>
+        </details>
+
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">
+            生图返回 501 only available for ChatGPT OAuth OpenAI accounts
+          </summary>
+          <div class="apple-accordion__content">
+            <p class="mb-2">
+              该 Key 所在分组暂无可用的 ChatGPT OAuth 类型 OpenAI 账号（API Key
+              类型账号无法生图），请联系管理员。
+            </p>
+          </div>
+        </details>
+
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">
             Claude 提示 "thinking.type.disabled" is not supported
           </summary>
           <div class="apple-accordion__content">
@@ -461,8 +564,11 @@ import {
   GPT_ENV_KEY,
   GPT_MODEL_PATTERN,
   GPT_PROVIDER_ID,
+  IMAGE_MODEL,
+  IMAGE_PROVIDER_ID,
   buildClaudeScriptLines,
   buildGptScriptLines,
+  buildImageScriptLines,
   pickModels
 } from '@/utils/openclawTutorialScripts'
 import { tutorialApiKey } from '@/utils/useTutorialShared'
@@ -480,7 +586,7 @@ const props = defineProps({
 // 教程页切换系统时会重新挂载组件，模型清单在模块级缓存，避免重复请求
 let cachedModels = null
 
-const { currentBaseUrl } = useTutorialUrls()
+const { currentBaseUrl, openaiBaseUrl: imageBaseUrl } = useTutorialUrls()
 const gptBaseUrl = computed(() => `${currentBaseUrl.value}/v1`)
 
 const apiKey = tutorialApiKey
@@ -506,6 +612,11 @@ const claudeScriptLines = computed(() =>
 )
 const gptScriptLines = computed(() =>
   buildGptScriptLines(props.platform, gptBaseUrl.value, gptModels.value, apiKey.value)
+)
+
+const imagePrimary = `${IMAGE_PROVIDER_ID}/${IMAGE_MODEL}`
+const imageScriptLines = computed(() =>
+  buildImageScriptLines(props.platform, imageBaseUrl.value, apiKey.value)
 )
 
 onMounted(async () => {

@@ -1,5 +1,5 @@
 /**
- * OpenClaw 教程中「配置 Claude / 配置 GPT」脚本的生成器。
+ * OpenClaw 教程中「配置 Claude / 配置 GPT / 配置生图」脚本的生成器。
  *
  * 与 OpenClawTutorial.vue 拆开成纯函数，便于在 Node 中生成同一份脚本做端到端校验
  * （执行脚本 → openclaw config patch → 真实请求中转服务）。
@@ -20,6 +20,12 @@ export const CLAUDE_PROVIDER_ID = 'relay-claude'
 export const GPT_PROVIDER_ID = 'relay-gpt'
 export const CLAUDE_ENV_KEY = 'RELAY_CLAUDE_API_KEY'
 export const GPT_ENV_KEY = 'RELAY_GPT_API_KEY'
+
+// 生图走 OpenClaw 内置 openai 生图 provider：配置了 apiKey 时直连 <baseUrl>/images/*，
+// 模型名原样透传给中转（中转 /openai/images/* 接受任意 gpt-image-* 模型）。
+export const IMAGE_PROVIDER_ID = 'openai'
+export const IMAGE_MODEL = 'gpt-image-2.5-sunburst'
+export const IMAGE_TIMEOUT_MS = 180000
 
 export const CLAUDE_MODEL_PATTERN = /^claude-/
 export const GPT_MODEL_PATTERN = /^gpt-\d/
@@ -125,3 +131,30 @@ export const buildGptScriptLines = (platform, baseUrl, models, apiKey) =>
     api: 'openai-completions',
     models
   })
+
+/**
+ * 生图：写入 models.providers.openai（指向 <服务地址>/openai，复用 GPT 的 API Key）
+ * 与 agents.defaults.mediaModels.image。不修改默认对话模型。
+ * 注意 imageModel 是看图理解用的模型，生图要用 mediaModels.image。
+ */
+export const buildImagePatchLines = (baseUrl) => [
+  '{',
+  'models: {',
+  'mode: "merge",',
+  'providers: {',
+  `${q(IMAGE_PROVIDER_ID)}: {`,
+  `baseUrl: ${q(baseUrl)},`,
+  `apiKey: "\${${GPT_ENV_KEY}}",`,
+  'auth: "api-key",',
+  'models: [],',
+  '},',
+  '},',
+  '},',
+  `agents: { defaults: { mediaModels: { image: { primary: ${q(`${IMAGE_PROVIDER_ID}/${IMAGE_MODEL}`)}, timeoutMs: ${IMAGE_TIMEOUT_MS} } } } },`,
+  '}'
+]
+
+export const buildImageScriptLines = (platform, baseUrl, apiKey) => [
+  ...buildEnvScriptLines(platform, GPT_ENV_KEY, apiKey || API_KEY_PLACEHOLDER),
+  ...wrapPatchScript(platform, buildImagePatchLines(baseUrl))
+]

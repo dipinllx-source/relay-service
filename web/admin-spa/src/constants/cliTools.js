@@ -28,7 +28,8 @@ export const cliToolSteps = {
   openclaw: [
     { id: 'tut-step-node', label: '安装 Node.js', icon: 'fab fa-node-js', group: 'steps' },
     { id: 'tut-step-install', label: '安装 OpenClaw', icon: 'fas fa-download', group: 'steps' },
-    { id: 'tut-step-config', label: '初始化配置', icon: 'fas fa-cog', group: 'steps' }
+    { id: 'tut-step-config', label: '初始化配置', icon: 'fas fa-cog', group: 'steps' },
+    { id: 'tut-step-image', label: '配置生图 2.5', icon: 'fas fa-image', group: 'steps' }
   ],
   'claude-code': [
     { id: 'tut-step-node', label: '安装 Node.js', icon: 'fab fa-node-js', group: 'steps' },

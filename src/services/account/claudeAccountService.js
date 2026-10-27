@@ -1580,7 +1580,7 @@ class ClaudeAccountService {
         'accountType',
         'priority',
         'schedulable',
-        'subscriptionInfo',
+        // subscriptionInfo 只由 OAuth/profile 接口写入，不再接受手动覆盖（会抹掉 accountUuid）
         'autoStopOnWarning',
         'useUnifiedUserAgent',
         'useUnifiedClientId',
@@ -1643,9 +1643,6 @@ class ClaudeAccountService {
           ) {
             const normalizedTtl = normalizeOptionalNonNegativeInteger(value)
             updatedData[field] = normalizedTtl !== null ? normalizedTtl.toString() : ''
-          } else if (field === 'subscriptionInfo') {
-            // 处理订阅信息更新
-            updatedData[field] = typeof value === 'string' ? value : JSON.stringify(value)
           } else if (field === 'subscriptionExpiresAt') {
             // 处理订阅到期时间，允许 null 值（永不过期）
             updatedData[field] = value ? value.toString() : ''

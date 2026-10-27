@@ -371,14 +371,16 @@ class AccountGroupService {
       const client = redis.getClientSafe()
       const groupKey = `group:${groupId}`
 
-      // 获取所有API Key
-      const apiKeyIds = await client.smembers('api_keys')
+      // API Key 实际存储为 apikey:<id>（旧实现读取不存在的 api_keys / api_key:*，恒返回空，
+      // 导致删除分组的「仍有 Key 绑定」校验失效）
+      const apiKeyIds = await redis.scanApiKeyIds()
       const boundApiKeys = []
 
       for (const keyId of apiKeyIds) {
-        const keyData = await client.hgetall(`api_key:${keyId}`)
+        const keyData = await client.hgetall(`apikey:${keyId}`)
         if (
           keyData &&
+          keyData.isDeleted !== 'true' &&
           (keyData.claudeAccountId === groupKey ||
             keyData.geminiAccountId === groupKey ||
             keyData.openaiAccountId === groupKey ||
@@ -396,6 +398,32 @@ class AccountGroupService {
       logger.error('❌ 获取使用分组的API Key失败:', error)
       throw error
     }
+  }
+
+  /**
+   * 计算账户退出分组后，会变成 0 成员且仍有 API Key 绑定的分组
+   * @param {string} accountId - 账户ID
+   * @param {Array<string>} keepGroupIds - 变更后账户仍保留的分组ID
+   * @returns {Array<{groupId: string, groupName: string, apiKeys: Array}>}
+   */
+  async getGroupsOrphanedByAccountRemoval(accountId, keepGroupIds = []) {
+    const keep = new Set(keepGroupIds || [])
+    const groups = await this.getAccountGroups(accountId)
+    const orphaned = []
+    for (const group of groups) {
+      if (keep.has(group.id)) {
+        continue
+      }
+      const members = await this.getGroupMembers(group.id)
+      if (members.some((memberId) => memberId !== accountId)) {
+        continue
+      }
+      const apiKeys = await this.getApiKeysUsingGroup(group.id)
+      if (apiKeys.length > 0) {
+        orphaned.push({ groupId: group.id, groupName: group.name, apiKeys })
+      }
+    }
+    return orphaned
   }
 
   /**

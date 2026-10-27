@@ -183,6 +183,26 @@ class ClaudeRelayService {
     return betaList.join(',')
   }
 
+  // 🔎 摘要上游 429 的限流相关响应头（不含凭据），用于区分周限额 / 5h 窗口 / 短时限流 / 代理限流
+  _summarizeRateLimitHeaders(headers) {
+    if (!headers || typeof headers !== 'object') {
+      return 'no-headers'
+    }
+    const picked = Object.keys(headers)
+      .filter((key) => {
+        const lower = key.toLowerCase()
+        return (
+          lower.startsWith('anthropic-ratelimit-') ||
+          lower === 'retry-after' ||
+          lower === 'x-should-retry' ||
+          lower === 'request-id' ||
+          lower === 'server'
+        )
+      })
+      .map((key) => `${key}=${headers[key]}`)
+    return picked.length > 0 ? picked.join('; ') : 'no-ratelimit-headers'
+  }
+
   _buildStandardRateLimitMessage(resetTime) {
     if (!resetTime) {
       return '此专属账号已触发 Anthropic 限流控制。'
@@ -3242,17 +3262,25 @@ class ClaudeRelayService {
               ? res.headers['anthropic-ratelimit-unified-reset']
               : null
             const parsedResetTimestamp = resetHeader ? parseInt(resetHeader, 10) : NaN
+            const hasUnifiedReset = !Number.isNaN(parsedResetTimestamp)
 
-            if (isOpusModelRequest) {
-              if (!Number.isNaN(parsedResetTimestamp)) {
-                await claudeAccountService.markAccountOpusRateLimited(
-                  accountId,
-                  parsedResetTimestamp
-                )
-                logger.warn(
-                  `🚫 [Stream] Account ${accountId} hit Opus limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
-                )
-              }
+            // 所有 429 都记录上游限流头与错误原文（专属账号分支此前不落日志，无法定位真实原因）
+            logger.warn(
+              `🚫 [Stream] Upstream 429 for account ${account?.name || accountId} (model: ${body?.model}, dedicated: ${isDedicatedOfficialAccount}): ${this._summarizeRateLimitHeaders(res.headers)} | body: ${(errorBody429 || '').slice(0, 500)}`
+            )
+
+            if (isOpusModelRequest && !hasUnifiedReset) {
+              // 上游未返回 anthropic-ratelimit-unified-reset：不是订阅额度类限流，
+              // 不能断定为 Opus 周限额（与非流式分支保持一致）。不伪造 opus_weekly_limit，
+              // 落到下方透传分支，把上游真实 429 返回给客户端。
+              logger.warn(
+                `⚠️ [Stream] Opus request got 429 without unified reset header for account ${account?.name || accountId}; passing through upstream error instead of opus_weekly_limit`
+              )
+            } else if (isOpusModelRequest) {
+              await claudeAccountService.markAccountOpusRateLimited(accountId, parsedResetTimestamp)
+              logger.warn(
+                `🚫 [Stream] Account ${accountId} hit Opus limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
+              )
 
               if (isDedicatedOfficialAccount) {
                 const limitMessage = this._buildOpusLimitMessage(parsedResetTimestamp)
@@ -3319,6 +3347,7 @@ class ClaudeRelayService {
             )
             if (isStreamWritable(responseStream)) {
               let errorMessage = `Claude API error: 429`
+              let errorType = 'rate_limit_error'
               try {
                 const parsedError = JSON.parse(errorBody429)
                 if (parsedError.error?.message) {
@@ -3326,10 +3355,33 @@ class ClaudeRelayService {
                 } else if (parsedError.message) {
                   errorMessage = parsedError.message
                 }
+                if (typeof parsedError.error?.type === 'string') {
+                  errorType = parsedError.error.type
+                }
               } catch {
                 // 使用默认错误消息
               }
-              if (toolNameStreamTransformer) {
+              if (
+                !streamTransformer &&
+                !responseStream.headersSent &&
+                typeof responseStream.status === 'function'
+              ) {
+                // 原生 Anthropic 客户端且响应头未发出：按官方格式返回 HTTP 429，
+                // 让 OpenClaw / SDK 识别为限流（而不是 403 被误判为鉴权失败），并展示上游原因。
+                // 注意 emulation 下 toolNameStreamTransformer 恒非空，故此处按原始 streamTransformer 判断。
+                responseStream.status(429)
+                responseStream.setHeader('Content-Type', 'application/json')
+                const retryAfter = res.headers?.['retry-after']
+                if (retryAfter) {
+                  responseStream.setHeader('retry-after', retryAfter)
+                }
+                responseStream.write(
+                  JSON.stringify({
+                    type: 'error',
+                    error: { type: errorType, message: errorMessage }
+                  })
+                )
+              } else if (toolNameStreamTransformer) {
                 responseStream.write(
                   `data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`
                 )

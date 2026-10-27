@@ -1939,37 +1939,6 @@
                 </div>
               </div>
 
-              <!-- Claude 订阅类型选择 -->
-              <div v-if="form.platform === 'claude'">
-                <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >订阅类型</label
-                >
-                <div class="flex gap-4">
-                  <label class="flex cursor-pointer items-center">
-                    <input
-                      v-model="form.subscriptionType"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      type="radio"
-                      value="claude_max"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">Claude Max</span>
-                  </label>
-                  <label class="flex cursor-pointer items-center">
-                    <input
-                      v-model="form.subscriptionType"
-                      class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                      type="radio"
-                      value="claude_pro"
-                    />
-                    <span class="text-sm text-gray-700 dark:text-gray-300">Claude Pro</span>
-                  </label>
-                </div>
-                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  <i class="fas fa-info-circle mr-1" />
-                  Pro 账号不支持 Claude Opus 4 模型
-                </p>
-              </div>
-
               <!-- Claude 5小时限制自动停止调度选项 -->
               <div v-if="form.platform === 'claude'" class="mt-4">
                 <label class="flex items-start">
@@ -3068,37 +3037,6 @@
               />
               <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 Google Cloud/Workspace 账号可能需要提供项目 ID
-              </p>
-            </div>
-
-            <!-- Claude 订阅类型选择（编辑模式） -->
-            <div v-if="form.platform === 'claude'">
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >订阅类型</label
-              >
-              <div class="flex gap-4">
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.subscriptionType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="claude_max"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">Claude Max</span>
-                </label>
-                <label class="flex cursor-pointer items-center">
-                  <input
-                    v-model="form.subscriptionType"
-                    class="mr-2 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                    type="radio"
-                    value="claude_pro"
-                  />
-                  <span class="text-sm text-gray-700 dark:text-gray-300">Claude Pro</span>
-                </label>
-              </div>
-              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <i class="fas fa-info-circle mr-1" />
-                Pro 账号不支持 Claude Opus 4 模型
               </p>
             </div>
 
@@ -4910,7 +4848,6 @@ const form = ref({
   description: props.account?.description || '',
   accountType: props.account?.accountType || 'shared',
   authenticationMethod: props.account?.authenticationMethod || '',
-  subscriptionType: 'claude_max', // 默认为 Claude Max，兼容旧数据
   autoStopOnWarning: props.account?.autoStopOnWarning || false, // 5小时限制自动停止调度
   useUnifiedUserAgent: props.account?.useUnifiedUserAgent || false, // 使用统一Claude Code版本
   useUnifiedClientId: props.account?.useUnifiedClientId || false, // 使用统一的客户端标识
@@ -5593,13 +5530,7 @@ const buildClaudeAccountData = (tokenInfo, accountName, clientId) => {
     enableThirdPartyToolEmulation: form.value.enableThirdPartyToolEmulation !== false,
     maxConcurrency: form.value.serialQueueEnabled ? 1 : 0,
     axiosRefreshEnabled: !!form.value.axiosRefreshEnabled && !!form.value.axiosCloudflareConfirmed,
-    axiosCloudflareConfirmed: !!form.value.axiosCloudflareConfirmed,
-    subscriptionInfo: {
-      accountType: form.value.subscriptionType || 'claude_max',
-      hasClaudeMax: form.value.subscriptionType === 'claude_max',
-      hasClaudePro: form.value.subscriptionType === 'claude_pro',
-      manuallySet: true
-    }
+    axiosCloudflareConfirmed: !!form.value.axiosCloudflareConfirmed
   }
 
   // 处理 extInfo
@@ -5734,13 +5665,6 @@ const handleOAuthSuccess = async (tokenInfoOrList) => {
       data.enableThirdPartyToolEmulation = form.value.enableThirdPartyToolEmulation !== false
       data.maxConcurrency = form.value.serialQueueEnabled ? 1 : 0
       Object.assign(data, buildClaudeTempUnavailablePolicyPayload())
-      // 添加订阅类型信息
-      data.subscriptionInfo = {
-        accountType: form.value.subscriptionType || 'claude_max',
-        hasClaudeMax: form.value.subscriptionType === 'claude_max',
-        hasClaudePro: form.value.subscriptionType === 'claude_pro',
-        manuallySet: true // 标记为手动设置
-      }
     } else if (currentPlatform === 'gemini' || currentPlatform === 'gemini-antigravity') {
       // Gemini/Antigravity使用geminiOauth字段
       data.geminiOauth = tokenInfo.tokens || tokenInfo
@@ -6102,13 +6026,6 @@ const createAccount = async () => {
       data.axiosRefreshEnabled =
         !!form.value.axiosRefreshEnabled && !!form.value.axiosCloudflareConfirmed
       data.axiosCloudflareConfirmed = !!form.value.axiosCloudflareConfirmed
-      // 添加订阅类型信息
-      data.subscriptionInfo = {
-        accountType: form.value.subscriptionType || 'claude_max',
-        hasClaudeMax: form.value.subscriptionType === 'claude_max',
-        hasClaudePro: form.value.subscriptionType === 'claude_pro',
-        manuallySet: true // 标记为手动设置
-      }
     } else if (form.value.platform === 'gemini') {
       // Gemini手动模式需要构建geminiOauth对象
       const expiresInMs = form.value.refreshToken
@@ -6505,7 +6422,7 @@ const updateAccount = async () => {
       data.endpointType = form.value.endpointType || 'anthropic'
     }
 
-    // Claude 官方账号优先级和订阅类型更新
+    // Claude 官方账号优先级等字段更新
     if (props.account.platform === 'claude') {
       // 更新模式也需要确保生成客户端ID
       if (form.value.useUnifiedClientId && !form.value.unifiedClientId) {
@@ -6529,13 +6446,6 @@ const updateAccount = async () => {
       }
       data.axiosRefreshEnabled = !!form.value.axiosRefreshEnabled
       data.axiosCloudflareConfirmed = !!form.value.axiosCloudflareConfirmed
-      // 更新订阅类型信息
-      data.subscriptionInfo = {
-        accountType: form.value.subscriptionType || 'claude_max',
-        hasClaudeMax: form.value.subscriptionType === 'claude_max',
-        hasClaudePro: form.value.subscriptionType === 'claude_pro',
-        manuallySet: true // 标记为手动设置
-      }
     }
 
     // OpenAI 账号优先级更新
@@ -6667,7 +6577,10 @@ const updateAccount = async () => {
     }
 
     if (props.account.platform === 'claude') {
-      await accountsStore.updateClaudeAccount(props.account.id, data)
+      const claudeUpdateResult = await accountsStore.updateClaudeAccount(props.account.id, data)
+      if (claudeUpdateResult && claudeUpdateResult.success === false) {
+        throw new Error(claudeUpdateResult.message || '账户更新失败')
+      }
     } else if (props.account.platform === 'claude-console') {
       await accountsStore.updateClaudeConsoleAccount(props.account.id, data)
     } else if (props.account.platform === 'openai-responses') {
@@ -7131,32 +7044,12 @@ watch(
         groupId = newAccount.groupId || (newAccount.groupInfo && newAccount.groupInfo.id) || ''
       }
 
-      // 初始化订阅类型（从 subscriptionInfo 中提取，兼容旧数据默认为 claude_max）
-      let subscriptionType = 'claude_max'
-      if (newAccount.subscriptionInfo) {
-        const info =
-          typeof newAccount.subscriptionInfo === 'string'
-            ? JSON.parse(newAccount.subscriptionInfo)
-            : newAccount.subscriptionInfo
-
-        if (info.accountType) {
-          subscriptionType = info.accountType
-        } else if (info.hasClaudeMax) {
-          subscriptionType = 'claude_max'
-        } else if (info.hasClaudePro) {
-          subscriptionType = 'claude_pro'
-        } else {
-          subscriptionType = 'claude_free'
-        }
-      }
-
       form.value = {
         platform: newAccount.platform,
         addType: derivedAddType,
         name: newAccount.name,
         description: newAccount.description || '',
         accountType: newAccount.accountType || 'shared',
-        subscriptionType: subscriptionType,
         autoStopOnWarning: newAccount.autoStopOnWarning || false,
         interceptWarmup:
           newAccount.interceptWarmup === true || newAccount.interceptWarmup === 'true',

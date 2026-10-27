@@ -774,6 +774,36 @@ router.put('/claude-accounts/:accountId', authenticateAdmin, async (req, res) =>
     // 使这个账户在后台永远存不下去
     await pruneDanglingGroupRefs(mappedUpdates, 'claude', accountId)
 
+    // 🛡️ 防止清空分组：账户若是某分组的唯一成员且仍有 API Key 绑定该分组，
+    // 改为专属/共享（或移出该分组）会让这些 Key 全部报 500「Group xxx has no members」
+    if (mappedUpdates.accountType !== undefined && currentAccount.accountType === 'group') {
+      let keepGroupIds = []
+      if (mappedUpdates.accountType === 'group') {
+        if (Object.prototype.hasOwnProperty.call(mappedUpdates, 'groupIds')) {
+          keepGroupIds = mappedUpdates.groupIds || []
+        } else if (mappedUpdates.groupId) {
+          keepGroupIds = [mappedUpdates.groupId]
+        }
+      }
+      const orphanedGroups = await accountGroupService.getGroupsOrphanedByAccountRemoval(
+        accountId,
+        keepGroupIds
+      )
+      if (orphanedGroups.length > 0) {
+        const detail = orphanedGroups
+          .map(
+            (g) =>
+              `分组「${g.groupName}」仍被 API Key ${g.apiKeys.map((k) => k.name).join('、')} 绑定`
+          )
+          .join('；')
+        logger.warn(`🚫 Rejected Claude account ${accountId} type change: ${detail}`)
+        return res.status(400).json({
+          error: 'Group would become empty',
+          message: `该账户是以下分组的唯一成员：${detail}。修改后这些 Key 将没有可用账户（Group has no members）。请先把这些 Key 改绑到其他账户/分组，或给分组再添加账户后再修改。`
+        })
+      }
+    }
+
     // 处理分组的变更
     if (mappedUpdates.accountType !== undefined) {
       // 如果之前是分组类型，需要从所有分组中移除

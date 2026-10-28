@@ -144,7 +144,7 @@ export const buildImagePatchLines = (baseUrl) => [
   'providers: {',
   `${q(IMAGE_PROVIDER_ID)}: {`,
   `baseUrl: ${q(baseUrl)},`,
-  `apiKey: "\${${GPT_ENV_KEY}}",`,
+  `apiKey: { source: "env", provider: "default", id: ${q(GPT_ENV_KEY)} },`,
   'auth: "api-key",',
   'models: [],',
   '},',

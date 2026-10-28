@@ -303,8 +303,11 @@
           生图通道。下面的脚本把它指向本服务的 <code>{{ imageBaseUrl }}</code
           >，并把生图模型设为 <code>{{ imagePrimary }}</code
           >。API Key 复用上一步 GPT 的 <code>{{ GPT_ENV_KEY }}</code
-          >（同样只写入 <code>{{ envPath }}</code
-          >），不会修改默认对话模型。在 {{ shellName }} 中整段粘贴执行：
+          >，只写入 <code>{{ envPath }}</code
+          >；配置中使用 OpenClaw 原生的结构化环境变量引用
+          <code>{ source: "env", provider: "default", id: "{{ GPT_ENV_KEY }}" }</code
+          >，避免不同平台对 <code>${...}</code> 字符串引用的解析差异。不会修改默认对话模型。在
+          {{ shellName }} 中整段粘贴执行：
         </p>
         <div class="tutorial-command-box">
           <div
@@ -506,6 +509,31 @@
               <code>openclaw config get agents.defaults.mediaModels</code> 确认已设为
               <code>{{ imagePrimary }}</code
               >。
+            </p>
+          </div>
+        </details>
+
+        <details class="apple-accordion">
+          <summary class="apple-accordion__summary">生图返回 401，或用到了别的 OpenAI Key</summary>
+          <div class="apple-accordion__content">
+            <p class="mb-2">
+              OpenClaw 生图会<strong>优先使用系统环境变量 <code>OPENAI_API_KEY</code></strong
+              >，它会覆盖配置里的 Key。如果你为其他工具设置过官方 OpenAI
+              Key，请删除该环境变量（或改为本服务的 Key）后重启 Gateway：
+            </p>
+            <div class="tutorial-command-box">
+              <div v-if="platform === 'windows'" class="whitespace-nowrap text-gray-300">
+                [Environment]::SetEnvironmentVariable('OPENAI_API_KEY', $null, 'User')
+              </div>
+              <div v-else class="whitespace-nowrap text-gray-300">
+                unset OPENAI_API_KEY # 并从 ~/.zshrc 或 ~/.bashrc 中删除对应 export 行
+              </div>
+            </div>
+            <p class="mt-2">
+              另外确认 <code>openclaw.json</code> 中
+              <code>models.providers.openai.apiKey</code> 是第 5 步生成的结构化
+              <code>source: "env"</code> 引用；旧的
+              <code>${...}</code> 字符串引用请重新执行脚本升级。
             </p>
           </div>
         </details>

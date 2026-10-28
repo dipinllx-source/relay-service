@@ -1,5 +1,6 @@
 // openaiRelayService.probeAccountUsage 单元测试
-// 覆盖：成功流写回额度头、429 视为可达并标记限流、上游 401 不可达、连通性测试也会记录额度头
+// 覆盖：成功流写回额度头、429 视为可达并标记限流、上游 401 不可达、连通性测试也会记录额度头、
+// 测试请求带上配套的 Codex 客户端身份（originator + UA）
 
 const { PassThrough } = require('stream')
 
@@ -21,9 +22,14 @@ jest.mock('../src/services/account/openaiAccountService', () => ({
 }))
 const mockScheduler = { markAccountRateLimited: jest.fn() }
 jest.mock('../src/services/scheduler/unifiedOpenAIScheduler', () => mockScheduler)
+jest.mock('../src/utils/codexClientVersion', () => ({
+  getLearnedClientVersion: jest.fn(async () => '0.164.0'),
+  FLOOR_VERSION: '0.144.5'
+}))
 
 const axios = require('axios')
 const openaiAccountService = require('../src/services/account/openaiAccountService')
+const codexClientVersion = require('../src/utils/codexClientVersion')
 const relay = require('../src/services/relay/openaiRelayService')
 
 const USAGE_HEADERS = {
@@ -58,6 +64,36 @@ beforeEach(() => {
     accountId: 'chatgpt-acc'
   })
   openaiAccountService.updateCodexUsageSnapshot.mockResolvedValue()
+  codexClientVersion.getLearnedClientVersion.mockResolvedValue('0.164.0')
+})
+
+test('测试请求带上 codex_cli_rs 身份，UA 版本取流量学习到的版本', async () => {
+  axios.post.mockResolvedValue({
+    status: 200,
+    headers: {},
+    data: sseStream([{ type: 'response.output_text.delta', delta: 'hi' }])
+  })
+
+  await relay.probeAccountUsage('acc1')
+
+  const { headers } = axios.post.mock.calls[0][2]
+  expect(headers.originator).toBe('codex_cli_rs')
+  expect(headers['user-agent']).toMatch(/^codex_cli_rs\/0\.164\.0 \(/)
+  expect(headers['chatgpt-account-id']).toBe('chatgpt-acc')
+})
+
+test('没有学习到版本时，UA 使用保底版本', async () => {
+  codexClientVersion.getLearnedClientVersion.mockResolvedValue(null)
+  axios.post.mockResolvedValue({
+    status: 200,
+    headers: {},
+    data: sseStream([{ type: 'response.output_text.delta', delta: 'hi' }])
+  })
+
+  await relay.probeAccountUsage('acc1')
+
+  const { headers } = axios.post.mock.calls[0][2]
+  expect(headers['user-agent']).toMatch(/^codex_cli_rs\/0\.144\.5 \(/)
 })
 
 test('成功响应：写回 codexUsage 快照并返回可达', async () => {

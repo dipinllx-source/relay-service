@@ -20,6 +20,8 @@ const openaiAccountService = require('../account/openaiAccountService')
 const modelsConfig = require('../../../config/models')
 const { createOpenAITestPayload, extractErrorMessage } = require('../../utils/testPayloadHelper')
 const { extractCodexUsageHeaders } = require('../../utils/codexUsageHeaders')
+const codexClientVersion = require('../../utils/codexClientVersion')
+const { buildRelayOutboundIdentityHeaders } = require('../../utils/codexClientIdentity')
 
 const CODEX_RESPONSES_ENDPOINT = 'https://chatgpt.com/backend-api/codex/responses'
 const TEST_TIMEOUT_MS = 30000
@@ -103,9 +105,22 @@ class OpenAIRelayService {
   }
 
   /**
+   * 测试请求使用的 Codex 客户端版本：取真实流量学习到的版本，没有时用保底版本。
+   * 只读 Redis，不在测试链路上访问外网。
+   */
+  async _resolveProbeClientVersion() {
+    try {
+      const learned = await codexClientVersion.getLearnedClientVersion()
+      return learned || codexClientVersion.FLOOR_VERSION
+    } catch (_) {
+      return codexClientVersion.FLOOR_VERSION
+    }
+  }
+
+  /**
    * 构造 Codex 出站测试请求（最小合规 Responses 请求体 + 必要请求头）
    */
-  _buildTestRequest({ account, accessToken, proxyAgent, accountId, model }) {
+  _buildTestRequest({ account, accessToken, proxyAgent, accountId, model, clientVersion }) {
     // 最小 payload：不带 instructions / tools（那是 Codex CLI 的行为，非上游硬性要求）
     const payload = createOpenAITestPayload(model, {
       stream: true,
@@ -120,6 +135,8 @@ class OpenAIRelayService {
     payload.store = false
 
     const headers = {
+      // 与业务链路一致带上 Codex 客户端身份；不带 originator 的请求会被上游当作未知客户端
+      ...buildRelayOutboundIdentityHeaders(clientVersion),
       authorization: `Bearer ${accessToken}`,
       'chatgpt-account-id': account.accountId || account.chatgptUserId || accountId,
       host: 'chatgpt.com',
@@ -242,12 +259,14 @@ class OpenAIRelayService {
       )
       write({ type: 'test_start', model: testModel })
 
+      const clientVersion = await this._resolveProbeClientVersion()
       const { payload, axiosConfig } = this._buildTestRequest({
         account,
         accessToken,
         proxyAgent,
         accountId,
-        model: testModel
+        model: testModel,
+        clientVersion
       })
 
       const upstream = await axios.post(CODEX_RESPONSES_ENDPOINT, payload, axiosConfig)

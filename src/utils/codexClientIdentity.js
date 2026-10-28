@@ -11,7 +11,10 @@
  *                  Codex Desktop/0.162.0-alpha.17.2 (Mac OS 26.5.2; arm64) unknown (Codex Desktop; 26.1007.21159)
  *
  * 所有"是否为 Codex 客户端"的判断都应走这里，避免各处正则口径不一致。
+ * relay 自己发起的请求（连通性测试、空闲用量探测）用的客户端身份也在这里构造。
  */
+
+const os = require('os')
 
 const CODEX_ORIGINATORS = ['codex_cli_rs', 'codex_exec', 'codex_vscode', 'Codex Desktop']
 
@@ -54,6 +57,40 @@ function isCodexOriginator(originator) {
   return KNOWN_ORIGINATORS.has(normalizeOriginator(originator))
 }
 
+// relay 自发请求使用的 originator：交互式 CLI 是上游最常见、最稳定的身份
+const RELAY_OUTBOUND_ORIGINATOR = 'codex_cli_rs'
+
+function platformLabel() {
+  const type = os.type()
+  if (type === 'Darwin') {
+    return 'Mac OS'
+  }
+  if (type === 'Windows_NT') {
+    return 'Windows'
+  }
+  return type || 'Linux'
+}
+
+function archLabel() {
+  const arch = os.arch()
+  return arch === 'x64' ? 'x86_64' : arch
+}
+
+/**
+ * 构造 relay 自发请求的客户端身份头。
+ * originator 必须与 UA 首段一致，格式对齐官方客户端：`{originator}/{version} ({os}; {arch}) {terminal}`；
+ * 平台和架构取 relay 所在机器的真实值。
+ * @param {string} version Codex 客户端版本（通常取流量学习到的版本）
+ * @returns {{originator: string, 'user-agent': string}}
+ */
+function buildRelayOutboundIdentityHeaders(version) {
+  const safeVersion = typeof version === 'string' && version.trim() ? version.trim() : '0.0.0'
+  return {
+    originator: RELAY_OUTBOUND_ORIGINATOR,
+    'user-agent': `${RELAY_OUTBOUND_ORIGINATOR}/${safeVersion} (${platformLabel()}; ${archLabel()}) unknown`
+  }
+}
+
 /**
  * 根据请求头识别 Codex 官方客户端：优先 User-Agent，其次 originator 头
  * （部分代理/网关会改写 UA，但保留 originator）。
@@ -85,5 +122,7 @@ module.exports = {
   normalizeOriginator,
   parseCodexUserAgent,
   isCodexOriginator,
-  detectCodexClient
+  detectCodexClient,
+  RELAY_OUTBOUND_ORIGINATOR,
+  buildRelayOutboundIdentityHeaders
 }

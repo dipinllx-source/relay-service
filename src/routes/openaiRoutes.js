@@ -21,6 +21,7 @@ const { getSafeMessage } = require('../utils/errorSanitizer')
 const openaiImages = require('../utils/openaiImages')
 const { extractImageGenUsageHeaders } = require('../utils/imageGenUsage')
 const { extractCodexUsageHeaders } = require('../utils/codexUsageHeaders')
+const codexTurnState = require('../utils/codexTurnState')
 const CostCalculator = require('../utils/costCalculator')
 const {
   createRequestDetailMeta,
@@ -34,6 +35,15 @@ const CODEX_CLI_INSTRUCTIONS =
 // 创建代理 Agent（使用统一的代理工具）
 function createProxyAgent(proxy) {
   return ProxyHelper.createProxyAgent(proxy)
+}
+
+// turn-state 归属记录用的 Redis 客户端；未连接时返回 null（调用方按"不转发令牌"降级）
+function getTurnStateRedisClient() {
+  try {
+    return redis.getClientSafe()
+  } catch (_) {
+    return null
+  }
 }
 
 // 检查 API Key 是否具备 OpenAI 权限
@@ -359,6 +369,23 @@ const handleResponses = async (req, res) => {
       }
     }
 
+    // x-codex-turn-state 由签发它的上游账号持有：只有本次仍落在同一账号时才继续带给上游，
+    // 换号（或查不到签发记录）时丢弃，避免把 A 账号的路由令牌发给 B 账号
+    const incomingTurnState = codexTurnState.readIncomingTurnState(headers, req.body)
+    if (incomingTurnState) {
+      const turnStateDecision = await codexTurnState.shouldForwardTurnState(
+        getTurnStateRedisClient(),
+        incomingTurnState,
+        accountId
+      )
+      if (!turnStateDecision.forward) {
+        codexTurnState.stripTurnState(headers, req.body)
+        logger.info(
+          `🔀 Dropped x-codex-turn-state for OpenAI account ${accountId} (${turnStateDecision.reason})`
+        )
+      }
+    }
+
     // 判断是否访问 compact 端点
     const isCompactRoute =
       req.path === '/responses/compact' ||
@@ -611,6 +638,17 @@ const handleResponses = async (req, res) => {
       if (val !== undefined) {
         res.setHeader(key, val)
       }
+    }
+
+    // 回传粘性路由令牌（官方客户端会在同一轮后续请求中原样带回），并记录签发账号
+    const upstreamTurnState = codexTurnState.readUpstreamTurnState(upstream.headers)
+    if (upstreamTurnState) {
+      res.setHeader(codexTurnState.TURN_STATE_HEADER, upstreamTurnState)
+      await codexTurnState.rememberTurnStateOwner(
+        getTurnStateRedisClient(),
+        upstreamTurnState,
+        accountId
+      )
     }
 
     if (isStream) {

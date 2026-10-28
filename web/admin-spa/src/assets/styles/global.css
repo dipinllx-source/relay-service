@@ -1439,6 +1439,8 @@ button.switch-track:disabled {
   line-height: 1 !important;
   cursor: pointer;
   backdrop-filter: blur(12px);
+  /* 全局 button 规则带 transform 过渡，滚动时按钮会拖影跟随；这里只保留颜色类过渡 */
+  transition-property: color, background-color, border-color, box-shadow;
 }
 .tutorial-copy-button:hover,
 .tutorial-section .tutorial-copy-button:hover,

@@ -2,6 +2,16 @@ import { copyText } from '@/utils/tools'
 
 const COPY_RESET_DELAY = 1600
 
+// 按钮绝对定位在命令框（横向滚动容器）里，会随内容一起滚出可视区；
+// 滚动时把滚动距离反向补回，让按钮始终停在命令框可视区域的右上角
+const pinButtonToViewport = (commandBox, button) => {
+  const sync = () => {
+    button.style.transform = `translate(${commandBox.scrollLeft}px, ${commandBox.scrollTop}px)`
+  }
+  commandBox.addEventListener('scroll', sync, { passive: true })
+  sync()
+}
+
 const getCommandText = (commandBox) => {
   const lines = []
   commandBox.childNodes.forEach((node) => {
@@ -68,5 +78,6 @@ export const enhanceTutorialCommandBoxes = (root) => {
     })
 
     commandBox.appendChild(button)
+    pinButtonToViewport(commandBox, button)
   })
 }

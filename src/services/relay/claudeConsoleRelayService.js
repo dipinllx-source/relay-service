@@ -14,6 +14,7 @@ const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 const userMessageQueueService = require('../userMessageQueueService')
 const { isStreamWritable } = require('../../utils/streamHelper')
 const { filterForClaude } = require('../../utils/headerFilter')
+const metadataUserIdHelper = require('../../utils/metadataUserIdHelper')
 const crypto = require('crypto')
 
 // ============================================================================
@@ -603,8 +604,8 @@ class ClaudeConsoleRelayService {
       logger.debug(`[DEBUG] Options passed to relayRequest: ${JSON.stringify(options)}`)
       logger.debug(`[DEBUG] Client headers received: ${JSON.stringify(clientHeaders)}`)
 
-      // 过滤客户端请求头
-      const filteredHeaders = this._filterClientHeaders(clientHeaders)
+      // 过滤客户端请求头（镜像 body 的 session_id 到 x-claude-code-session-id）
+      const filteredHeaders = this._filterClientHeaders(clientHeaders, modifiedRequestBody)
       logger.debug(`[DEBUG] Filtered client headers: ${JSON.stringify(filteredHeaders)}`)
 
       // 决定使用的 User-Agent：优先使用账户自定义的，否则透传客户端的，最后才使用默认值
@@ -1201,8 +1202,8 @@ class ClaudeConsoleRelayService {
 
       logger.debug(`🎯 Final API endpoint for stream: ${apiEndpoint}`)
 
-      // 过滤客户端请求头
-      const filteredHeaders = this._filterClientHeaders(clientHeaders)
+      // 过滤客户端请求头（镜像 body 的 session_id 到 x-claude-code-session-id）
+      const filteredHeaders = this._filterClientHeaders(clientHeaders, body)
       logger.debug(`[DEBUG] Filtered client headers: ${JSON.stringify(filteredHeaders)}`)
 
       // 决定使用的 User-Agent：优先使用账户自定义的，否则透传客户端的，最后才使用默认值
@@ -1875,9 +1876,14 @@ class ClaudeConsoleRelayService {
   }
 
   // 🔧 过滤客户端请求头
-  _filterClientHeaders(clientHeaders) {
+  // requestBody 用于取「最终发出的」metadata.user_id.session_id，镜像到
+  // x-claude-code-session-id —— 真实 CLI 两者恒等。headerFilter 不再每请求 randomUUID()，
+  // 所以这里必须显式传值，否则该 header 会缺失（比错值好，但仍是破绽）。
+  // 解析不出 session_id 时不注入，保留客户端原值，绝不凭空生成。
+  _filterClientHeaders(clientHeaders, requestBody) {
     // Console upstreams reject parts of the Claude Code CLI fingerprint; only apply the safe header whitelist.
-    return filterForClaude(clientHeaders, { injectClaudeCodeHeaders: true })
+    const sessionId = metadataUserIdHelper.extractSessionId(requestBody?.metadata?.user_id)
+    return filterForClaude(clientHeaders, { injectClaudeCodeHeaders: true, sessionId })
   }
 
   // 🕐 更新最后使用时间

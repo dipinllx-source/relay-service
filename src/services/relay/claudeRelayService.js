@@ -27,12 +27,54 @@ const {
   getPricingData
 } = require('../../utils/performanceOptimizer')
 
-// 🔢 emulation 对齐的真实 Claude Code CLI 版本（UA / cc_version 指纹统一来源，升级只改这里）
+// 🔢 emulation 对齐的真实 Claude Code CLI 身份。
+// ⚠️ 不要再单独使用 VERSION / ENTRYPOINT / USER_AGENT 常量拼装身份：真实 CLI 的
+// UA 后缀、system[1] 身份句、billing 的 cc_entrypoint、beta 顺序是按 entrypoint 绑定的。
+// 统一走 buildIdentity() / DEFAULT_IDENTITY，保证四者同源自洽。
 const {
   VERSION: CLAUDE_CODE_EMULATION_VERSION,
-  ENTRYPOINT: CLAUDE_CODE_ENTRYPOINT,
-  USER_AGENT: CLAUDE_CODE_USER_AGENT
+  USER_AGENT: CLAUDE_CODE_USER_AGENT,
+  DEFAULT_IDENTITY,
+  buildIdentity,
+  parseEntrypoint
 } = require('../../utils/claudeCodeIdentity')
+
+// 🔤 真实 CLI 2.1.326（Bun / HTTP1.1）的 header 上线顺序，逐字取自抓包。
+// HTTP/1.1 下 header 顺序原样上线，是可观测指纹；旧实现把 host/connection 放在最前，
+// 与真实 CLI 完全相反（Bun 把这两个放在**倒数**位置）。全部 header 名亦为小写。
+// HEAD = 身份/协议头；TAIL = Bun 固定收尾的四个传输头。
+// 不在列表中的额外 header 插在两段之间，保证 TAIL 完整。
+const CLAUDE_HEADER_ORDER_HEAD = Object.freeze([
+  'accept',
+  'authorization',
+  'content-type',
+  'user-agent',
+  'x-claude-code-session-id',
+  'x-stainless-arch',
+  'x-stainless-lang',
+  'x-stainless-os',
+  'x-stainless-package-version',
+  'x-stainless-retry-count',
+  'x-stainless-runtime',
+  'x-stainless-runtime-version',
+  'x-stainless-timeout',
+  'anthropic-beta',
+  'anthropic-dangerous-direct-browser-access',
+  'anthropic-version',
+  'x-app',
+  'x-claude-1p-request-class',
+  'x-claude-code-prev-tool-durations',
+  'x-claude-code-prompt-id',
+  'x-claude-code-request-class',
+  'x-claude-code-sandy-plover',
+  'x-client-request-id'
+])
+const CLAUDE_HEADER_ORDER_TAIL = Object.freeze([
+  'connection',
+  'host',
+  'accept-encoding',
+  'content-length'
+])
 
 // structuredClone polyfill for Node < 17
 const safeClone =
@@ -44,6 +86,12 @@ class ClaudeRelayService {
     // 🧹 内存优化：用于存储请求体字符串，避免闭包捕获
     this.bodyStore = new Map()
     this._bodyStoreIdCounter = 0
+    // 🔗 cc_prev_req 链：session_id → 上一轮上游 request-id。
+    // 真实 CLI 用该字段把多轮串成链（抓包确认 0009.cc_prev_req == 0008 的响应 request-id）。
+    // 进程内存储即可 —— 真实 CLI 也是进程内维护，且 relay 每服务器单进程。
+    this._ccPrevRequestIds = new Map()
+    this._ccPrevRequestIdTtlMs = 24 * 60 * 60 * 1000
+    this._ccPrevRequestIdMax = 10000
     this.apiVersion = config.claude.apiVersion
     this.betaHeader = config.claude.betaHeader
     this.systemPrompt = config.claude.systemPrompt
@@ -144,21 +192,22 @@ class ClaudeRelayService {
 
   // 🔧 根据模型ID和客户端传递的 anthropic-beta 获取最终的 header
   //
-  // 对齐 sub2api v2.1.220 的 FullClaudeCodeMimicryBetas()：7 个 flag，所有模型统一。
-  // 不含 redact-thinking（避免上游抹除 thinking 内容）、不含 diagnostics/fallbacks 对应 flag
-  // （body 侧也不再注入这些字段，见 _applyNonRealClaudeCodeDefaults）。
-  // context_management 由 context-management-2025-06-27 授权，仍保留注入。
-  _getBetaHeader(modelId, clientBetaHeader) {
-    // sub2api FullClaudeCodeMimicryBetas() — 顺序与真实 CLI 抓包一致
-    const baseBetas = [
-      'claude-code-20250219',
-      'oauth-2025-04-20',
-      'interleaved-thinking-2025-05-14',
-      'prompt-caching-scope-2026-01-05',
-      'effort-2025-11-24',
-      'context-management-2025-06-27',
-      'extended-cache-ttl-2025-04-11'
-    ]
+  // base 集合按 entrypoint + requestClass 分档（identity.betaOrder），逐字对齐真实 CLI 2.1.326
+  // 抓包：cli main 18 个、sdk-cli main 15 个、cli auxiliary 18 个（含两个 fallback flag，
+  // 无 afk-mode / extended-cache-ttl）。可用 CLAUDE_CODE_BETA_PROFILE=base 回退到旧的 7 个。
+  //
+  // 不含 redact-thinking（避免上游抹除 thinking 内容）。diagnostics / fallbacks 字段仍不注入
+  // （见 _applyNonRealClaudeCodeDefaults：sonnet 不支持 fallbacks，注入会 400），
+  // 但对应 beta 现在随完整集合一起发送，与真实 CLI 一致。
+  //
+  // passthroughClientBetas（真 CLI / 关闭伪装）：客户端列表即权威，逐字保留、不增不减。
+  // 旧实现把 relay 的 base flag 强插到最前，既打乱真实顺序，又会给 auxiliary 轮补上它
+  // 刻意省略的 afk-mode / extended-cache-ttl —— 真实流量中不存在的组合。
+  _getBetaHeader(modelId, clientBetaHeader, identity = DEFAULT_IDENTITY, options = {}) {
+    const clientBetas = (clientBetaHeader || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
 
     const betaList = []
     const seen = new Set()
@@ -170,17 +219,155 @@ class ClaudeRelayService {
       betaList.push(beta)
     }
 
-    baseBetas.forEach(addBeta)
+    if (options.passthroughClientBetas && clientBetas.length > 0) {
+      clientBetas.forEach(addBeta)
+      return betaList.join(',')
+    }
 
-    if (clientBetaHeader) {
-      clientBetaHeader
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .forEach(addBeta)
+    const baseBetas = identity.betaOrder
+    const clientLooksLikeCli = clientBetas.includes('claude-code-20250219')
+
+    if (clientLooksLikeCli) {
+      clientBetas.forEach(addBeta)
+      baseBetas.forEach(addBeta)
+    } else {
+      baseBetas.forEach(addBeta)
+      clientBetas.forEach(addBeta)
     }
 
     return betaList.join(',')
+  }
+
+  // 🪪 解析本次请求要伪装的 CLI 身份（UA / version / entrypoint / system 身份句 / beta 顺序）。
+  //
+  // 优先用账号从真实 CLI 流量学到的 header 缓存，回退到 claudeCodeIdentity 的默认档位。
+  //
+  // ⚠️ 旧实现的死锁：storeAccountHeaders 只在「版本更高」时写缓存，而取用判据是
+  // 「cachedVersion === 硬编码 declaredVersion 且每个字段与 defaultHeaders 逐字节相等」。
+  // 真实 CLI 一旦高于常量，缓存永远被判不可用 → 动态学习静默失效，
+  // 且上游看到的 UA 永远停在旧版本。
+  // 新判据：缓存身份完整自洽（isUsableIdentity）且版本 >= 基线，即采用；
+  // 并且**以缓存的 UA 为准**反解 version/entrypoint，让四个信号同源。
+  //
+  // getAccountHeaders 带 60s 内存缓存，同一请求内多次调用只会产生一次 Redis GET。
+  async _resolveEmulationIdentity(accountId, options = {}) {
+    try {
+      const cachedHeaders = await claudeCodeHeadersService.getAccountHeaders(accountId)
+      const cachedVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
+        cachedHeaders && cachedHeaders['user-agent']
+      )
+      const baselineVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
+        DEFAULT_IDENTITY.userAgent
+      )
+
+      if (
+        cachedVersion &&
+        claudeCodeHeadersService.isUsableIdentity(cachedHeaders) &&
+        claudeCodeHeadersService.compareVersions(cachedVersion, baselineVersion) >= 0
+      ) {
+        return buildIdentity({ headers: cachedHeaders, requestClass: options.requestClass })
+      }
+    } catch (error) {
+      logger.warn(`⚠️ 解析账号 ${accountId} 的 CLI 伪装身份失败，回退默认身份:`, error)
+    }
+
+    return buildIdentity({ requestClass: options.requestClass })
+  }
+
+  // 🪪 真 CLI / 关闭伪装时的身份：取自客户端自己的 UA 与 request-class，不读账号缓存。
+  // 只用于 ttl 授权判定等 body 侧决策；header 侧仍逐字透传客户端原值。
+  // ⚠️ 只有能解析出 entrypoint 的 CLI UA 才被采信：否则第三方客户端的任意 UA
+  // （如 "client-original/1"）会经 identity.userAgent 泄漏到 UA 回退链，
+  // 取代原本强制的 canonical CLI UA。
+  _identityFromClientHeaders(clientHeaders) {
+    const clientUA = this._getHeaderValueCaseInsensitive(clientHeaders, 'user-agent')
+    const usableUA = parseEntrypoint(clientUA) ? clientUA : CLAUDE_CODE_USER_AGENT
+    return buildIdentity({
+      headers: { 'user-agent': usableUA },
+      requestClass: this._clientRequestClass(clientHeaders)
+    })
+  }
+
+  // 🏷️ 客户端声明的请求类别：auxiliary（summary-extraction 等辅助轮）与 main 的
+  // beta 集合 / cache_control ttl 形态不同，必须分档。
+  _clientRequestClass(clientHeaders) {
+    const value = this._getHeaderValueCaseInsensitive(clientHeaders, 'x-claude-code-request-class')
+    return value === 'auxiliary' ? 'auxiliary' : 'main'
+  }
+
+  // 🪟 判定上游 429 命中的是哪个限流窗口。
+  //
+  // 真实 CLI 2.1.326 的响应头是一整套 unified 家族：
+  //   anthropic-ratelimit-unified-representative-claim: five_hour | seven_day
+  //   anthropic-ratelimit-unified-reset        ← 镜像 representative 窗口的 reset
+  //   anthropic-ratelimit-unified-5h-reset / -7d-reset / -5h-status / -7d-status
+  // 抓包实测 unified-reset == 5h-reset == 1794892200，而 7d-reset == 1795341600（差约 5 天）。
+  //
+  // ⚠️ 旧实现只读 unified-reset，就把 Opus 请求标成「Opus 周限额」：一个只撞到 5 小时
+  // 窗口的请求会被冷却到 5 天后，专属账号还会收到 opus_weekly_limit 403。全仓此前
+  // 没有任何地方读 unified-7d-* 或 representative-claim。
+  //
+  // 判据优先级：representative-claim > unified-reset 与 5h/7d-reset 的相等关系 > 窗口 status。
+  // 无法判定时返回 'unknown'。
+  //
+  // ⚠️ 调用方的门控是 `window !== 'five_hour'`（而不是 `=== 'seven_day'`）：
+  // 只有**确证**命中 5 小时窗口时才降级为短期限流；unknown 保留旧行为（Opus 视为周限额）。
+  // 理由：没有 429 抓包可证明上游在 429 时一定会带 claim / 5h / 7d 头。若要求必须确证
+  // seven_day 才标周限额，一旦上游只发 unified-reset，真正的周限额就永远不被记录，
+  // 专属账号会持续撞墙而拿不到 opus_weekly_limit 提示。宁可保留旧行为，也不引入新漏标。
+  //
+  // @returns {{window:'seven_day'|'five_hour'|'unknown', claim:string|null,
+  //            resetTimestamp:number|null, unifiedReset:number|null,
+  //            reset5h:number|null, reset7d:number|null}}
+  _classifyRateLimitWindow(headers) {
+    const get = (name) => {
+      const value = this._getHeaderValueCaseInsensitive(headers, name)
+      if (value === undefined || value === null || String(value).trim() === '') {
+        return null
+      }
+      return String(value).trim()
+    }
+    const toTimestamp = (value) => {
+      if (value === null) {
+        return null
+      }
+      const parsed = parseInt(value, 10)
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    }
+
+    const claimRaw = get('anthropic-ratelimit-unified-representative-claim')
+    const claim = claimRaw ? claimRaw.toLowerCase() : null
+    const unifiedReset = toTimestamp(get('anthropic-ratelimit-unified-reset'))
+    const reset5h = toTimestamp(get('anthropic-ratelimit-unified-5h-reset'))
+    const reset7d = toTimestamp(get('anthropic-ratelimit-unified-7d-reset'))
+    const status5h = (get('anthropic-ratelimit-unified-5h-status') || '').toLowerCase()
+    const status7d = (get('anthropic-ratelimit-unified-7d-status') || '').toLowerCase()
+    const isLimiting = (status) => status !== '' && status !== 'allowed'
+
+    let window = 'unknown'
+    if (claim === 'seven_day' || claim === '7d') {
+      window = 'seven_day'
+    } else if (claim === 'five_hour' || claim === '5h') {
+      window = 'five_hour'
+    } else if (reset7d !== null && unifiedReset !== null && unifiedReset === reset7d) {
+      window = 'seven_day'
+    } else if (reset5h !== null && unifiedReset !== null && unifiedReset === reset5h) {
+      window = 'five_hour'
+    } else if (isLimiting(status7d)) {
+      window = 'seven_day'
+    } else if (isLimiting(status5h)) {
+      window = 'five_hour'
+    }
+
+    // reset 优先取该窗口的专用头，缺失时回退 unified-reset
+    let resetTimestamp = unifiedReset
+    if (window === 'seven_day' && reset7d !== null) {
+      resetTimestamp = reset7d
+    } else if (window === 'five_hour' && reset5h !== null) {
+      resetTimestamp = reset5h
+    }
+
+    return { window, claim, resetTimestamp, unifiedReset, reset5h, reset7d }
   }
 
   // 🔎 摘要上游 429 的限流相关响应头（不含凭据），用于区分周限额 / 5h 窗口 / 短时限流 / 代理限流
@@ -550,6 +737,28 @@ class ClaudeRelayService {
       }
     }
 
+    // 🖥️ 会话中 system 轮的 tool_addition 块携带完整工具定义（CLI 2.1.326 用它中途增删工具，
+    // 抓包里 messages[1] 有 3 个）。必须与 body.tools 共用同一张 forwardMap 改名，
+    // 否则 tools[] 是假名、tool_addition 里是真名，上游会看到「引用了不存在工具的 tool_addition」。
+    if (Array.isArray(body.messages)) {
+      body.messages.forEach((message) => {
+        if (!message || !Array.isArray(message.content)) {
+          return
+        }
+        message.content.forEach((block) => {
+          if (
+            block &&
+            block.type === 'tool_addition' &&
+            block.tool &&
+            typeof block.tool.name === 'string' &&
+            rewrite.forwardMap.has(block.tool.name)
+          ) {
+            block.tool.name = rewrite.forwardMap.get(block.tool.name)
+          }
+        })
+      })
+    }
+
     return rewrite.reverseMap
   }
 
@@ -861,7 +1070,20 @@ class ClaudeRelayService {
       const accessToken = await claudeAccountService.getValidAccessToken(accountId)
 
       const isRealClaudeCodeRequest = this._isActualClaudeCodeRequest(requestBody, clientHeaders)
-      const processedBody = this._processRequestBody(requestBody, account, isRealClaudeCodeRequest)
+      // 🪪 一次解析、body 与 header 共用：避免两处各自读缓存导致 version/entrypoint 漂移。
+      // 真 CLI 请求不做伪装，身份取自客户端自己的 UA（不读账号缓存）。
+      const emulationIdentity = isRealClaudeCodeRequest
+        ? this._identityFromClientHeaders(clientHeaders)
+        : await this._resolveEmulationIdentity(accountId, {
+            requestClass: this._clientRequestClass(clientHeaders)
+          })
+      const processedBody = this._processRequestBody(
+        requestBody,
+        account,
+        isRealClaudeCodeRequest,
+        emulationIdentity,
+        { clientHeaders }
+      )
       // 🧹 内存优化：存储到 bodyStore，避免闭包捕获
       const originalBodyString = JSON.stringify(processedBody)
       bodyStoreIdNonStream = ++this._bodyStoreIdCounter
@@ -912,7 +1134,8 @@ class ClaudeRelayService {
             },
             {
               ...requestOptions,
-              isRealClaudeCodeRequest
+              isRealClaudeCodeRequest,
+              identity: emulationIdentity
             }
           )
 
@@ -1135,15 +1358,26 @@ class ClaudeRelayService {
               `💰 [Non-Stream] "Extra usage required" 429 for account ${accountId}, skipping rate limit marking`
             )
           } else {
-            const resetHeader = response.headers
-              ? response.headers['anthropic-ratelimit-unified-reset']
-              : null
-            const parsedResetTimestamp = resetHeader ? parseInt(resetHeader, 10) : NaN
+            const limitWindow = this._classifyRateLimitWindow(response.headers)
+            const parsedResetTimestamp =
+              limitWindow.resetTimestamp === null ? NaN : limitWindow.resetTimestamp
+            // 确证命中 5 小时窗口才降级为短期限流；seven_day 与 unknown 保留周限额判定
+            // （unified-reset 镜像的是 representative 窗口，5h 时它比周重置早约 5 天）。
+            const isOpusWeeklyLimit =
+              isOpusModelRequest &&
+              limitWindow.window !== 'five_hour' &&
+              !Number.isNaN(parsedResetTimestamp)
 
-            if (isOpusModelRequest && !Number.isNaN(parsedResetTimestamp)) {
+            if (isOpusModelRequest && !isOpusWeeklyLimit) {
+              logger.warn(
+                `⚠️ [Non-Stream] Opus 429 for account ${account?.name || accountId} hit the 5-hour window, not the weekly one (claim=${limitWindow.claim || 'none'}, unified-reset=${limitWindow.unifiedReset}, 5h-reset=${limitWindow.reset5h}, 7d-reset=${limitWindow.reset7d}); treating as short-term rate limit`
+              )
+            }
+
+            if (isOpusWeeklyLimit) {
               await claudeAccountService.markAccountOpusRateLimited(accountId, parsedResetTimestamp)
               logger.warn(
-                `🚫 Account ${accountId} hit Opus limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
+                `🚫 Account ${accountId} hit Opus weekly limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
               )
 
               if (isDedicatedOfficialAccount) {
@@ -1369,29 +1603,48 @@ class ClaudeRelayService {
     const pendingToolUseIds = []
     const patched = []
 
+    // 把未解决的 tool_use 合成成一个独立 user 轮，插在当前消息之前
+    const flushPending = (reason) => {
+      if (pendingToolUseIds.length === 0) {
+        return
+      }
+      patched.push({
+        role: 'user',
+        content: pendingToolUseIds.map(makeSyntheticResult)
+      })
+      logger.warn(
+        `🔧 Patched ${pendingToolUseIds.length} orphaned tool_use(s) ${reason}: ${pendingToolUseIds.join(', ')}`
+      )
+      pendingToolUseIds.length = 0
+    }
+
     for (const message of messages) {
-      if (!message || !Array.isArray(message.content)) {
+      if (!message || typeof message !== 'object') {
+        patched.push(message)
+        continue
+      }
+
+      // 🖥️ 会话中 system 轮（CLI 2.1.326 每条请求的 messages[1]，
+      // content = text(# Environment…) + 多个 tool_addition 块，对应 beta
+      // mid-conversation-system-clear-at-2026-08-21 / mid-conversation-tool-changes-2026-07-01）。
+      // 它既不产生 tool_use 也不消费 tool_result：必须原样透传，且**不清空** pending ——
+      // 否则夹在 assistant tool_use 与 user tool_result 之间时会被误判成孤儿。
+      // 也绝不能往 system 轮里塞合成 tool_result（那不是 user 轮）。
+      if (message.role === 'system') {
         patched.push(message)
         continue
       }
 
       if (message.role === 'assistant') {
-        if (pendingToolUseIds.length > 0) {
-          patched.push({
-            role: 'user',
-            content: pendingToolUseIds.map(makeSyntheticResult)
-          })
-          logger.warn(
-            `🔧 Patched ${pendingToolUseIds.length} orphaned tool_use(s): ${pendingToolUseIds.join(', ')}`
-          )
-          pendingToolUseIds.length = 0
-        }
+        flushPending('before assistant turn')
 
-        const toolUseIds = message.content
-          .filter((part) => part?.type === 'tool_use' && typeof part.id === 'string')
-          .map((part) => part.id)
-        if (toolUseIds.length > 0) {
-          pendingToolUseIds.push(...toolUseIds)
+        if (Array.isArray(message.content)) {
+          const toolUseIds = message.content
+            .filter((part) => part?.type === 'tool_use' && typeof part.id === 'string')
+            .map((part) => part.id)
+          if (toolUseIds.length > 0) {
+            pendingToolUseIds.push(...toolUseIds)
+          }
         }
 
         patched.push(message)
@@ -1399,36 +1652,41 @@ class ClaudeRelayService {
       }
 
       if (message.role === 'user' && pendingToolUseIds.length > 0) {
-        const toolResultIds = new Set(
-          message.content
-            .filter((p) => p?.type === 'tool_result' && typeof p.tool_use_id === 'string')
-            .map((p) => p.tool_use_id)
-        )
-        const missing = pendingToolUseIds.filter((id) => !toolResultIds.has(id))
-
-        if (missing.length > 0) {
-          const synthetic = missing.map(makeSyntheticResult)
-          logger.warn(
-            `🔧 Patched ${missing.length} missing tool_result(s) in user message: ${missing.join(', ')}`
-          )
-          message.content = [...synthetic, ...message.content]
+        // ⚠️ content 可能是**字符串**：真实 CLI 2.1.326 就会发 string content 的 user 轮
+        // （抓包 0010/0011 的 messages[3]）。旧实现在循环开头用 !Array.isArray(content)
+        // 直接 continue，pending 不被消费，合成结果被推迟到下一个 assistant 轮之前，
+        // 变成**独立的第二个 user 轮** —— tool_result 不在紧随 assistant tool_use 的那个
+        // user 轮首位，上游会 400。这里把字符串规范化为 blocks 后就地前置合成结果。
+        let blocks = null
+        if (typeof message.content === 'string') {
+          blocks = message.content ? [{ type: 'text', text: message.content }] : []
+        } else if (Array.isArray(message.content)) {
+          blocks = message.content
         }
 
-        pendingToolUseIds.length = 0
+        if (blocks) {
+          const toolResultIds = new Set(
+            blocks
+              .filter((p) => p?.type === 'tool_result' && typeof p.tool_use_id === 'string')
+              .map((p) => p.tool_use_id)
+          )
+          const missing = pendingToolUseIds.filter((id) => !toolResultIds.has(id))
+
+          if (missing.length > 0) {
+            logger.warn(
+              `🔧 Patched ${missing.length} missing tool_result(s) in user message: ${missing.join(', ')}`
+            )
+            message.content = [...missing.map(makeSyntheticResult), ...blocks]
+          }
+
+          pendingToolUseIds.length = 0
+        }
       }
 
       patched.push(message)
     }
 
-    if (pendingToolUseIds.length > 0) {
-      patched.push({
-        role: 'user',
-        content: pendingToolUseIds.map(makeSyntheticResult)
-      })
-      logger.warn(
-        `🔧 Patched ${pendingToolUseIds.length} trailing orphaned tool_use(s): ${pendingToolUseIds.join(', ')}`
-      )
-    }
+    flushPending('at end of messages')
 
     return patched
   }
@@ -1523,9 +1781,15 @@ class ClaudeRelayService {
   // Anthropic detects third-party apps via system content. Original client system
   // must be moved to messages (see _moveSystemToMessages). Billing header injected
   // later by _injectDynamicBillingHeader as system[0].
-  _buildClaudeCodeSystem(_system) {
+  //
+  // ⚠️ system[1] 的身份句必须与本次伪装的 entrypoint 匹配：
+  //   cli     → "You are Claude Code, Anthropic's official CLI for Claude."
+  //   sdk-cli → "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+  // 旧实现无条件用 cli 身份句，却发 sdk-cli 的 UA/cc_entrypoint，组合在真实流量中不存在。
+  // this.claudeCodeSystemPrompt 仍保留 cli 身份句，供真 CLI 识别与 OpenCode 身份替换使用。
+  _buildClaudeCodeSystem(_system, identity = DEFAULT_IDENTITY) {
     return [
-      { type: 'text', text: this.claudeCodeSystemPrompt },
+      { type: 'text', text: identity.systemIdentity },
       {
         type: 'text',
         text: this.claudeCodeSystemPromptExpansion,
@@ -1536,10 +1800,17 @@ class ClaudeRelayService {
 
   // P0: Move client's original system prompt to messages as user/assistant pair.
   // This prevents third-party fingerprint leakage in the system field.
-  _moveSystemToMessages(body) {
+  _moveSystemToMessages(body, identity = DEFAULT_IDENTITY) {
     if (!body || !body.system) {
       return body
     }
+
+    // 两套 entrypoint 的身份句都要跳过：否则客户端恰好带了 sdk-cli 身份句时，
+    // 会被搬进 messages 又在 system[1] 重新注入，造成重复。
+    const identitySentences = new Set(
+      [this.claudeCodeSystemPrompt, identity.systemIdentity].map((s) => String(s).trim())
+    )
+    const isIdentityOnly = (t) => identitySentences.has(t)
 
     let originalText = ''
     const system = body.system
@@ -1552,12 +1823,12 @@ class ClaudeRelayService {
         if (!entry) continue
         if (typeof entry === 'string') {
           const t = entry.trim()
-          if (t && t !== this.claudeCodeSystemPrompt && !t.startsWith('x-anthropic-billing-header')) {
+          if (t && !isIdentityOnly(t) && !t.startsWith('x-anthropic-billing-header')) {
             parts.push(t)
           }
         } else if (typeof entry === 'object' && typeof entry.text === 'string') {
           const t = entry.text.trim()
-          if (t && t !== this.claudeCodeSystemPrompt && !t.startsWith('x-anthropic-billing-header')) {
+          if (t && !isIdentityOnly(t) && !t.startsWith('x-anthropic-billing-header')) {
             parts.push(t)
           }
         }
@@ -1566,7 +1837,7 @@ class ClaudeRelayService {
     }
 
     // Skip if no meaningful content or already pure Claude Code identity
-    if (!originalText || originalText === this.claudeCodeSystemPrompt.trim()) {
+    if (!originalText || isIdentityOnly(originalText)) {
       return body
     }
 
@@ -1644,6 +1915,41 @@ class ClaudeRelayService {
     return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20, 32)}`
   }
 
+  // 🎲 是否为合法 UUID v4。客户端回传的 session 只有格式可信时才沿用。
+  _isUuidV4(value) {
+    return (
+      typeof value === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    )
+  }
+
+  // 🔗 解析本次请求「最终」的会话 ID，用于 x-claude-code-session-id header。
+  //
+  // ⚠️ 必须在 _applyRequestIdentityTransform 之后调用：requestIdentityService.rewriteUserId
+  // 会把 metadata.user_id.session_id 重新哈希为 formatUuidFromSeed(`${accountId}::${原值}`)，
+  // 那才是真正发出去的值。在转换之前取 header 会再次造成 header 与 body 不一致。
+  //
+  // 本方法保证的是「同一请求内 header 与 body 恒等」。跨请求的会话连续性取决于客户端
+  // 是否回传可信 session：
+  //   - body 带合法 UUID v4 → 沿用，跨请求稳定（真实 CLI 即此情形，整会话不变）；
+  //   - 否则 → 为本次入站请求生成随机 UUID。**不再按账号 + 首条 prompt 文本派生**，
+  //     因为同账号同首句的独立会话很常见，派生会让它们共用 cc_prev_req 链而串线。
+  //
+  // 已知取舍：不回传 session 的客户端（Anthropic JS SDK / undici 等）每请求都会拿到新
+  // session_id，上游看到的是「只活一轮的新会话」，cc_prev_req 也串不起来。可用的稳定信号
+  // 是 sessionHelper 的 sessionHash（基于带 cache_control 的 system 全文 + 首条消息文本，
+  // 实测同一会话相邻请求相同），是否用它兜底属另一项决策。
+  _resolveCanonicalSessionId(body, { accountId, sessionHash } = {}) {
+    const fromBody = metadataUserIdHelper.extractSessionId(body?.metadata?.user_id)
+    if (this._isUuidV4(fromBody)) {
+      return fromBody
+    }
+    // No valid body session means this request has no reusable client session.
+    // Do not derive it from prompt text: identical first turns are common and
+    // must not share the cc_prev_req chain.
+    return crypto.randomUUID()
+  }
+
   // 🔢 复刻真实 Claude Code CLI 的 cc_version 指纹后缀（每请求随首条 user 文本变化）。
   //
   // 算法源自 Parrot / sub2api 逆向：取 messages 中第一条 role=user 首段 text 的
@@ -1659,20 +1965,87 @@ class ClaudeRelayService {
     return { fp: digest.slice(0, 3), cch: digest.slice(3, 8) }
   }
 
-  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]（对齐真实 CLI v2.1.285 形态）：
-  //   x-anthropic-billing-header: cc_version=2.1.285.{fp}; cc_entrypoint=sdk-cli;
+  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]：
+  //   x-anthropic-billing-header: cc_version={version}.{fp}; cc_entrypoint={entrypoint};
+  // version 与 entrypoint 必须来自本次请求的同一份 identity（与 UA / system[1] / beta 顺序同源），
+  // 否则会出现「sdk-cli 的 cc_entrypoint 配 cli 的 UA」这类真实世界不存在的组合。
   // 必须在 _removeBillingHeaderFromSystem 之后调用，避免被误剥离。
-  _injectDynamicBillingHeader(body) {
+  //
+  // 🔗 cc_prev_req 链的会话键：用 body 里（身份重写之前的）session_id。
+  // 该值由 _deriveStableUuid('cc-session:'+accountKey+':'+首条user文本) 派生，已含账号维度；
+  // 请求侧注入与响应侧记录读到的是同一个 processedBody，键天然对齐。
+  _ccSessionKey(body) {
+    return metadataUserIdHelper.extractSessionId(body?.metadata?.user_id) || null
+  }
+
+  _getPrevUpstreamRequestId(body) {
+    const key = this._ccSessionKey(body)
+    if (!key) {
+      return null
+    }
+    const entry = this._ccPrevRequestIds.get(key)
+    if (!entry) {
+      return null
+    }
+    if (Date.now() - entry.ts > this._ccPrevRequestIdTtlMs) {
+      this._ccPrevRequestIds.delete(key)
+      return null
+    }
+    return entry.requestId
+  }
+
+  // 📥 记录上游响应的 request-id，供下一轮拼 cc_prev_req。
+  // requestId 会被写进 system[0] 文本，因此严格校验形态，避免把任意上游 header 值
+  // 当作指令内容注入 prompt。
+  _recordUpstreamRequestId(body, requestId) {
+    if (typeof requestId !== 'string' || !/^req_[A-Za-z0-9]{1,128}$/.test(requestId)) {
+      return
+    }
+    const key = this._ccSessionKey(body)
+    if (!key) {
+      return
+    }
+    if (this._ccPrevRequestIds.size >= this._ccPrevRequestIdMax) {
+      const now = Date.now()
+      for (const [k, v] of this._ccPrevRequestIds) {
+        if (now - v.ts > this._ccPrevRequestIdTtlMs) {
+          this._ccPrevRequestIds.delete(k)
+        }
+      }
+      if (this._ccPrevRequestIds.size >= this._ccPrevRequestIdMax) {
+        const oldest = this._ccPrevRequestIds.keys().next().value
+        if (oldest !== undefined) {
+          this._ccPrevRequestIds.delete(oldest)
+        }
+      }
+    }
+    this._ccPrevRequestIds.set(key, { requestId, ts: Date.now() })
+  }
+
+  // 💳 为 emulation 请求注入动态 billing header 作为 system[0]：
+  //   x-anthropic-billing-header: cc_version={version}.{fp}; cc_entrypoint={entrypoint};
+  //   cch={5hex}; cc_prev_req={上一轮上游 request-id};
+  // version / entrypoint 来自本次请求的同一份 identity（与 UA / system[1] / beta 顺序同源）。
+  // 必须在 _removeBillingHeaderFromSystem 之后调用，避免被误剥离。
+  //
+  // cch：真实 2.1.326 的 6 个轮次全部带 cch=<5hex>（38ada/a9b68/63546/cc0aa/080da/0aa60），
+  //      旧注释「new CLI versions no longer send it」与实测相反。_computeCcFingerprint
+  //      早已算出该值，只是一直没被使用。同一 prompt_id 的不同轮 cch 也不同 → 每请求派生。
+  // cc_prev_req：抓包确认等于**上一轮响应的 request-id**（0009←0008、0010←0009、0011←0010），
+  //      会话首轮没有该字段。缺失比 cch 更显眼，因为它把多轮串成链。
+  // 仍未实现：cc_prompt_id / cc_turn_origin / cc_prompt_index / cc_turn_index（本次范围外）。
+  _injectDynamicBillingHeader(body, identity = DEFAULT_IDENTITY) {
     if (!body) {
       return
     }
-    const version = CLAUDE_CODE_EMULATION_VERSION
-    const { fp } = this._computeCcFingerprint(body, version)
-    // P0: removed cch= field (new CLI versions no longer send it)
-    const billingEntry = {
-      type: 'text',
-      text: `x-anthropic-billing-header: cc_version=${version}.${fp}; cc_entrypoint=${CLAUDE_CODE_ENTRYPOINT};`
+    const { version } = identity
+    const { fp, cch } = this._computeCcFingerprint(body, version)
+    let text = `x-anthropic-billing-header: cc_version=${version}.${fp}; cc_entrypoint=${identity.entrypoint}; cch=${cch};`
+    const prevRequestId = this._getPrevUpstreamRequestId(body)
+    if (prevRequestId) {
+      text += ` cc_prev_req=${prevRequestId};`
     }
+    const billingEntry = { type: 'text', text }
     if (Array.isArray(body.system)) {
       body.system.unshift(billingEntry)
     } else if (typeof body.system === 'string' && body.system.trim()) {
@@ -1682,7 +2055,7 @@ class ClaudeRelayService {
     }
   }
 
-  _applyNonRealClaudeCodeDefaults(body) {
+  _applyNonRealClaudeCodeDefaults(body, identity = DEFAULT_IDENTITY) {
     // max_tokens：真实 CLI 默认 128000（对齐 sub2api v2.1.220）
     if (body.max_tokens === undefined || body.max_tokens === null) {
       body.max_tokens = 128000
@@ -1696,6 +2069,32 @@ class ClaudeRelayService {
     // Inject thinking (adaptive mode, matches real CLI)
     if (!body.thinking) {
       body.thinking = { type: 'adaptive' }
+    }
+
+    // thinking.display：真实 cli 轮为 {"type":"adaptive","display":"updates"}。
+    // 仅在 adaptive 模式、profile 提供该值、且 beta 集合含 thinking-display-updates-2026-08-18
+    // 时注入；disabled/enabled 不加（抓包只证实了 adaptive 形态，避免给不支持的组合发参数）。
+    // sdk-cli 抓包为 "omitted"，本服务刻意不注入（可能让上游省略 thinking 内容，
+    // 而 emulation 面向的第三方客户端大多依赖 thinking 输出）——见 claudeCodeIdentity 注释。
+    if (
+      body.thinking &&
+      typeof body.thinking === 'object' &&
+      body.thinking.type === 'adaptive' &&
+      body.thinking.display === undefined &&
+      identity.thinkingDisplay &&
+      identity.betaOrder.includes('thinking-display-updates-2026-08-18')
+    ) {
+      body.thinking.display = identity.thinkingDisplay
+    }
+
+    // output_config.effort：真实 CLI 2.1.326 的 6 个轮次（cli / sdk-cli / auxiliary、
+    // opus-5-5 与 haiku-5-5）全部发送 {"effort":"medium"}。本服务一直在发
+    // effort-2025-11-24 beta 却不带字段 —— 只发授权不带参数本身就是破绽。
+    if (
+      (body.output_config === undefined || body.output_config === null) &&
+      identity.betaOrder.includes('effort-2025-11-24')
+    ) {
+      body.output_config = { effort: 'medium' }
     }
 
     // Ensure stream is set
@@ -1715,11 +2114,11 @@ class ClaudeRelayService {
       }
     }
 
-    // diagnostics / fallbacks：不再注入。
-    // - diagnostics 需要 cache-diagnosis-2026-04-07 beta（已从 beta 集合中移除）
-    // - fallbacks 需要 server-side-fallback-2026-06-01 beta（已从 beta 集合中移除）
-    //   且 sonnet 模型不支持 fallbacks 参数，注入会导致 400 错误
-    // 对齐 sub2api v2.1.220：body 中不主动注入这两个字段
+    // diagnostics / fallbacks：仍不注入（本次范围外）。
+    // 完整 beta 集合现在已含 cache-diagnosis-2026-04-07 与（auxiliary 档）
+    // server-side-fallback-2026-06-01 / fallback-credit-2026-06-01，授权不再是障碍；
+    // 但 fallbacks 在 sonnet 模型上会导致 400，diagnostics.previous_message_id 需要
+    // 跨轮追踪上游 message id。两者都留待独立修复。
   }
 
   // 🔄 处理请求体
@@ -1762,7 +2161,13 @@ class ClaudeRelayService {
     }
   }
 
-  _processRequestBody(body, account = null, isRealClaudeCodeOverride = undefined) {
+  _processRequestBody(
+    body,
+    account = null,
+    isRealClaudeCodeOverride = undefined,
+    identity = DEFAULT_IDENTITY,
+    requestContext = {}
+  ) {
     if (!body) {
       return body
     }
@@ -1777,8 +2182,12 @@ class ClaudeRelayService {
     // 验证并限制max_tokens参数
     this._validateAndLimitMaxTokens(processedBody)
 
-    // 移除cache_control中的ttl字段
-    this._stripTtlFromCacheControl(processedBody)
+    // 🧹 cache_control.ttl：仅在未获 extended-cache-ttl beta 授权时才剥离。
+    // 真实 CLI 2.1.326 大量使用 ttl:"1h"（system[2] 还带 scope:"global"），
+    // 旧实现在 isRealClaudeCode 判定之前无条件删 ttl，把真 CLI 的 1h 缓存降级成 5m，
+    // 却又照发 extended-cache-ttl-2025-04-11 beta —— 既损失命中率又自相矛盾。
+    const allowExtendedTtl = identity.betaOrder.includes('extended-cache-ttl-2025-04-11')
+    this._stripTtlFromCacheControl(processedBody, { allowExtendedTtl })
 
     // 判断是否是真实的 Claude Code 请求
     // 优先使用调用方传入的值（基于 UA + system prompt 综合判断），
@@ -1800,9 +2209,9 @@ class ClaudeRelayService {
 
     // P0: Move client system to messages FIRST, then build clean CC system
     if (shouldEmulate) {
-      this._moveSystemToMessages(processedBody)
-      processedBody.system = this._buildClaudeCodeSystem(processedBody.system)
-      this._applyNonRealClaudeCodeDefaults(processedBody)
+      this._moveSystemToMessages(processedBody, identity)
+      processedBody.system = this._buildClaudeCodeSystem(processedBody.system, identity)
+      this._applyNonRealClaudeCodeDefaults(processedBody, identity)
       this._sanitizeNonRealClaudeCodeToolDescriptions(processedBody)
     }
 
@@ -1813,8 +2222,10 @@ class ClaudeRelayService {
     // 修复（对齐 sub2api buildOAuthMetadataUserID）：
     //   - account_uuid = 账号真实 UUID（从 subscriptionInfo 解析）
     //   - device_id = 按 account.id 派生的稳定 64hex（模拟单账号单机，避免全量流量共用一个 device）
-    //   - session_id = 按 account.id + 首条 user 文本派生的稳定 UUID（同一会话追加消息保持不变，贴近真实 CLI 进程级 session）
-    //   - emulation 下始终覆盖客户端（非 CLI 客户端）自带的 metadata，因为其 account_uuid 必然不正确
+    //   - session_id 优先沿用客户端 body/header 中的稳定 session；两者都缺失时为本次
+    //     入站请求生成一次随机 UUID。随机值随 processedBody 持久化到重试与 cc_prev_req 链，
+    //     不再按首条 prompt 派生，避免同账号同首句的独立会话串线。
+    //   - emulation 下始终重建 metadata 的设备/账号字段，但保留可信 session_id
     if (shouldEmulate) {
       if (!processedBody.metadata || typeof processedBody.metadata !== 'object') {
         processedBody.metadata = {}
@@ -1822,8 +2233,15 @@ class ClaudeRelayService {
       const accountUuid = this._getAccountUuid(account)
       const accountKey = (account && (account.id || account.name)) || 'relay'
       const deviceId = crypto.createHash('sha256').update(`cc-device:${accountKey}`).digest('hex')
-      const firstUserText = this._extractFirstUserText(processedBody)
-      const sessionId = this._deriveStableUuid(`cc-session:${accountKey}:${firstUserText}`)
+      const bodySessionId = metadataUserIdHelper.extractSessionId(processedBody.metadata.user_id)
+      const clientSessionId = this._getHeaderValueCaseInsensitive(
+        requestContext.clientHeaders,
+        'x-claude-code-session-id'
+      )
+      const sessionId =
+        (this._isUuidV4(bodySessionId) && bodySessionId) ||
+        (this._isUuidV4(clientSessionId) && clientSessionId) ||
+        crypto.randomUUID()
       processedBody.metadata.user_id = JSON.stringify({
         device_id: deviceId,
         account_uuid: accountUuid,
@@ -1836,13 +2254,19 @@ class ClaudeRelayService {
       }
     }
 
-    // 移除 x-anthropic-billing-header 系统元素，避免将客户端 billing 标识传递给上游 API
-    this._removeBillingHeaderFromSystem(processedBody)
-
-    // 💳 emulation：在剥离客户端 billing 之后，注入本服务动态派生的 billing header 作为 system[0]，
-    // 对齐真实 CLI v2.1.285（cc_version 后缀随首条 user 文本每请求变化，消除固定指纹特征）。
+    // 🧾 billing header 处理：
+    // - emulation：剥掉客户端自带的 billing 标识，随后注入本服务动态派生的那份（见下）。
+    // - 真 CLI / 关闭伪装：**原样保留**。旧实现无条件剥离，把真实 CLI 的 4 块 system 砍成 3 块，
+    //   上游因此看到「没有 billing header 的 Claude Code 请求」——真实流量里不存在的形态；
+    //   同时 system 前缀内容变化会让 CLI 自己写的缓存前缀失效（cc_prev_req 链也一并丢失）。
     if (shouldEmulate) {
-      this._injectDynamicBillingHeader(processedBody)
+      this._removeBillingHeaderFromSystem(processedBody)
+    }
+
+    // 💳 emulation：在剥离客户端 billing 之后，注入本服务动态派生的 billing header 作为 system[0]。
+    // cc_version / cc_entrypoint 取自本次请求的 identity，与 UA、system[1] 身份句、beta 顺序同源。
+    if (shouldEmulate) {
+      this._injectDynamicBillingHeader(processedBody, identity)
     }
 
     this._enforceCacheControlLimit(processedBody)
@@ -1961,7 +2385,12 @@ class ClaudeRelayService {
 
     try {
       // 使用缓存的定价数据
-      const pricingFilePath = path.join(__dirname, '../../data/model_pricing.json')
+      // ⚠️ 本文件位于 src/services/relay/，到仓库根需要三级 ../。
+      // 旧值 '../../data' 解析成 src/data/model_pricing.json（不存在），
+      // 导致 getPricingData 恒返回 null、每个请求都打印 "pricing file not found"
+      // 并静默跳过 max_tokens 校验与限幅。src/routes/web.js 等浅一层文件用 '../../data'
+      // 是对的，照抄到本文件就错了。
+      const pricingFilePath = path.join(__dirname, '../../../data/model_pricing.json')
       const pricingData = getPricingData(pricingFilePath)
 
       if (!pricingData) {
@@ -2003,11 +2432,23 @@ class ClaudeRelayService {
     }
   }
 
-  // 🧹 移除TTL字段
-  _stripTtlFromCacheControl(body) {
+  // 🧹 cache_control.ttl 处理
+  //
+  // ttl:"1h" 需要 extended-cache-ttl-2025-04-11 beta 授权。本服务的 base beta 集合恒含该
+  // flag，因此默认**保留** ttl —— 与真实 CLI 2.1.326 一致（其 system/messages 断点普遍带
+  // ttl:"1h"，system[2] 还带 scope:"global"）。旧实现无条件删除，把 1h 缓存降级成 5m，
+  // 既损失命中率又与所发 beta 自相矛盾。
+  //
+  // allowExtendedTtl=false 时恢复旧的剥离行为（用于未授权该 beta 的上游）；
+  // 无论哪种模式，非法 ttl 值都会被清掉，避免上游 400。
+  _stripTtlFromCacheControl(body, { allowExtendedTtl = true } = {}) {
     if (!body || typeof body !== 'object') {
       return
     }
+
+    const VALID_TTL = new Set(['5m', '1h'])
+    let kept = 0
+    let removed = 0
 
     const processContentArray = (contentArray) => {
       if (!Array.isArray(contentArray)) {
@@ -2015,12 +2456,19 @@ class ClaudeRelayService {
       }
 
       contentArray.forEach((item) => {
-        if (item && typeof item === 'object' && item.cache_control) {
-          if (item.cache_control.ttl) {
-            delete item.cache_control.ttl
-            logger.debug('🧹 Removed ttl from cache_control')
-          }
+        if (!item || typeof item !== 'object' || !item.cache_control) {
+          return
         }
+        const { ttl } = item.cache_control
+        if (!ttl) {
+          return
+        }
+        if (allowExtendedTtl && VALID_TTL.has(ttl)) {
+          kept += 1
+          return
+        }
+        delete item.cache_control.ttl
+        removed += 1
       })
     }
 
@@ -2034,6 +2482,13 @@ class ClaudeRelayService {
           processContentArray(message.content)
         }
       })
+    }
+
+    if (removed > 0) {
+      logger.debug(`🧹 Removed ${removed} invalid/unauthorized ttl from cache_control`)
+    }
+    if (kept > 0) {
+      logger.debug(`🕐 Preserved ${kept} cache_control ttl (extended-cache-ttl authorized)`)
     }
   }
 
@@ -2073,6 +2528,14 @@ class ClaudeRelayService {
 
   _tryAddCacheControlToLastTextContent(message) {
     if (!message || typeof message !== 'object') {
+      return null
+    }
+
+    // 🖥️ 不给会话中 system 轮打缓存锚点：CLI 2.1.326 的 messages[1] 是
+    // role:"system"（text + tool_addition[]），其缓存断点由客户端自己管理
+    // （抓包里断点落在第三个 tool_addition 上，text 块没有）。relay 再插一个断点
+    // 会改变该轮字节内容、挤占 4 个断点配额，并破坏客户端自己的缓存前缀。
+    if (message.role === 'system') {
       return null
     }
 
@@ -2572,30 +3035,29 @@ class ClaudeRelayService {
     const enableEmulation = !account || account.enableThirdPartyToolEmulation !== 'false'
     const shouldEmulate = !isRealClaudeCode && enableEmulation
 
+    // 🪪 本次请求的 CLI 身份（UA / version / entrypoint / 身份句 / beta 顺序 / thinking.display）。
+    // 调用方已解析过就直接复用，保证 body 与 header 严格同源。
+    // 仅 emulation 需要读账号抓包缓存：真 CLI / 关闭伪装的请求保持「不碰 header 缓存」的隔离性，
+    // 身份直接取自客户端 UA + request-class。
+    const identity =
+      requestOptions.identity && requestOptions.identity.betaOrder
+        ? requestOptions.identity
+        : shouldEmulate
+          ? await this._resolveEmulationIdentity(accountId, {
+              requestClass: this._clientRequestClass(clientHeaders)
+            })
+          : this._identityFromClientHeaders(clientHeaders)
+
     // 如果不是真实的 Claude Code 请求，需要使用从账户获取的 Claude Code headers
     let finalHeaders = { ...filteredHeaders }
     let requestPayload = body
 
     if (shouldEmulate) {
       // P2：emulation 只发送精确、版本自洽的 CLI header 集合。
-      // 优先使用账号 Redis 缓存中「与当前声明 UA 同版本」的真实抓取 headers；
-      // 否则回退到 canonical defaultHeaders（已与原生 CLI v2.1.285 抓包字节对齐）。
-      // 关键：不沿用旧版本缓存（避免 x-stainless 与 UA 版本错位），也不保留客户端多余头。
-      const declaredVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
-        claudeCodeHeadersService.defaultHeaders['user-agent']
-      )
-      const cachedHeaders = await claudeCodeHeadersService.getAccountHeaders(accountId)
-      const cachedVersion = claudeCodeHeadersService.extractVersionFromUserAgent(
-        cachedHeaders && cachedHeaders['user-agent']
-      )
-      // Accept cached headers only when the entire captured identity matches, including entrypoint.
-      const emulationHeaders =
-        cachedVersion === declaredVersion &&
-        Object.entries(claudeCodeHeadersService.defaultHeaders).every(
-          ([key, value]) => cachedHeaders?.[key] === value
-        )
-          ? cachedHeaders
-          : claudeCodeHeadersService.defaultHeaders
+      // identity.headers 来自账号学到的真实抓包缓存（版本 >= 基线且集合齐全），
+      // 否则是 canonical defaultHeaders。version/entrypoint 由同一份 UA 反解，
+      // 因此 x-stainless-* 与 UA 不会错位。
+      const emulationHeaders = identity.headers
 
       // 用精确集合覆盖客户端遗留头：先删除已知的非 CLI 泄漏头，再仅注入 CLI header keys。
       const CLI_HEADER_KEYS = claudeCodeHeadersService.claudeCodeHeaderKeys
@@ -2619,7 +3081,9 @@ class ClaudeRelayService {
       })
       CLI_HEADER_KEYS.forEach((key) => {
         delete finalHeaders[key]
-        const value = emulationHeaders[key] ?? claudeCodeHeadersService.defaultHeaders[key]
+        // 只从同一份 identity.headers 取值，绝不逐字段回退到 defaultHeaders ——
+        // 那会把 2.1.326 的 UA 和 2.1.285 的 x-stainless-package-version 拼在一起。
+        const value = emulationHeaders[key]
         if (value !== undefined) {
           finalHeaders[key] = value
         }
@@ -2643,6 +3107,13 @@ class ClaudeRelayService {
 
     requestPayload = extensionResult.body
     finalHeaders = extensionResult.headers
+
+    // 🔗 x-claude-code-session-id 必须等于 body 里最终发出的 metadata.user_id.session_id。
+    // 放在身份转换之后，取的是重写后的权威值；headerFilter 不再凭空 randomUUID()。
+    finalHeaders['x-claude-code-session-id'] = this._resolveCanonicalSessionId(requestPayload, {
+      accountId,
+      sessionHash
+    })
 
     let toolNameMap = null
     if (shouldEmulate) {
@@ -2677,32 +3148,69 @@ class ClaudeRelayService {
     // 我们确定能解压的编码集合，保证 spread 后值稳定
     headers['accept-encoding'] = ACCEPT_ENCODING
 
-    // 使用统一 User-Agent 或客户端提供的，最后使用默认值
+    // 使用统一 User-Agent 或客户端提供的，最后使用默认值。
+    // emulation 下用 identity.userAgent（与 x-stainless-* / cc_entrypoint / 身份句 / beta 顺序同源），
+    // 不再硬编码常量 UA —— 否则账号学到的新版本抓包只改了 stainless 头，UA 却停在旧版本。
+    // header 名统一小写：真实 CLI（Bun）发的就是小写，大小写本身也是指纹。
     const userAgent =
-      (shouldEmulate ? CLAUDE_CODE_USER_AGENT : unifiedUA || headers['user-agent']) ||
+      (shouldEmulate ? identity.userAgent : unifiedUA || headers['user-agent']) ||
+      identity.userAgent ||
       CLAUDE_CODE_USER_AGENT
     const acceptHeader = headers['accept'] || 'application/json'
     delete headers['user-agent']
     delete headers['accept']
-    headers['User-Agent'] = userAgent
-    headers['Accept'] = acceptHeader
+    headers['user-agent'] = userAgent
+    headers['accept'] = acceptHeader
 
-    logger.debug(`🔗 Request User-Agent: ${headers['User-Agent']}`)
+    logger.debug(`🔗 Request User-Agent: ${headers['user-agent']}`)
 
-    // 根据模型和客户端传递的 anthropic-beta 动态设置 header
+    // 根据模型和客户端传递的 anthropic-beta 动态设置 header。
+    // emulation：用 identity 的完整分档集合作 base，客户端额外 flag 追加在后。
+    // 真 CLI / 关闭伪装：逐字透传客户端列表（auxiliary 轮的差异因此得以保留）。
     const modelId = requestPayload?.model || body?.model
     const clientBetaHeader = this._getHeaderValueCaseInsensitive(clientHeaders, 'anthropic-beta')
-    headers['anthropic-beta'] = this._getBetaHeader(modelId, clientBetaHeader)
+    headers['anthropic-beta'] = this._getBetaHeader(modelId, clientBetaHeader, identity, {
+      passthroughClientBetas: !shouldEmulate
+    })
 
     return {
       requestPayload,
       bodyString,
-      headers,
+      // 🔤 按真实 CLI 的上线顺序重排（Node https.request 按对象插入顺序写 header）
+      headers: this._orderClaudeHeaders(headers),
       isRealClaudeCode,
       // 是否执行了"三方工具伪装"：用于响应侧反向还原对称判断
       emulationApplied: shouldEmulate,
       toolNameMap
     }
+  }
+
+  // 🔤 把 header map 重排为真实 CLI（Bun）的上线顺序，并统一小写键名。
+  // 同名不同大小写的重复键会被合并（保留最后一个值），避免上线出现重复 header。
+  _orderClaudeHeaders(headers) {
+    const byLower = new Map()
+    Object.keys(headers || {}).forEach((key) => {
+      byLower.set(key.toLowerCase(), headers[key])
+    })
+
+    const ordered = {}
+    const take = (name) => {
+      if (byLower.has(name)) {
+        ordered[name] = byLower.get(name)
+        byLower.delete(name)
+      }
+    }
+
+    CLAUDE_HEADER_ORDER_HEAD.forEach(take)
+    // 额外的未知 header：插在 HEAD 与 TAIL 之间，保持 Bun 的收尾四件套完整
+    Array.from(byLower.keys()).forEach((name) => {
+      if (!CLAUDE_HEADER_ORDER_TAIL.includes(name)) {
+        take(name)
+      }
+    })
+    CLAUDE_HEADER_ORDER_TAIL.forEach(take)
+
+    return ordered
   }
 
   _applyRequestIdentityTransform(body, headers, context = {}) {
@@ -2792,6 +3300,9 @@ class ClaudeRelayService {
       }
 
       const req = https.request(options, (res) => {
+        // 🔗 记录上游 request-id，供同一会话下一轮 emulation 拼 cc_prev_req
+        this._recordUpstreamRequestId(body, res.headers['request-id'])
+
         // 使用数组收集 chunks，避免 O(n²) 的 Buffer.concat
         const chunks = []
 
@@ -3057,7 +3568,19 @@ class ClaudeRelayService {
       const accessToken = await claudeAccountService.getValidAccessToken(accountId)
 
       const isRealClaudeCodeRequest = this._isActualClaudeCodeRequest(requestBody, clientHeaders)
-      const processedBody = this._processRequestBody(requestBody, account, isRealClaudeCodeRequest)
+      // 🪪 一次解析、body 与 header 共用（与非流式路径一致）
+      const emulationIdentity = isRealClaudeCodeRequest
+        ? this._identityFromClientHeaders(clientHeaders)
+        : await this._resolveEmulationIdentity(accountId, {
+            requestClass: this._clientRequestClass(clientHeaders)
+          })
+      const processedBody = this._processRequestBody(
+        requestBody,
+        account,
+        isRealClaudeCodeRequest,
+        emulationIdentity,
+        { clientHeaders }
+      )
       // 🧹 内存优化：存储到 bodyStore，不放入 requestOptions 避免闭包捕获
       const originalBodyString = JSON.stringify(processedBody)
       const bodyStoreId = ++this._bodyStoreIdCounter
@@ -3086,7 +3609,8 @@ class ClaudeRelayService {
         {
           ...options,
           bodyStoreId,
-          isRealClaudeCodeRequest
+          isRealClaudeCodeRequest,
+          identity: emulationIdentity
         },
         isDedicatedOfficialAccount,
         // 📬 新增回调：在收到响应头时释放队列锁
@@ -3199,6 +3723,9 @@ class ClaudeRelayService {
       }
 
       const req = https.request(options, async (res) => {
+        // 🔗 记录上游 request-id，供同一会话下一轮 emulation 拼 cc_prev_req
+        this._recordUpstreamRequestId(body, res.headers['request-id'])
+
         logger.debug(`🌊 Claude stream response status: ${res.statusCode}`)
 
         // 错误响应处理
@@ -3258,28 +3785,23 @@ class ClaudeRelayService {
             }
 
             // 真正的限流处理
-            const resetHeader = res.headers
-              ? res.headers['anthropic-ratelimit-unified-reset']
-              : null
-            const parsedResetTimestamp = resetHeader ? parseInt(resetHeader, 10) : NaN
+            const limitWindow = this._classifyRateLimitWindow(res.headers)
+            const parsedResetTimestamp =
+              limitWindow.resetTimestamp === null ? NaN : limitWindow.resetTimestamp
             const hasUnifiedReset = !Number.isNaN(parsedResetTimestamp)
+            // 确证 5 小时窗口才降级；seven_day 与 unknown 保留周限额判定
+            const isOpusWeeklyLimit =
+              isOpusModelRequest && limitWindow.window !== 'five_hour' && hasUnifiedReset
 
             // 所有 429 都记录上游限流头与错误原文（专属账号分支此前不落日志，无法定位真实原因）
             logger.warn(
               `🚫 [Stream] Upstream 429 for account ${account?.name || accountId} (model: ${body?.model}, dedicated: ${isDedicatedOfficialAccount}): ${this._summarizeRateLimitHeaders(res.headers)} | body: ${(errorBody429 || '').slice(0, 500)}`
             )
 
-            if (isOpusModelRequest && !hasUnifiedReset) {
-              // 上游未返回 anthropic-ratelimit-unified-reset：不是订阅额度类限流，
-              // 不能断定为 Opus 周限额（与非流式分支保持一致）。不伪造 opus_weekly_limit，
-              // 落到下方透传分支，把上游真实 429 返回给客户端。
-              logger.warn(
-                `⚠️ [Stream] Opus request got 429 without unified reset header for account ${account?.name || accountId}; passing through upstream error instead of opus_weekly_limit`
-              )
-            } else if (isOpusModelRequest) {
+            if (isOpusWeeklyLimit) {
               await claudeAccountService.markAccountOpusRateLimited(accountId, parsedResetTimestamp)
               logger.warn(
-                `🚫 [Stream] Account ${accountId} hit Opus limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
+                `🚫 [Stream] Account ${accountId} hit Opus weekly limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
               )
 
               if (isDedicatedOfficialAccount) {
@@ -3298,7 +3820,19 @@ class ClaudeRelayService {
                 resolve()
                 return
               }
+            } else if (isOpusModelRequest && !hasUnifiedReset) {
+              // 上游未返回任何可用的 unified reset：不是订阅额度类限流，
+              // 不能断定为 Opus 周限额（与非流式分支保持一致）。不伪造 opus_weekly_limit，
+              // 落到下方透传分支，把上游真实 429 返回给客户端。
+              logger.warn(
+                `⚠️ [Stream] Opus request got 429 without unified reset header for account ${account?.name || accountId}; passing through upstream error instead of opus_weekly_limit`
+              )
             } else {
+              if (isOpusModelRequest) {
+                logger.warn(
+                  `⚠️ [Stream] Opus 429 for account ${account?.name || accountId} hit the 5-hour window, not the weekly one (claim=${limitWindow.claim || 'none'}, unified-reset=${limitWindow.unifiedReset}, 5h-reset=${limitWindow.reset5h}, 7d-reset=${limitWindow.reset7d}); marking short-term rate limit instead of weekly`
+                )
+              }
               const rateLimitResetTimestamp = Number.isNaN(parsedResetTimestamp)
                 ? null
                 : parsedResetTimestamp
@@ -4078,15 +4612,24 @@ class ClaudeRelayService {
 
           // 处理限流状态
           if (rateLimitDetected || res.statusCode === 429) {
-            const resetHeader = res.headers
-              ? res.headers['anthropic-ratelimit-unified-reset']
-              : null
-            const parsedResetTimestamp = resetHeader ? parseInt(resetHeader, 10) : NaN
+            const limitWindow = this._classifyRateLimitWindow(res.headers)
+            const parsedResetTimestamp =
+              limitWindow.resetTimestamp === null ? NaN : limitWindow.resetTimestamp
+            const isOpusWeeklyLimit =
+              isOpusModelRequest &&
+              limitWindow.window !== 'five_hour' &&
+              !Number.isNaN(parsedResetTimestamp)
 
-            if (isOpusModelRequest && !Number.isNaN(parsedResetTimestamp)) {
+            if (isOpusModelRequest && !isOpusWeeklyLimit) {
+              logger.warn(
+                `⚠️ [Stream] Opus rate limit for account ${account?.name || accountId} hit the 5-hour window, not the weekly one (claim=${limitWindow.claim || 'none'}, unified-reset=${limitWindow.unifiedReset}, 5h-reset=${limitWindow.reset5h}, 7d-reset=${limitWindow.reset7d}); marking short-term rate limit instead of weekly`
+              )
+            }
+
+            if (isOpusWeeklyLimit) {
               await claudeAccountService.markAccountOpusRateLimited(accountId, parsedResetTimestamp)
               logger.warn(
-                `🚫 [Stream] Account ${accountId} hit Opus limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
+                `🚫 [Stream] Account ${accountId} hit Opus weekly limit, resets at ${new Date(parsedResetTimestamp * 1000).toISOString()}`
               )
             } else {
               const rateLimitResetTimestamp = Number.isNaN(parsedResetTimestamp)

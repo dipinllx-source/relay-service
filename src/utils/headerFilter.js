@@ -75,6 +75,19 @@ function filterForClaude(headers, options = {}) {
     // 'x-app' — 不从客户端透传，下方强制注入 'cli'
     'anthropic-beta',
     'accept-language',
+    // === CLI 身份 / 行为遥测 header（真实 2.1.326 抓包确认，旧白名单全部丢弃）===
+    // 恒缺失是很突出的破绽：sandy-plover 是本轮实际调用过的工具名列表，
+    // prev-tool-durations 是上轮工具耗时，prompt-id 与 billing 的 cc_prompt_id 恒等。
+    'x-claude-1p-request-class',
+    'x-claude-code-prev-tool-durations',
+    'x-claude-code-prompt-id',
+    'x-claude-code-request-class',
+    'x-claude-code-sandy-plover',
+    'x-client-request-id',
+    // 会话 ID 允许透传：真实 CLI 的 x-claude-code-session-id 与 body 里
+    // metadata.user_id.session_id 恒等且整会话不变。调用方应在身份规范化之后
+    // 用 options.sessionId 覆盖为最终值（见下方注入逻辑），不要在此凭空生成。
+    'x-claude-code-session-id',
     // 注意：不透传 accept-encoding —— 由转发层统一设置为可解压的编码集合
     // （gzip/deflate/br/zstd，Node 22.15+/24 已内置 zstd，见 claudeRelayService 响应解压逻辑）
     'content-type',
@@ -97,8 +110,14 @@ function filterForClaude(headers, options = {}) {
   // 1. 强制设置 x-app: cli（CLI 特有标识）
   filtered['x-app'] = 'cli'
 
-  // 2. 注入 x-claude-code-session-id（CLI 每次会话生成一个 UUID）
-  filtered['x-claude-code-session-id'] = require('crypto').randomUUID()
+  // 2. x-claude-code-session-id：必须与 body 的 metadata.user_id.session_id 一致。
+  //    ⚠️ 这里曾经每请求 randomUUID()，造成 header 与 body 自相矛盾，且让上游看到
+  //    「每个请求都是一个只活一轮的新会话」。真实 CLI 两者恒等且整会话稳定。
+  //    现在只接受调用方显式传入的规范值（身份规范化之后的最终 session_id）；
+  //    未传入时保留客户端原值，绝不凭空生成。
+  if (options.sessionId) {
+    filtered['x-claude-code-session-id'] = options.sessionId
+  }
 
   // 3. 确保 anthropic-beta 包含完整的 Claude Code CLI beta flags
   const existingBeta = filtered['anthropic-beta'] || ''

@@ -3,7 +3,7 @@
  * 负责存储和管理不同账号使用的 Claude Code headers
  */
 
-const { DEFAULT_HEADERS } = require('../utils/claudeCodeIdentity')
+const { DEFAULT_HEADERS, parseEntrypoint } = require('../utils/claudeCodeIdentity')
 const redis = require('../models/redis')
 const logger = require('../utils/logger')
 const {
@@ -95,6 +95,41 @@ class ClaudeCodeHeadersService {
     })
 
     return headers
+  }
+
+  /**
+   * 判断一份抓包缓存是否构成「完整且自洽」的 CLI 身份，可用于伪装。
+   *
+   * 取代旧的「每个字段都必须与硬编码 defaultHeaders 逐字节相等」判据 —— 那个判据
+   * 与 storeAccountHeaders 的「只存更高版本」策略互斥：一旦真实 CLI 版本高于常量
+   * （2.1.285 → 2.1.326），缓存就永远被判为不可用，动态学习静默失效。
+   *
+   * 新判据只要求：UA 可解析出版本与 entrypoint，且 CLI header 集合齐全。
+   * 版本新旧由调用方用 compareVersions 与基线比较。
+   *
+   * @param {Object} headers 抓包缓存的 header 集合
+   * @returns {boolean}
+   */
+  isUsableIdentity(headers) {
+    if (!headers || typeof headers !== 'object') {
+      return false
+    }
+
+    const userAgent = headers['user-agent']
+    if (!userAgent || !/^claude-cli\/[\d.]+\s+\(/i.test(userAgent)) {
+      return false
+    }
+    if (!this.extractVersionFromUserAgent(userAgent)) {
+      return false
+    }
+    if (!parseEntrypoint(userAgent)) {
+      return false
+    }
+
+    return this.claudeCodeHeaderKeys.every((key) => {
+      const value = headers[key]
+      return value !== undefined && value !== null && String(value).trim() !== ''
+    })
   }
 
   /**

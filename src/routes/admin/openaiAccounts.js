@@ -15,6 +15,7 @@ const { authenticateAdmin } = require('../../middleware/auth')
 const logger = require('../../utils/logger')
 const ProxyHelper = require('../../utils/proxyHelper')
 const webhookNotifier = require('../../utils/webhookNotifier')
+const upstreamErrorHelper = require('../../utils/upstreamErrorHelper')
 const { formatAccountExpiry, mapExpiryField, pruneDanglingGroupRefs } = require('./utils')
 
 const router = express.Router()
@@ -514,91 +515,79 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Account not found' })
     }
 
-    // 如果更新了 Refresh Token，需要验证其有效性
+    // 🔐 更新 Refresh Token：**先校验后写入**。
+    //
+    // 旧实现是「临时写入新 token → refreshAccountToken → 失败回滚」，有三个问题：
+    //   ① 未验证的凭据短暂生效，窗口内业务请求可能取用它；
+    //   ② refreshAccountToken 内部抢 token_refresh_lock:openai:<id>，该锁不可重入，
+    //      外层想加锁保护整个流程会自锁；
+    //   ③ 回滚本身可能失败，留下半更新状态。
+    // 改为调用不写库、不抢账号锁的纯校验，成功后由下方 updateData **单次写入**。
+    let validatedTokens = null
     if (mappedUpdates.openaiOauth?.refreshToken && needsImmediateRefresh && requireRefreshSuccess) {
-      // 先更新 token 信息
-      const tempUpdateData = {}
-      if (mappedUpdates.openaiOauth.refreshToken) {
-        tempUpdateData.refreshToken = mappedUpdates.openaiOauth.refreshToken
+      // 代理：显式传入优先，否则沿用账号现有代理（出口 IP 变化可能影响后续刷新与业务请求）
+      let proxyForValidation =
+        mappedUpdates.proxy !== undefined ? mappedUpdates.proxy : currentAccount.proxy
+      if (typeof proxyForValidation === 'string') {
+        try {
+          proxyForValidation = JSON.parse(proxyForValidation)
+        } catch (e) {
+          proxyForValidation = null
+        }
       }
-      if (mappedUpdates.openaiOauth.accessToken) {
-        tempUpdateData.accessToken = mappedUpdates.openaiOauth.accessToken
-      }
-      // 更新代理配置（如果有）
-      if (mappedUpdates.proxy !== undefined) {
-        tempUpdateData.proxy = mappedUpdates.proxy
-      }
-
-      // 临时更新账户以测试新的 token
-      await openaiAccountService.updateAccount(id, tempUpdateData)
 
       try {
-        logger.info(`🔄 验证更新的 OpenAI token (账户: ${id})`)
+        logger.info(`🔐 校验新的 OpenAI Refresh Token（账户: ${id}，先校验后写入）`)
+        validatedTokens = await openaiAccountService.validateRefreshToken(
+          mappedUpdates.openaiOauth.refreshToken,
+          proxyForValidation
+        )
+      } catch (validationError) {
+        // 校验失败：账号凭据从未被改动，因此**不存在回滚**，响应也不得声称已回滚
+        logger.warn(`❌ OpenAI Token 校验失败，账号未改动: ${validationError.message}`)
 
-        // 尝试刷新 token（会使用账户配置的代理）
-        await openaiAccountService.refreshAccountToken(id)
-
-        // 获取刷新后的账户信息
-        const refreshedAccount = await openaiAccountService.getAccount(id)
-
-        // 检查是否获取到了 ID Token
-        if (!refreshedAccount.idToken || refreshedAccount.idToken === '') {
-          // 恢复原始 token
-          await openaiAccountService.updateAccount(id, {
-            refreshToken: currentAccount.refreshToken,
-            accessToken: currentAccount.accessToken,
-            idToken: currentAccount.idToken
-          })
-
-          return res.status(400).json({
-            success: false,
-            message: '无法获取 ID Token，请检查 Refresh Token 是否有效',
-            error: 'Invalid refresh token'
-          })
-        }
-
-        logger.success(`Token 验证成功，继续更新账户信息`)
-      } catch (refreshError) {
-        // 刷新失败，恢复原始 token
-        logger.warn(`❌ Token 验证失败，恢复原始配置: ${refreshError.message}`)
-        await openaiAccountService.updateAccount(id, {
-          refreshToken: currentAccount.refreshToken,
-          accessToken: currentAccount.accessToken,
-          idToken: currentAccount.idToken,
-          proxy: currentAccount.proxy
-        })
-
-        // 构建详细的错误信息
         const errorResponse = {
           success: false,
           message: '更新失败',
-          error: refreshError.message
+          error: validationError.message,
+          accountUnchanged: true
         }
 
-        // 添加更详细的错误信息
-        if (refreshError.status) {
-          errorResponse.errorCode = refreshError.status
+        if (validationError.status) {
+          errorResponse.errorCode = validationError.status
         }
-        if (refreshError.details) {
-          errorResponse.errorDetails = refreshError.details
+        if (validationError.details) {
+          errorResponse.errorDetails = validationError.details
         }
-        if (refreshError.code) {
-          errorResponse.networkError = refreshError.code
+        if (validationError.code) {
+          errorResponse.networkError = validationError.code
         }
 
-        // 提供更友好的错误提示
-        if (refreshError.message.includes('Refresh Token 无效')) {
+        if (validationError.message.includes('Refresh Token 无效')) {
           errorResponse.suggestion = '请检查 Refresh Token 是否正确，或重新通过 OAuth 授权获取'
-        } else if (refreshError.message.includes('代理')) {
+        } else if (validationError.message.includes('代理')) {
           errorResponse.suggestion = '请检查代理配置是否正确，包括地址、端口和认证信息'
-        } else if (refreshError.message.includes('过于频繁')) {
+        } else if (validationError.message.includes('过于频繁')) {
           errorResponse.suggestion = '请稍后再试，或更换代理 IP'
-        } else if (refreshError.message.includes('连接')) {
+        } else if (validationError.message.includes('连接')) {
           errorResponse.suggestion = '请检查网络连接和代理设置'
         }
 
         return res.status(400).json(errorResponse)
       }
+
+      if (!validatedTokens.id_token) {
+        // 账号未改动，但上游调用已成功、refresh token 可能已被轮换 → 引导重走授权
+        return res.status(400).json({
+          success: false,
+          message: '无法获取 ID Token，请检查 Refresh Token 是否有效',
+          error: 'Invalid refresh token',
+          accountUnchanged: true,
+          suggestion: '该 Refresh Token 可能已被消费，请重新通过 OAuth 授权获取'
+        })
+      }
+
+      logger.success('Token 校验成功，准备单次写入')
     }
 
     // 悬空 groupId 自动解绑（D3c）：绑定前剔除指向已不存在分组的引用，
@@ -649,6 +638,36 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
       }
     }
 
+    // 🔐 校验通过：写入的必须是**校验返回的** tokens，而不是请求体里的原始值。
+    // OpenAI 可能在校验那次调用中轮换了 refresh token，写原始值会存进一张已消费失效的票。
+    if (validatedTokens) {
+      updateData.accessToken = validatedTokens.access_token
+      updateData.idToken = validatedTokens.id_token
+      if (validatedTokens.refresh_token) {
+        updateData.refreshToken = validatedTokens.refresh_token
+      }
+      updateData.expiresAt = new Date(validatedTokens.expiry_date).toISOString()
+
+      // 同步 openaiOauth 快照，避免库里的 oauth blob 与实际凭据字段不一致
+      if (updateData.openaiOauth && typeof updateData.openaiOauth === 'object') {
+        updateData.openaiOauth = {
+          ...updateData.openaiOauth,
+          accessToken: validatedTokens.access_token,
+          idToken: validatedTokens.id_token,
+          refreshToken: validatedTokens.refresh_token || updateData.openaiOauth.refreshToken,
+          expires_in: validatedTokens.expires_in
+        }
+      }
+
+      // ✅ 状态一次性恢复：重新授权成功即代表账号可用，不要求调用方再发一次 reset-status，
+      // 避免「token 已新、账号仍 unauthorized / 不可调度」的中间态。
+      updateData.status = 'active'
+      updateData.schedulable = 'true'
+      updateData.errorMessage = null
+      // 有意不清 unauthorizedCount / unauthorizedAt：这两个字段全仓只写不读、不影响调度，
+      // 保留为「历史掉过几次授权」的运维信息。界面展示依据 status，不依据它们。
+    }
+
     // 更新账户信息
     if (mappedUpdates.accountInfo) {
       updateData.accountId = mappedUpdates.accountInfo.accountId || currentAccount.accountId
@@ -668,7 +687,29 @@ router.put('/:id', authenticateAdmin, async (req, res) => {
           : currentAccount.emailVerified
     }
 
-    const updatedAccount = await openaiAccountService.updateAccount(id, updateData)
+    let updatedAccount
+    try {
+      updatedAccount = await openaiAccountService.updateAccount(id, updateData)
+    } catch (writeError) {
+      // ⚠️ 校验那次调用可能已消费/轮换 refresh token，而写入失败 → 账号可能已无有效凭据。
+      // 此时 MUST NOT 谎称已回滚：旧值从未被写回，上游已消费的票也无法恢复。
+      if (validatedTokens) {
+        logger.error(`❌ OpenAI 凭据校验通过但写入失败（账户: ${id}）: ${writeError.message}`)
+        return res.status(500).json({
+          success: false,
+          message: '凭据校验已通过但保存失败',
+          error: writeError.message,
+          credentialRotated: true,
+          suggestion: '该 Refresh Token 可能已被消费，请重新通过 OAuth 授权获取'
+        })
+      }
+      throw writeError
+    }
+
+    // 清除临时不可用状态（与 resetAccountStatus 语义一致）；失败不致命，不影响凭据已生效
+    if (validatedTokens) {
+      await upstreamErrorHelper.clearTempUnavailable(id, 'openai').catch(() => {})
+    }
 
     // 如果需要刷新但不强制成功（非关键更新）
     if (needsImmediateRefresh && !requireRefreshSuccess) {

@@ -115,6 +115,34 @@ function buildCodexUsageSnapshot(accountData) {
   }
 }
 
+// 🔐 校验一张 refresh token 是否可用：**不写库、不抢账号刷新锁**。
+//
+// 复用下方已有的纯函数 refreshAccessToken(refreshToken, proxy)（它不读账号），
+// 供管理端「重新授权 / 更新 Token」走**先校验后写入**：
+//   旧路径是「临时写入新 token → refreshAccountToken → 失败回滚」，存在三个问题：
+//   ① 未验证的凭据会短暂生效，窗口内业务请求可能取用它；
+//   ② refreshAccountToken 内部要抢 token_refresh_lock:openai:<id>，而该锁不可重入，
+//      外层想加锁保护整个流程会自锁；
+//   ③ 回滚本身可能失败，留下半更新状态。
+//
+// ⚠️ 本函数是一次真实的 token 端点调用，OpenAI **可能轮换 refresh token**。
+// 调用方 MUST 持久化本函数返回的 tokens，而不是它自己传入的原始 refreshToken，
+// 否则可能把一张已被消费失效的票写进库。
+//
+// @returns {Promise<{access_token:string, id_token:string, refresh_token:string,
+//                    expires_in:number, expiry_date:number}>}
+// @throws Error 带 .status/.details（上游返回错误）或 .code（网络错误），账号未被改动
+async function validateRefreshToken(refreshToken, proxy = null) {
+  if (!refreshToken || !String(refreshToken).trim()) {
+    throw new Error('No refresh token available')
+  }
+  const tokens = await refreshAccessToken(String(refreshToken).trim(), proxy)
+  if (!tokens || !tokens.access_token) {
+    throw new Error('Failed to refresh token')
+  }
+  return tokens
+}
+
 // 刷新访问令牌
 async function refreshAccessToken(refreshToken, proxy = null) {
   try {
@@ -1466,6 +1494,7 @@ module.exports = {
   getAllAccounts,
   selectAvailableAccount,
   refreshAccountToken,
+  validateRefreshToken,
   isTokenExpired,
   setAccountRateLimited,
   markAccountUnauthorized,

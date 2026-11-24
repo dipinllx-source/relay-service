@@ -639,6 +639,15 @@
                                   : '已停用'
                           }}
                         </span>
+                        <button
+                          v-if="account.platform === 'openai' && account.status === 'unauthorized'"
+                          class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/50"
+                          title="重新授权以恢复该账号（保留历史用量）"
+                          @click="openOpenAIReauth(account)"
+                        >
+                          <i class="fas fa-key mr-1" />
+                          授权失效，点此重新授权
+                        </button>
                         <span
                           v-if="
                             (account.rateLimitStatus && account.rateLimitStatus.isRateLimited) ||
@@ -1242,6 +1251,15 @@
                     >
                       <i class="fas fa-clock" />
                       <span class="ml-1">定时</span>
+                    </button>
+                    <button
+                      v-if="canReauthOpenAI(account)"
+                      class="rounded bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-800/50"
+                      title="更新 Token / 重新授权（保留历史用量）"
+                      @click="openOpenAIReauth(account)"
+                    >
+                      <i class="fas fa-key" />
+                      <span class="ml-1">授权</span>
                     </button>
                     <button
                       class="btn-sm bg-blue-100 font-medium text-blue-700 transition-colors hover:bg-blue-200"
@@ -1914,7 +1932,17 @@
       v-else-if="showEditAccountModal"
       :account="editingAccount"
       @close="showEditAccountModal = false"
+      @request-reauth="handleRequestReauthFromEdit"
       @success="handleEditSuccess"
+    />
+
+    <!-- OpenAI 更新 Token / 重新授权（保留同一账号 id 与历史数据） -->
+    <OpenAIReauthModal
+      v-if="showOpenAIReauthModal && openAIReauthTarget"
+      :account="openAIReauthTarget"
+      :show="showOpenAIReauthModal"
+      @close="showOpenAIReauthModal = false"
+      @success="handleOpenAIReauthSuccess"
     />
 
     <!-- 确认弹窗 -->
@@ -2149,6 +2177,26 @@ import GroupManagementModal from '@/components/accounts/GroupManagementModal.vue
 import BalanceDisplay from '@/components/accounts/BalanceDisplay.vue'
 import ImageGenUsage from '@/components/accounts/ImageGenUsage.vue'
 import AccountBalanceScriptModal from '@/components/accounts/AccountBalanceScriptModal.vue'
+import OpenAIReauthModal from '@/components/accounts/OpenAIReauthModal.vue'
+
+// OpenAI 重新授权 / 更新 Token（保留同一账号 id 与历史数据）
+const showOpenAIReauthModal = ref(false)
+const openAIReauthTarget = ref(null)
+const canReauthOpenAI = (account) => !!account && account.platform === 'openai'
+const openOpenAIReauth = (account) => {
+  if (!canReauthOpenAI(account)) return
+  openAIReauthTarget.value = account
+  showOpenAIReauthModal.value = true
+}
+const handleOpenAIReauthSuccess = () => {
+  showToast('OpenAI 账号重新授权成功，历史用量已保留', 'success')
+}
+// 编辑表单内的「重新授权」快捷入口：关掉编辑弹窗，改开引导式重新授权弹窗
+const handleRequestReauthFromEdit = () => {
+  const target = editingAccount.value
+  showEditAccountModal.value = false
+  if (canReauthOpenAI(target)) openOpenAIReauth(target)
+}
 
 // 确认弹窗状态
 const showConfirmModal = ref(false)
@@ -2538,6 +2586,17 @@ const getAccountActions = (account) => {
       icon: 'fa-redo',
       color: 'orange',
       handler: () => resetAccountStatus(account)
+    })
+  }
+
+  // OpenAI 重新授权 / 更新 Token（保留同一账号 id 与历史数据）
+  if (canReauthOpenAI(account)) {
+    actions.push({
+      key: 'openai-reauth',
+      label: '更新 Token / 重新授权',
+      icon: 'fa-key',
+      color: 'green',
+      handler: () => openOpenAIReauth(account)
     })
   }
 

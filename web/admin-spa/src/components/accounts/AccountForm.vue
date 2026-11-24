@@ -4371,6 +4371,24 @@
                 </p>
               </div>
 
+              <!-- OpenAI：引导式重新授权入口（凭据写回本账号，历史用量与统计保留） -->
+              <div
+                v-if="isEdit && form.platform === 'openai'"
+                class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-700 dark:bg-emerald-900/30"
+              >
+                <p class="text-xs text-emerald-800 dark:text-emerald-300">
+                  拿不到新的 Token？用引导式重新授权走一遍
+                  OAuth，凭据会写回<strong>本账号</strong>，账号 ID 不变，历史用量与统计保留。
+                </p>
+                <button
+                  class="mt-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700"
+                  type="button"
+                  @click="emit('request-reauth')"
+                >
+                  <i class="fas fa-key mr-1" />重新授权（推荐）
+                </button>
+              </div>
+
               <div class="space-y-4">
                 <div>
                   <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -4535,7 +4553,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'success', 'platform-changed'])
+const emit = defineEmits(['close', 'success', 'platform-changed', 'request-reauth'])
 
 const accountsStore = useAccountsStore()
 
